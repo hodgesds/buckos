@@ -253,7 +253,7 @@ CMD ["buckos-web"]
 ```html
 <pre><code class="language-bash">
 # Install a package
-buckos-pkg install www-client/firefox
+buckos install www-client/firefox
 </code></pre>
 ```
 

@@ -17,7 +17,7 @@ use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 #[command(
-    name = "buckos-pkg",
+    name = "buckos",
     about = "Buckos Package Manager - A scalable Buck-based package manager (emerge-compatible)",
     version,
     author
@@ -1341,7 +1341,7 @@ async fn cmd_audit(pm: &PackageManager) -> buckos_package::Result<()> {
 
     println!(
         "\n>>> Run '{} install <package>' to update affected packages",
-        style("buckos-pkg").bold()
+        style("buckos").bold()
     );
 
     Ok(())

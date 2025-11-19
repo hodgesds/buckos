@@ -106,7 +106,7 @@ def buckos_package(
     """Define a buckos package for the package manager.
 
     This macro creates the necessary targets for a package that can be
-    managed by buckos-pkg. It generates:
+    managed by buckos. It generates:
     - Package metadata
     - Build target
     - Install target

@@ -14,7 +14,7 @@ filegroup(
     srcs = [
         "//buckos/model:buckos-model",
         "//buckos/package:buckos-package",
-        "//buckos/package:buckos-pkg",
+        "//buckos/package:buckos",
     ],
     visibility = ["PUBLIC"],
 )
