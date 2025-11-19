@@ -1,5 +1,5 @@
-# Platform definitions for sideros
-# Compatible with sideros-build buck definitions
+# Platform definitions for buckos
+# Compatible with buckos-build buck definitions
 
 load("@prelude//platforms:defs.bzl", "execution_platform", "host_configuration")
 

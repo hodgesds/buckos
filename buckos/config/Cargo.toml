@@ -1,0 +1,15 @@
+[package]
+name = "buckos-config"
+version = "0.0.1"
+edition = "2021"
+description = "System configuration crate for Buckos - inspired by Gentoo's make.conf and portage"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+thiserror = "1.0"
+glob = "0.3"
+regex = "1.10"
+tracing = "0.1"
+indexmap = { version = "2.0", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }

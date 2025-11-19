@@ -1,5 +1,5 @@
-# Toolchain definitions for sideros
-# Compatible with sideros-build buck definitions
+# Toolchain definitions for buckos
+# Compatible with buckos-build buck definitions
 
 load("@prelude//toolchains:rust.bzl", "system_rust_toolchain")
 

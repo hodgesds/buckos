@@ -1,0 +1,40 @@
+# Buck2 build definitions for buckos-model crate
+# Compatible with buckos-build buck definitions
+
+load("@prelude//rust:defs.bzl", "rust_library", "rust_test")
+
+# Third-party dependencies
+DEPS = [
+    "//third-party:chrono",
+    "//third-party:chrono-tz",
+    "//third-party:clap",
+    "//third-party:serde",
+    "//third-party:url",
+    "//third-party:uuid",
+]
+
+# Library crate for buckos-model
+rust_library(
+    name = "buckos-model",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "buckos_model",
+    edition = "2021",
+    deps = DEPS,
+    visibility = ["PUBLIC"],
+)
+
+# Unit tests
+rust_test(
+    name = "buckos-model-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "buckos_model",
+    edition = "2021",
+    deps = DEPS,
+)
+
+# Alias for common usage
+alias(
+    name = "model",
+    actual = ":buckos-model",
+    visibility = ["PUBLIC"],
+)

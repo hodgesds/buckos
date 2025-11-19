@@ -1,5 +1,5 @@
-# Buck2 configuration for sideros
-# Compatible with sideros-build buck definitions
+# Buck2 configuration for buckos
+# Compatible with buckos-build buck definitions
 
 [cells]
 root = .

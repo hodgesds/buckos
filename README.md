@@ -1,3 +1,3 @@
-# Sideros - Iron Works
-Sideros is a modern Linux distribution
+# Buckos - Iron Works
+Buckos is a modern Linux distribution
 

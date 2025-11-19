@@ -1,20 +1,20 @@
-# Root BUCK file for sideros project
-# Compatible with sideros-build buck definitions
+# Root BUCK file for buckos project
+# Compatible with buckos-build buck definitions
 
-# Export all sideros crates
+# Export all buckos crates
 export_file(
     name = "README.md",
     src = "README.md",
     visibility = ["PUBLIC"],
 )
 
-# Alias for building all sideros crates
+# Alias for building all buckos crates
 filegroup(
-    name = "sideros",
+    name = "buckos",
     srcs = [
-        "//sideros/model:sideros-model",
-        "//sideros/package:sideros-package",
-        "//sideros/package:sideros-pkg",
+        "//buckos/model:buckos-model",
+        "//buckos/package:buckos-package",
+        "//buckos/package:buckos-pkg",
     ],
     visibility = ["PUBLIC"],
 )

@@ -1,0 +1,104 @@
+# Buck2 build definitions for buckos-package crate
+# Compatible with buckos-build buck definitions
+
+load("@prelude//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+# Third-party dependencies - these should be provided by buckos-build
+# or configured in the project's third-party directory
+DEPS = [
+    "//third-party:anyhow",
+    "//third-party:async-trait",
+    "//third-party:blake3",
+    "//third-party:chrono",
+    "//third-party:clap",
+    "//third-party:console",
+    "//third-party:crossbeam-channel",
+    "//third-party:dialoguer",
+    "//third-party:dirs",
+    "//third-party:flate2",
+    "//third-party:futures",
+    "//third-party:hex",
+    "//third-party:indicatif",
+    "//third-party:parking_lot",
+    "//third-party:petgraph",
+    "//third-party:rayon",
+    "//third-party:reqwest",
+    "//third-party:rusqlite",
+    "//third-party:semver",
+    "//third-party:serde",
+    "//third-party:serde_json",
+    "//third-party:sha2",
+    "//third-party:tar",
+    "//third-party:tempfile",
+    "//third-party:thiserror",
+    "//third-party:tokio",
+    "//third-party:toml",
+    "//third-party:tracing",
+    "//third-party:tracing-subscriber",
+    "//third-party:url",
+    "//third-party:uuid",
+    "//third-party:varisat",
+    "//third-party:walkdir",
+    "//third-party:which",
+    "//third-party:xz2",
+    "//third-party:zstd",
+]
+
+# Internal workspace dependencies
+INTERNAL_DEPS = [
+    "//buckos/model:buckos-model",
+]
+
+# Library crate for buckos-package
+rust_library(
+    name = "buckos-package",
+    srcs = glob(["src/**/*.rs"], exclude = ["src/main.rs"]),
+    crate = "buckos_package",
+    edition = "2021",
+    deps = DEPS + INTERNAL_DEPS,
+    visibility = ["PUBLIC"],
+    features = [],
+)
+
+# Binary executable for buckos-pkg
+rust_binary(
+    name = "buckos-pkg",
+    srcs = ["src/main.rs"],
+    crate = "buckos_pkg",
+    edition = "2021",
+    deps = [
+        ":buckos-package",
+    ] + DEPS + INTERNAL_DEPS,
+    visibility = ["PUBLIC"],
+)
+
+# Unit tests
+rust_test(
+    name = "buckos-package-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "buckos_package",
+    edition = "2021",
+    deps = DEPS + INTERNAL_DEPS + [
+        "//third-party:tempfile",
+        "//third-party:tokio-test",
+    ],
+)
+
+# Integration tests (if tests directory exists)
+rust_test(
+    name = "buckos-package-integration",
+    srcs = glob(["tests/**/*.rs"]),
+    edition = "2021",
+    deps = [
+        ":buckos-package",
+        "//third-party:tempfile",
+        "//third-party:tokio-test",
+    ],
+)
+
+# Alias for common usage
+alias(
+    name = "package",
+    actual = ":buckos-package",
+    visibility = ["PUBLIC"],
+)
