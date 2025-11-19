@@ -22,6 +22,7 @@ serde_json = { version = "1.0.79", features = ["float_roundtrip", "unbounded_dep
 start = { package = "buckos-start", version = "0.0.1", path = "start" }
 tools = { package = "buckos-tools", version = "0.0.1", path = "tools" }
 web = { package = "buckos-web", version = "0.0.1", path = "web" }
+installer = { package = "buckos-installer", version = "0.0.1", path = "installer" }
 tar = "0.4.38"
 tempdir = "0.3"
 users = "0.11"

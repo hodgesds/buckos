@@ -1,0 +1,59 @@
+[package]
+name = "buckos-installer"
+version = "0.0.1"
+authors = ["Daniel Hodges <dsh@buckos.com>", "Buckos"]
+edition = "2021"
+description = "Graphical installer for Buckos - beginner-friendly system installation"
+repository = "https://github.com/hodgesds/buckos"
+license = "Apache-2.0"
+
+[[bin]]
+name = "buckos-installer"
+path = "src/main.rs"
+
+[dependencies]
+# GUI framework
+eframe = "0.31"
+egui = "0.31"
+egui_extras = { version = "0.31", features = ["all_loaders"] }
+
+# Core utilities
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# System information
+sysinfo = "0.30"
+nix = { version = "0.27", features = ["fs", "mount", "process", "user"] }
+libc = "0.2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI for manual mode
+clap = { version = "4.0", features = ["derive"] }
+
+# Progress and console
+indicatif = "0.17"
+console = "0.15"
+
+# File operations
+walkdir = "2.0"
+tempfile = "3.0"
+
+# Reuse buckos components
+config = { package = "buckos-config", version = "0.0.1", path = "../config" }
+package = { package = "buckos-package", version = "0.0.1", path = "../package" }
+
+[features]
+default = []
+# Feature for running in a live environment
+live-system = []
