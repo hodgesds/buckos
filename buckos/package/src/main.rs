@@ -871,17 +871,63 @@ async fn cmd_query(pm: &PackageManager, args: QueryArgs) -> buckos_package::Resu
                 println!("Package '{}' not found", package);
             }
         }
-        QueryType::Rdeps { package: _ } => {
-            println!("Reverse dependencies not yet implemented");
+        QueryType::Rdeps { package } => {
+            let rdeps = pm.get_reverse_dependencies(&package).await?;
+            if rdeps.is_empty() {
+                println!("No packages depend on '{}'", package);
+            } else {
+                println!("Packages that depend on {}:\n", package);
+                for rdep in rdeps {
+                    println!("  {}", rdep);
+                }
+            }
         }
     }
 
     Ok(())
 }
 
-async fn cmd_owner(_pm: &PackageManager, args: OwnerArgs) -> buckos_package::Result<()> {
-    println!("Searching for owner of: {}", args.path);
-    println!("File owner query not yet implemented");
+async fn cmd_owner(pm: &PackageManager, args: OwnerArgs) -> buckos_package::Result<()> {
+    println!(
+        "{} Searching for owner of: {}",
+        style(">>>").blue().bold(),
+        args.path
+    );
+
+    // First try exact match
+    if let Some(result) = pm.find_file_owner(&args.path).await? {
+        println!(
+            "\n{}/{} {} owns {}",
+            style(&result.package.category).cyan(),
+            style(&result.package.name).green().bold(),
+            style(format!("({})", result.version)).yellow(),
+            result.file_path
+        );
+        return Ok(());
+    }
+
+    // If no exact match, try pattern search
+    let results = pm.find_file_owners_by_pattern(&args.path).await?;
+
+    if results.is_empty() {
+        println!(
+            "{} No package owns '{}'",
+            style(">>>").yellow().bold(),
+            args.path
+        );
+    } else {
+        println!("\nFound {} matching file(s):\n", results.len());
+        for result in results {
+            println!(
+                "  {} {}/{} {}",
+                result.file_path,
+                style(&result.package.category).cyan(),
+                style(&result.package.name).green().bold(),
+                style(format!("({})", result.version)).yellow()
+            );
+        }
+    }
+
     Ok(())
 }
 
