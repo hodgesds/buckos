@@ -196,13 +196,64 @@ pub enum FileType {
     Fifo,
 }
 
+/// USE flag status for resolution display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UseFlagStatus {
+    pub name: String,
+    pub enabled: bool,
+}
+
+/// Extended package info for resolution display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedPackage {
+    pub id: PackageId,
+    pub version: semver::Version,
+    pub slot: String,
+    pub description: String,
+    pub use_flags: Vec<UseFlagStatus>,
+    pub dependencies: Vec<Dependency>,
+    pub size: u64,
+    pub installed_size: u64,
+    pub is_upgrade: bool,
+    pub is_rebuild: bool,
+    pub is_new: bool,
+    pub old_version: Option<semver::Version>,
+}
+
 /// Result of dependency resolution
 #[derive(Debug, Clone)]
 pub struct Resolution {
-    pub packages: Vec<PackageInfo>,
+    pub packages: Vec<ResolvedPackage>,
     pub build_order: Vec<usize>,
     pub download_size: u64,
     pub install_size: u64,
+}
+
+/// USE flag change for newuse detection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UseFlagChange {
+    pub flag: String,
+    pub added: bool,
+}
+
+/// Package with USE flag changes for newuse rebuild
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NewusePackage {
+    pub id: PackageId,
+    pub name: String,
+    pub version: semver::Version,
+    pub use_changes: Vec<UseFlagChange>,
+}
+
+/// Security vulnerability information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Vulnerability {
+    pub id: String,
+    pub title: String,
+    pub severity: String,
+    pub package: PackageId,
+    pub affected_versions: String,
+    pub fixed_version: Option<String>,
 }
 
 /// Result of a build operation

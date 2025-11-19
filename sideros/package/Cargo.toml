@@ -50,6 +50,7 @@ xz2 = "0.1"
 
 # CLI
 clap = { version = "4.4", features = ["derive", "env", "wrap_help"] }
+dialoguer = "0.11"
 
 # Logging
 tracing = "0.1"

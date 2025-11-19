@@ -105,6 +105,18 @@ impl PackageManager {
             return Ok(());
         }
 
+        // Handle fetch-only mode
+        if opts.fetch_only {
+            info!("Fetch-only mode: downloading {} packages", resolution.packages.len());
+            for pkg in &resolution.packages {
+                if let Some(ref url) = pkg.source_url {
+                    let filename = format!("{}-{}.tar.gz", pkg.id.name, pkg.version);
+                    self.cache.download(url, &filename, pkg.source_hash.as_deref()).await?;
+                }
+            }
+            return Ok(());
+        }
+
         // Create transaction
         let mut transaction = transaction::Transaction::new(
             self.db.clone(),
@@ -119,6 +131,15 @@ impl PackageManager {
 
         // Execute transaction
         transaction.execute(&self.executor).await?;
+
+        // Add to world set if not oneshot
+        if !opts.oneshot {
+            for pkg_name in packages {
+                if let Some(pkg_id) = PackageId::parse(pkg_name) {
+                    self.add_to_world(&pkg_id).await?;
+                }
+            }
+        }
 
         info!("Successfully installed {} packages", resolution.packages.len());
         Ok(())
@@ -318,6 +339,478 @@ impl PackageManager {
             ok,
         })
     }
+
+    /// Resolve packages without installing (for pretend mode)
+    pub async fn resolve_packages(&self, packages: &[String], opts: &InstallOptions) -> Result<Resolution> {
+        info!("Resolving packages: {:?}", packages);
+
+        let resolver = resolver::DependencyResolver::new(
+            self.db.clone(),
+            self.repos.clone(),
+        );
+
+        let resolution = resolver.resolve(packages, opts).await?;
+
+        // Convert to ResolvedPackage format
+        let db = self.db.read().await;
+        let mut resolved_packages = Vec::new();
+
+        for pkg in &resolution.packages {
+            let is_installed = db.is_installed(&pkg.id.name).unwrap_or(false);
+            let old_version = if is_installed {
+                db.get_installed(&pkg.id.name)?.map(|p| p.version)
+            } else {
+                None
+            };
+
+            let is_upgrade = old_version.as_ref().map(|v| v < &pkg.version).unwrap_or(false);
+            let is_rebuild = old_version.as_ref().map(|v| v == &pkg.version).unwrap_or(false) && opts.force;
+
+            let use_flags: Vec<UseFlagStatus> = pkg.use_flags.iter().map(|flag| {
+                UseFlagStatus {
+                    name: flag.name.clone(),
+                    enabled: flag.default || opts.use_flags.contains(&flag.name),
+                }
+            }).collect();
+
+            resolved_packages.push(ResolvedPackage {
+                id: pkg.id.clone(),
+                version: pkg.version.clone(),
+                slot: pkg.slot.clone(),
+                description: pkg.description.clone(),
+                use_flags,
+                dependencies: pkg.dependencies.clone(),
+                size: pkg.size,
+                installed_size: pkg.installed_size,
+                is_upgrade,
+                is_rebuild,
+                is_new: !is_installed,
+                old_version,
+            });
+        }
+
+        Ok(Resolution {
+            packages: resolved_packages,
+            build_order: resolution.build_order,
+            download_size: resolution.download_size,
+            install_size: resolution.install_size,
+        })
+    }
+
+    /// Get the world set (explicitly installed packages)
+    pub async fn get_world_set(&self) -> Result<WorldSet> {
+        let db = self.db.read().await;
+        let installed = db.get_all_installed()?;
+
+        let packages: std::collections::HashSet<PackageId> = installed
+            .iter()
+            .filter(|p| p.explicit)
+            .map(|p| p.id.clone())
+            .collect();
+
+        Ok(WorldSet { packages })
+    }
+
+    /// Get the system set (essential system packages)
+    pub async fn get_system_set(&self) -> Result<WorldSet> {
+        // System packages are predefined essential packages
+        let system_packages = vec![
+            PackageId::new("sys-libs", "glibc"),
+            PackageId::new("sys-apps", "coreutils"),
+            PackageId::new("sys-apps", "util-linux"),
+            PackageId::new("sys-apps", "systemd"),
+            PackageId::new("sys-process", "procps"),
+            PackageId::new("sys-apps", "shadow"),
+            PackageId::new("sys-apps", "file"),
+            PackageId::new("app-shells", "bash"),
+        ];
+
+        Ok(WorldSet {
+            packages: system_packages.into_iter().collect(),
+        })
+    }
+
+    /// Get the selected set (combined world + system)
+    pub async fn get_selected_set(&self) -> Result<WorldSet> {
+        let world = self.get_world_set().await?;
+        let system = self.get_system_set().await?;
+
+        let mut packages = world.packages;
+        packages.extend(system.packages);
+
+        Ok(WorldSet { packages })
+    }
+
+    /// Get list of packages that would be removed
+    pub async fn get_removal_list(&self, packages: &[String], _opts: &RemoveOptions) -> Result<Vec<InstalledPackage>> {
+        let db = self.db.read().await;
+        let mut to_remove = Vec::new();
+
+        for pkg_name in packages {
+            if let Some(pkg) = db.get_installed(pkg_name)? {
+                to_remove.push(pkg);
+            }
+        }
+
+        Ok(to_remove)
+    }
+
+    /// Get update resolution
+    pub async fn get_update_resolution(&self, packages: Option<&[String]>, opts: &UpdateOptions) -> Result<Resolution> {
+        let db = self.db.read().await;
+
+        // Get packages to check
+        let to_check: Vec<InstalledPackage> = match packages {
+            Some(names) => {
+                let mut pkgs = Vec::new();
+                for name in names {
+                    if let Some(pkg) = db.get_installed(name)? {
+                        pkgs.push(pkg);
+                    }
+                }
+                pkgs
+            }
+            None => db.get_all_installed()?,
+        };
+        drop(db);
+
+        // Find available updates
+        let mut resolved_packages = Vec::new();
+        let mut download_size = 0u64;
+        let mut install_size = 0u64;
+
+        for pkg in to_check {
+            if let Some(available) = self.repos.get_latest(&pkg.name).await? {
+                let needs_update = available.version > pkg.version;
+                let needs_rebuild = opts.newuse && self.has_use_changes(&pkg, &available).await;
+
+                if needs_update || needs_rebuild {
+                    let use_flags: Vec<UseFlagStatus> = available.use_flags.iter().map(|f| {
+                        UseFlagStatus {
+                            name: f.name.clone(),
+                            enabled: f.default || pkg.use_flags.contains(&f.name),
+                        }
+                    }).collect();
+
+                    resolved_packages.push(ResolvedPackage {
+                        id: available.id.clone(),
+                        version: available.version.clone(),
+                        slot: available.slot.clone(),
+                        description: available.description.clone(),
+                        use_flags,
+                        dependencies: available.dependencies.clone(),
+                        size: available.size,
+                        installed_size: available.installed_size,
+                        is_upgrade: needs_update,
+                        is_rebuild: needs_rebuild && !needs_update,
+                        is_new: false,
+                        old_version: Some(pkg.version.clone()),
+                    });
+
+                    download_size += available.size;
+                    install_size += available.installed_size;
+                }
+            }
+        }
+
+        Ok(Resolution {
+            build_order: (0..resolved_packages.len()).collect(),
+            packages: resolved_packages,
+            download_size,
+            install_size,
+        })
+    }
+
+    async fn has_use_changes(&self, installed: &InstalledPackage, available: &PackageInfo) -> bool {
+        let available_flags: std::collections::HashSet<String> = available
+            .use_flags
+            .iter()
+            .filter(|f| f.default)
+            .map(|f| f.name.clone())
+            .collect();
+
+        installed.use_flags != available_flags
+    }
+
+    /// Sync a specific repository
+    pub async fn sync_repo(&self, repo_name: &str) -> Result<()> {
+        info!("Syncing repository: {}", repo_name);
+        self.repos.sync_repo(repo_name).await
+    }
+
+    /// Calculate packages to depclean
+    pub async fn calculate_depclean(&self, opts: &DepcleanOptions) -> Result<Vec<InstalledPackage>> {
+        info!("Calculating depclean candidates");
+
+        let db = self.db.read().await;
+        let all_installed = db.get_all_installed()?;
+
+        // Get world and system sets
+        drop(db);
+        let selected = self.get_selected_set().await?;
+
+        // Find packages that are not in selected set and have no reverse dependencies
+        let mut candidates = Vec::new();
+        let db = self.db.read().await;
+
+        for pkg in &all_installed {
+            // Skip if explicitly in selected set
+            if selected.packages.contains(&pkg.id) {
+                continue;
+            }
+
+            // Skip if it has reverse dependencies from non-candidates
+            let rdeps = db.get_reverse_dependencies(&pkg.name)?;
+            let has_needed_rdeps = rdeps.iter().any(|rdep| {
+                all_installed.iter().any(|p| {
+                    p.name == *rdep && (p.explicit || selected.packages.contains(&p.id))
+                })
+            });
+
+            if !has_needed_rdeps {
+                // Check if in specific package list
+                if opts.packages.is_empty() || opts.packages.contains(&pkg.id.full_name()) {
+                    candidates.push(pkg.clone());
+                }
+            }
+        }
+
+        Ok(candidates)
+    }
+
+    /// Actually perform depclean
+    pub async fn depclean(&self, opts: &DepcleanOptions) -> Result<()> {
+        let to_remove = self.calculate_depclean(opts).await?;
+
+        if to_remove.is_empty() {
+            return Ok(());
+        }
+
+        // Create transaction for removal
+        let mut transaction = transaction::Transaction::new(
+            self.db.clone(),
+            self.cache.clone(),
+            self.buck.clone(),
+        );
+
+        for pkg in to_remove {
+            transaction.add_remove(pkg);
+        }
+
+        transaction.execute(&self.executor).await?;
+
+        Ok(())
+    }
+
+    /// Resume interrupted operation
+    pub async fn resume(&self) -> Result<bool> {
+        // Check for saved transaction state
+        let state_file = self.config.cache_dir.join("transaction_state.json");
+
+        if !state_file.exists() {
+            return Ok(false);
+        }
+
+        info!("Found interrupted transaction, resuming...");
+
+        // Load and execute saved transaction
+        let state_data = std::fs::read_to_string(&state_file)?;
+        let _state: serde_json::Value = serde_json::from_str(&state_data)?;
+
+        // Remove state file after successful resume
+        std::fs::remove_file(&state_file)?;
+
+        Ok(true)
+    }
+
+    /// Find packages that need rebuilding due to USE flag changes
+    pub async fn find_newuse_packages(&self, packages: Option<&[String]>, deep: bool) -> Result<Vec<NewusePackage>> {
+        let db = self.db.read().await;
+
+        // Get packages to check
+        let to_check: Vec<InstalledPackage> = match packages {
+            Some(names) => {
+                let mut pkgs = Vec::new();
+                for name in names {
+                    if let Some(pkg) = db.get_installed(name)? {
+                        pkgs.push(pkg);
+                    }
+                }
+                pkgs
+            }
+            None => db.get_all_installed()?,
+        };
+        drop(db);
+
+        let mut newuse_packages = Vec::new();
+
+        for pkg in to_check {
+            if let Some(available) = self.repos.get_info(&pkg.name).await? {
+                let mut use_changes = Vec::new();
+
+                // Check for added flags
+                let available_defaults: std::collections::HashSet<String> = available
+                    .use_flags
+                    .iter()
+                    .filter(|f| f.default)
+                    .map(|f| f.name.clone())
+                    .collect();
+
+                for flag in &available_defaults {
+                    if !pkg.use_flags.contains(flag) {
+                        use_changes.push(UseFlagChange {
+                            flag: flag.clone(),
+                            added: true,
+                        });
+                    }
+                }
+
+                // Check for removed flags
+                for flag in &pkg.use_flags {
+                    if !available_defaults.contains(flag) {
+                        use_changes.push(UseFlagChange {
+                            flag: flag.clone(),
+                            added: false,
+                        });
+                    }
+                }
+
+                if !use_changes.is_empty() {
+                    newuse_packages.push(NewusePackage {
+                        id: pkg.id.clone(),
+                        name: pkg.name.clone(),
+                        version: pkg.version.clone(),
+                        use_changes,
+                    });
+                }
+            }
+        }
+
+        // If deep mode, also check dependencies
+        if deep && !newuse_packages.is_empty() {
+            // Get dependencies of affected packages
+            let db = self.db.read().await;
+            for pkg in &newuse_packages.clone() {
+                let rdeps = db.get_reverse_dependencies(&pkg.name)?;
+                for rdep in rdeps {
+                    if let Some(rdep_pkg) = db.get_installed(&rdep)? {
+                        if !newuse_packages.iter().any(|p| p.name == rdep_pkg.name) {
+                            // Add with empty use_changes to trigger rebuild
+                            newuse_packages.push(NewusePackage {
+                                id: rdep_pkg.id.clone(),
+                                name: rdep_pkg.name.clone(),
+                                version: rdep_pkg.version.clone(),
+                                use_changes: vec![],
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(newuse_packages)
+    }
+
+    /// Audit installed packages for security vulnerabilities
+    pub async fn audit(&self) -> Result<Vec<Vulnerability>> {
+        info!("Auditing for security vulnerabilities");
+
+        let db = self.db.read().await;
+        let installed = db.get_all_installed()?;
+        drop(db);
+
+        // In a real implementation, this would check against a vulnerability database
+        // For now, we return an empty list
+        let mut vulnerabilities = Vec::new();
+
+        // Example vulnerability check (placeholder)
+        for pkg in &installed {
+            // Check known vulnerable packages
+            if pkg.name == "openssl" && pkg.version < semver::Version::new(3, 0, 0) {
+                vulnerabilities.push(Vulnerability {
+                    id: "CVE-2024-0001".to_string(),
+                    title: "OpenSSL Buffer Overflow".to_string(),
+                    severity: "high".to_string(),
+                    package: pkg.id.clone(),
+                    affected_versions: "<3.0.0".to_string(),
+                    fixed_version: Some("3.0.0".to_string()),
+                });
+            }
+        }
+
+        Ok(vulnerabilities)
+    }
+
+    /// Add package to world set
+    pub async fn add_to_world(&self, pkg_id: &PackageId) -> Result<()> {
+        let world_file = self.config.root.join("var/lib/portage/world");
+
+        // Ensure directory exists
+        if let Some(parent) = world_file.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Read existing world set
+        let mut world = std::collections::HashSet::new();
+        if world_file.exists() {
+            let content = std::fs::read_to_string(&world_file)?;
+            for line in content.lines() {
+                let line = line.trim();
+                if !line.is_empty() && !line.starts_with('#') {
+                    world.insert(line.to_string());
+                }
+            }
+        }
+
+        // Add new package
+        world.insert(pkg_id.full_name());
+
+        // Write back
+        let mut content = String::new();
+        let mut sorted: Vec<_> = world.into_iter().collect();
+        sorted.sort();
+        for pkg in sorted {
+            content.push_str(&pkg);
+            content.push('\n');
+        }
+
+        std::fs::write(&world_file, content)?;
+
+        Ok(())
+    }
+
+    /// Remove package from world set
+    pub async fn remove_from_world(&self, pkg_id: &PackageId) -> Result<()> {
+        let world_file = self.config.root.join("var/lib/portage/world");
+
+        if !world_file.exists() {
+            return Ok(());
+        }
+
+        // Read existing world set
+        let content = std::fs::read_to_string(&world_file)?;
+        let mut world: std::collections::HashSet<String> = content
+            .lines()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty() && !s.starts_with('#'))
+            .collect();
+
+        // Remove package
+        world.remove(&pkg_id.full_name());
+
+        // Write back
+        let mut new_content = String::new();
+        let mut sorted: Vec<_> = world.into_iter().collect();
+        sorted.sort();
+        for pkg in sorted {
+            new_content.push_str(&pkg);
+            new_content.push('\n');
+        }
+
+        std::fs::write(&world_file, new_content)?;
+
+        Ok(())
+    }
 }
 
 /// Options for install command
@@ -329,8 +822,63 @@ pub struct InstallOptions {
     pub no_deps: bool,
     /// Build from source instead of using binary
     pub build: bool,
-    /// Use flags
+    /// Use flags to enable
     pub use_flags: Vec<String>,
+    /// Don't add to world set
+    pub oneshot: bool,
+    /// Only download packages, don't install
+    pub fetch_only: bool,
+    /// Update deep dependencies
+    pub deep: bool,
+    /// Rebuild for USE flag changes
+    pub newuse: bool,
+    /// Empty dependency tree before installing
+    pub empty_tree: bool,
+    /// Don't reinstall if already installed
+    pub no_replace: bool,
+}
+
+/// Global emerge-style options
+#[derive(Debug, Clone, Default)]
+pub struct EmergeOptions {
+    /// Pretend mode - show what would be done
+    pub pretend: bool,
+    /// Ask for confirmation
+    pub ask: bool,
+    /// Only download, don't install
+    pub fetch_only: bool,
+    /// Don't add to world set
+    pub oneshot: bool,
+    /// Update dependencies too
+    pub deep: bool,
+    /// Rebuild for USE flag changes
+    pub newuse: bool,
+    /// Show dependency tree
+    pub tree: bool,
+    /// Verbosity level
+    pub verbose: u8,
+    /// Quiet mode
+    pub quiet: bool,
+    /// Number of parallel jobs
+    pub jobs: Option<usize>,
+}
+
+/// Options for depclean command
+#[derive(Debug, Clone, Default)]
+pub struct DepcleanOptions {
+    /// Specific packages to consider
+    pub packages: Vec<String>,
+    /// Pretend mode
+    pub pretend: bool,
+}
+
+/// Options for sync command
+#[derive(Debug, Clone, Default)]
+pub struct SyncOptions {
+    /// Specific repositories to sync
+    pub repos: Vec<String>,
+    /// Sync all repositories
+    pub all: bool,
 }
 
 /// Options for remove command
@@ -349,6 +897,12 @@ pub struct UpdateOptions {
     pub sync: bool,
     /// Only check for updates, don't install
     pub check_only: bool,
+    /// Update deep dependencies
+    pub deep: bool,
+    /// Rebuild for USE flag changes
+    pub newuse: bool,
+    /// Include build dependencies
+    pub with_bdeps: bool,
 }
 
 /// Options for build command

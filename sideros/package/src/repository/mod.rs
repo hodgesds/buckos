@@ -35,14 +35,23 @@ impl RepositoryManager {
     pub async fn sync_all(&self) -> Result<()> {
         for repo in &self.repos {
             if repo.auto_sync {
-                self.sync_repo(repo).await?;
+                self.sync_repo_config(repo).await?;
             }
         }
         Ok(())
     }
 
-    /// Sync a single repository
-    async fn sync_repo(&self, repo: &RepositoryConfig) -> Result<()> {
+    /// Sync a single repository by name
+    pub async fn sync_repo(&self, repo_name: &str) -> Result<()> {
+        let repo = self.repos.iter().find(|r| r.name == repo_name).ok_or_else(|| {
+            Error::RepositoryNotFound(repo_name.to_string())
+        })?;
+
+        self.sync_repo_config(repo).await
+    }
+
+    /// Sync a single repository by config
+    async fn sync_repo_config(&self, repo: &RepositoryConfig) -> Result<()> {
         info!("Syncing repository: {}", repo.name);
 
         match repo.sync_type {

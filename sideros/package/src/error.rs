@@ -121,3 +121,9 @@ impl From<anyhow::Error> for Error {
         Error::Other(err.to_string())
     }
 }
+
+impl From<dialoguer::Error> for Error {
+    fn from(err: dialoguer::Error) -> Self {
+        Error::Other(format!("User input error: {}", err))
+    }
+}
