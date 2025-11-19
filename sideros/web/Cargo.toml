@@ -3,11 +3,14 @@ name = "sideros-web"
 version = "0.0.1"
 authors = ["Daniel Hodges <dsh@sideros.com>", "Sideros"]
 edition = "2021"
-description = "Start"
+description = "Sideros website and documentation"
 readme = "../README.md"
 repository = "https://github.com/sideros/sideros"
 license = "Apache-2.0"
 
 [dependencies]
-axum = { version = "0.6.18" }
+axum = { version = "0.7" }
 tokio = { version = "1", features = ["full"] }
+askama = "0.12"
+askama_axum = "0.4"
+tower-http = { version = "0.5", features = ["fs"] }

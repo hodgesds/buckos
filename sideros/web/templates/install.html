@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Installation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Installation Guide</h1>
+</div>
+
+<section>
+    <h2>System Requirements</h2>
+    <ul>
+        <li><strong>Architecture:</strong> x86_64 (AMD64)</li>
+        <li><strong>RAM:</strong> Minimum 2GB, recommended 4GB+</li>
+        <li><strong>Storage:</strong> Minimum 20GB, recommended 50GB+</li>
+        <li><strong>Network:</strong> Internet connection for package downloads</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Prerequisites</h2>
+    <p>Before installing Sideros, ensure you have:</p>
+    <ul>
+        <li>A working Rust toolchain (rustup recommended)</li>
+        <li>Git for cloning the repository</li>
+        <li>Basic development tools (gcc, make, etc.)</li>
+    </ul>
+
+    <h3>Installing Rust</h3>
+    <pre><code>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env</code></pre>
+</section>
+
+<section>
+    <h2>Building from Source</h2>
+
+    <h3>1. Clone the Repository</h3>
+    <pre><code>git clone https://github.com/sideros/sideros.git
+cd sideros</code></pre>
+
+    <h3>2. Build the Project</h3>
+    <pre><code># Build all components
+cargo build --release
+
+# Or build specific components
+cargo build --release -p sideros-package
+cargo build --release -p sideros-start</code></pre>
+
+    <h3>3. Install Binaries</h3>
+    <pre><code># Install to ~/.cargo/bin (ensure it's in your PATH)
+cargo install --path sideros/package
+cargo install --path sideros/start</code></pre>
+</section>
+
+<section>
+    <h2>Package Manager Usage</h2>
+
+    <h3>Basic Commands</h3>
+    <pre><code># Search for packages
+sideros-package search firefox
+
+# Install a package
+sideros-package emerge www-client/firefox
+
+# Update system
+sideros-package emerge --update --deep @world
+
+# Remove a package
+sideros-package unmerge www-client/firefox</code></pre>
+
+    <h3>USE Flags</h3>
+    <p>Configure package features using USE flags in <code>/etc/sideros/make.conf</code>:</p>
+    <pre><code># Global USE flags
+USE="X gtk wayland -systemd"
+
+# Package-specific USE flags
+# In /etc/sideros/package.use/custom
+www-client/firefox wayland screencast</code></pre>
+</section>
+
+<section>
+    <h2>Configuration</h2>
+
+    <h3>Main Configuration Files</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>File</th>
+                <th>Purpose</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>/etc/sideros/make.conf</code></td>
+                <td>Main system configuration (USE flags, CFLAGS, etc.)</td>
+            </tr>
+            <tr>
+                <td><code>/etc/sideros/package.use/</code></td>
+                <td>Per-package USE flag settings</td>
+            </tr>
+            <tr>
+                <td><code>/etc/sideros/package.mask/</code></td>
+                <td>Masked (blocked) packages</td>
+            </tr>
+            <tr>
+                <td><code>/etc/sideros/package.accept_keywords/</code></td>
+                <td>Keyword acceptance for testing packages</td>
+            </tr>
+            <tr>
+                <td><code>/var/db/sideros/</code></td>
+                <td>Package database and installed package info</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Init System (start)</h2>
+    <p>Sideros uses the <code>start</code> daemon as its init system:</p>
+
+    <h3>Service Management</h3>
+    <pre><code># Start a service
+start-rc start nginx
+
+# Stop a service
+start-rc stop nginx
+
+# Enable service at boot
+start-rc enable nginx
+
+# Check service status
+start-rc status nginx</code></pre>
+</section>
+
+<section>
+    <h2>Troubleshooting</h2>
+
+    <h3>Common Issues</h3>
+    <ul>
+        <li><strong>Build failures:</strong> Ensure all dependencies are installed and Rust is up to date</li>
+        <li><strong>Missing libraries:</strong> Install development packages for required libraries</li>
+        <li><strong>Permission errors:</strong> Some operations require root privileges</li>
+    </ul>
+
+    <h3>Getting Help</h3>
+    <p>If you encounter issues:</p>
+    <ul>
+        <li>Check the <a href="/wiki">wiki</a> for detailed documentation</li>
+        <li>Search existing <a href="https://github.com/sideros/sideros/issues">GitHub issues</a></li>
+        <li>Open a new issue with detailed error information</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Next Steps</h2>
+    <p>After installation:</p>
+    <ul>
+        <li>Configure your <code>make.conf</code> for optimal performance</li>
+        <li>Set up your preferred USE flags</li>
+        <li>Install additional packages as needed</li>
+        <li>Explore the <a href="/wiki">wiki</a> for advanced configuration</li>
+    </ul>
+</section>
+{% endblock %}

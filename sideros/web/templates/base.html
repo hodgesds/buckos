@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sideros{% endblock %} - Modern Linux Distribution</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="/" class="logo">Sideros<span>OS</span></a>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/install">Installation</a></li>
+                <li><a href="/wiki">Wiki</a></li>
+                <li><a href="/about">About</a></li>
+                <li><a href="https://github.com/sideros/sideros">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Sideros Project. Licensed under <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>.</p>
+        <p>
+            <a href="https://github.com/sideros/sideros">GitHub</a> |
+            <a href="/wiki">Documentation</a> |
+            <a href="/about">About</a>
+        </p>
+    </footer>
+</body>
+</html>

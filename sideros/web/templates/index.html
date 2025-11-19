@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>Sideros - Iron Works</h1>
+    <p>A modern Linux distribution built from the ground up in Rust. Fast, secure, and designed for the future.</p>
+</div>
+
+<div class="card-grid">
+    <div class="card">
+        <h3>Modern Architecture</h3>
+        <p>Built entirely in Rust for memory safety, performance, and reliability. No legacy code, just clean modern systems programming.</p>
+    </div>
+    <div class="card">
+        <h3>Powerful Package Manager</h3>
+        <p>Inspired by Gentoo's Portage, our package manager offers fine-grained control over your system with USE flags, slots, and advanced dependency resolution.</p>
+    </div>
+    <div class="card">
+        <h3>Custom Init System</h3>
+        <p>The <code>start</code> daemon provides a lightweight, fast init system designed specifically for Sideros.</p>
+    </div>
+</div>
+
+<section>
+    <h2>Key Features</h2>
+    <div class="feature-list">
+        <div class="feature-item">
+            <strong>Source-Based</strong><br>
+            Compile packages optimized for your hardware
+        </div>
+        <div class="feature-item">
+            <strong>USE Flags</strong><br>
+            Fine-grained control over package features
+        </div>
+        <div class="feature-item">
+            <strong>Slots</strong><br>
+            Multiple versions of packages side-by-side
+        </div>
+        <div class="feature-item">
+            <strong>Memory Safe</strong><br>
+            Rust's guarantees throughout the system
+        </div>
+        <div class="feature-item">
+            <strong>Fast</strong><br>
+            Optimized for performance at every level
+        </div>
+        <div class="feature-item">
+            <strong>Hackable</strong><br>
+            Clean codebase designed for contribution
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>Getting Started</h2>
+    <p>Ready to try Sideros? Check out our <a href="/install">installation guide</a> to get started, or browse the <a href="/wiki">wiki</a> for detailed documentation.</p>
+    <p>
+        <a href="/install" class="btn">Installation Guide</a>
+        <a href="/wiki" class="btn btn-outline">Browse Wiki</a>
+    </p>
+</section>
+
+<section>
+    <h2>Core Components</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Component</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>sideros-package</strong></td>
+                <td>Package manager with emerge-equivalent functionality</td>
+            </tr>
+            <tr>
+                <td><strong>sideros-start</strong></td>
+                <td>Init system and service manager (PID 1)</td>
+            </tr>
+            <tr>
+                <td><strong>sideros-config</strong></td>
+                <td>System configuration management</td>
+            </tr>
+            <tr>
+                <td><strong>sideros-model</strong></td>
+                <td>Package specifications and data models</td>
+            </tr>
+            <tr>
+                <td><strong>sideros-assist</strong></td>
+                <td>Help system and user assistance</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+{% endblock %}
