@@ -1,0 +1,12 @@
+/home/daniel/git/sideros/sideros/target/debug/deps/xattr-e082e1b5c035ccff.rmeta: /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/lib.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/error.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/mod.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/util.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/mod.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/linux.rs
+
+/home/daniel/git/sideros/sideros/target/debug/deps/libxattr-e082e1b5c035ccff.rlib: /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/lib.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/error.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/mod.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/util.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/mod.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/linux.rs
+
+/home/daniel/git/sideros/sideros/target/debug/deps/xattr-e082e1b5c035ccff.d: /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/lib.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/error.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/mod.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/util.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/mod.rs /home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/linux.rs
+
+/home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/lib.rs:
+/home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/error.rs:
+/home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/mod.rs:
+/home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/util.rs:
+/home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/mod.rs:
+/home/daniel/.cargo/registry/src/github.com-1ecc6299db9ec823/xattr-0.2.3/src/sys/linux_macos/linux.rs:

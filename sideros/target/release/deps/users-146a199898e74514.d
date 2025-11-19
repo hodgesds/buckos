@@ -1,0 +1,12 @@
+/home/daniel/git/buck-linux/sideros/target/release/deps/libusers-146a199898e74514.rmeta: /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/lib.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/base.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/cache.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/mock.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/switch.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/traits.rs
+
+/home/daniel/git/buck-linux/sideros/target/release/deps/libusers-146a199898e74514.rlib: /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/lib.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/base.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/cache.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/mock.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/switch.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/traits.rs
+
+/home/daniel/git/buck-linux/sideros/target/release/deps/users-146a199898e74514.d: /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/lib.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/base.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/cache.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/mock.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/switch.rs /home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/traits.rs
+
+/home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/lib.rs:
+/home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/base.rs:
+/home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/cache.rs:
+/home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/mock.rs:
+/home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/switch.rs:
+/home/daniel/.cargo/registry/src/index.crates.io-6f17d22bba15001f/users-0.11.0/src/traits.rs:

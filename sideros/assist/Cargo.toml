@@ -1,0 +1,9 @@
+[package]
+name = "sideros-assist"
+version = "0.0.1"
+authors = ["Daniel Hodges <dsh@sideros.com>", "Sideros"]
+edition = "2021"
+description = "Help"
+readme = "README.md"
+repository = "https://github.com/sideros/sideros"
+license = "Apache-2.0"
