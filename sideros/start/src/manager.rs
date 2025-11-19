@@ -2,6 +2,7 @@
 
 use crate::error::{Error, Result};
 use crate::journal::Journal;
+use crate::loaders::LoaderRegistry;
 use crate::process::{ExitStatus, ProcessSupervisor};
 use crate::service::{
     HealthStatus, RestartPolicy, ServiceDefinition, ServiceInstance, ServiceState, ServiceStatus,
@@ -59,6 +60,8 @@ pub struct ServiceManager {
     boot_timings: Arc<RwLock<Vec<BootTiming>>>,
     /// System boot start time
     boot_start: Instant,
+    /// Loader registry for different config formats
+    loader_registry: LoaderRegistry,
 }
 
 impl ServiceManager {
@@ -76,6 +79,7 @@ impl ServiceManager {
             journal: Arc::new(Journal::new(log_dir)),
             boot_timings: Arc::new(RwLock::new(Vec::new())),
             boot_start: Instant::now(),
+            loader_registry: LoaderRegistry::new(),
         }
     }
 
@@ -85,6 +89,10 @@ impl ServiceManager {
     }
 
     /// Load all service definitions from the services directory.
+    ///
+    /// Supports multiple configuration formats:
+    /// - `.toml` - Native sideros format
+    /// - `.service` - systemd unit files
     pub async fn load_services(&self) -> Result<()> {
         if !self.services_dir.exists() {
             info!(dir = ?self.services_dir, "Services directory doesn't exist, creating");
@@ -98,10 +106,21 @@ impl ServiceManager {
             let entry = entry?;
             let path = entry.path();
 
-            if path.extension().and_then(|s| s.to_str()) == Some("toml") {
-                match ServiceDefinition::from_file(&path) {
+            // Check if the file extension is supported by any loader
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+            if self.loader_registry.find_loader(ext).is_some() {
+                match self.loader_registry.load(&path) {
                     Ok(def) => {
-                        info!(service = %def.name, "Loaded service definition");
+                        let loader_name = self.loader_registry
+                            .find_loader(ext)
+                            .map(|l| l.name())
+                            .unwrap_or("unknown");
+                        info!(
+                            service = %def.name,
+                            format = loader_name,
+                            "Loaded service definition"
+                        );
                         self.register_service(def).await?;
                     }
                     Err(e) => {
@@ -112,6 +131,11 @@ impl ServiceManager {
         }
 
         Ok(())
+    }
+
+    /// Get supported file extensions for service configurations.
+    pub fn supported_extensions(&self) -> Vec<&'static str> {
+        self.loader_registry.supported_extensions()
     }
 
     /// Register a service definition.
@@ -890,6 +914,7 @@ impl ServiceManager {
             journal: Arc::clone(&self.journal),
             boot_timings: Arc::clone(&self.boot_timings),
             boot_start: self.boot_start,
+            loader_registry: LoaderRegistry::new(),
         }
     }
 
