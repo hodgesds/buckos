@@ -420,3 +420,247 @@ impl UseConfig {
         flags
     }
 }
+
+// ============================================================================
+// Buck2 Integration Types
+// ============================================================================
+
+/// Buck2 target reference
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct BuckTarget {
+    /// Cell name (empty for root cell)
+    pub cell: String,
+    /// Path within the cell
+    pub path: String,
+    /// Target name within the BUCK file
+    pub name: String,
+}
+
+impl BuckTarget {
+    /// Create a new Buck target
+    pub fn new(path: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            cell: String::new(),
+            path: path.into(),
+            name: name.into(),
+        }
+    }
+
+    /// Create a target in a specific cell
+    pub fn in_cell(cell: impl Into<String>, path: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            cell: cell.into(),
+            path: path.into(),
+            name: name.into(),
+        }
+    }
+
+    /// Parse a Buck target string (e.g., "//packages/sys-libs/glibc:package")
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+
+        // Handle cell prefix (e.g., "cell//path:name")
+        let (cell, rest) = if let Some(idx) = s.find("//") {
+            if idx > 0 {
+                (s[..idx].to_string(), &s[idx + 2..])
+            } else {
+                (String::new(), &s[2..])
+            }
+        } else {
+            return None;
+        };
+
+        // Split path and name
+        let (path, name) = if let Some(idx) = rest.rfind(':') {
+            (rest[..idx].to_string(), rest[idx + 1..].to_string())
+        } else {
+            // Default name is the last path component
+            let path = rest.to_string();
+            let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+            (path, name)
+        };
+
+        Some(Self { cell, path, name })
+    }
+
+    /// Convert to Buck target string
+    pub fn to_string(&self) -> String {
+        if self.cell.is_empty() {
+            format!("//{}:{}", self.path, self.name)
+        } else {
+            format!("{}//{}:{}", self.cell, self.path, self.name)
+        }
+    }
+
+    /// Create a target for a sideros package
+    pub fn for_package(category: &str, name: &str) -> Self {
+        Self {
+            cell: String::new(),
+            path: format!("packages/{}/{}", category, name),
+            name: "package".to_string(),
+        }
+    }
+
+    /// Create a target for the package library
+    pub fn for_package_lib(category: &str, name: &str) -> Self {
+        Self {
+            cell: String::new(),
+            path: format!("packages/{}/{}", category, name),
+            name: name.to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for BuckTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+impl From<&PackageId> for BuckTarget {
+    fn from(pkg_id: &PackageId) -> Self {
+        BuckTarget::for_package(&pkg_id.category, &pkg_id.name)
+    }
+}
+
+/// Buck build mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BuckBuildMode {
+    Debug,
+    Release,
+    Profile,
+}
+
+impl Default for BuckBuildMode {
+    fn default() -> Self {
+        BuckBuildMode::Release
+    }
+}
+
+impl std::fmt::Display for BuckBuildMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuckBuildMode::Debug => write!(f, "debug"),
+            BuckBuildMode::Release => write!(f, "release"),
+            BuckBuildMode::Profile => write!(f, "profile"),
+        }
+    }
+}
+
+/// Buck configuration for builds
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuckConfig {
+    /// Path to Buck2 executable
+    pub buck_path: std::path::PathBuf,
+    /// Path to Buck targets repository
+    pub repo_path: std::path::PathBuf,
+    /// Build output directory
+    pub output_dir: std::path::PathBuf,
+    /// Number of parallel jobs
+    pub jobs: usize,
+    /// Build mode
+    pub mode: BuckBuildMode,
+    /// Additional Buck2 arguments
+    pub extra_args: Vec<String>,
+    /// Environment variables for Buck
+    pub env: std::collections::HashMap<String, String>,
+}
+
+impl Default for BuckConfig {
+    fn default() -> Self {
+        Self {
+            buck_path: std::path::PathBuf::from("/usr/bin/buck2"),
+            repo_path: std::path::PathBuf::from("/var/db/repos/sideros"),
+            output_dir: std::path::PathBuf::from("/var/cache/sideros/buck-out"),
+            jobs: num_cpus::get(),
+            mode: BuckBuildMode::Release,
+            extra_args: Vec::new(),
+            env: std::collections::HashMap::new(),
+        }
+    }
+}
+
+/// Buck query result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuckQueryResult {
+    /// List of matching targets
+    pub targets: Vec<BuckTarget>,
+    /// Target attributes (if requested)
+    pub attributes: std::collections::HashMap<String, serde_json::Value>,
+}
+
+/// Package build metadata for Buck
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageBuildMeta {
+    /// Package identifier
+    pub id: PackageId,
+    /// Package version
+    pub version: semver::Version,
+    /// Buck target for this package
+    pub buck_target: BuckTarget,
+    /// Source files
+    pub srcs: Vec<String>,
+    /// Dependencies (as Buck targets)
+    pub deps: Vec<BuckTarget>,
+    /// Build dependencies
+    pub build_deps: Vec<BuckTarget>,
+    /// Runtime dependencies
+    pub runtime_deps: Vec<BuckTarget>,
+    /// Features/USE flags to enable
+    pub features: HashSet<String>,
+    /// Output artifacts
+    pub outputs: Vec<String>,
+}
+
+impl PackageBuildMeta {
+    /// Create build metadata from a PackageInfo
+    pub fn from_package_info(info: &PackageInfo) -> Self {
+        let buck_target = if info.buck_target.is_empty() {
+            BuckTarget::from(&info.id)
+        } else {
+            BuckTarget::parse(&info.buck_target).unwrap_or_else(|| BuckTarget::from(&info.id))
+        };
+
+        let deps: Vec<BuckTarget> = info.dependencies
+            .iter()
+            .map(|d| BuckTarget::from(&d.package))
+            .collect();
+
+        let build_deps: Vec<BuckTarget> = info.build_dependencies
+            .iter()
+            .map(|d| BuckTarget::from(&d.package))
+            .collect();
+
+        let runtime_deps: Vec<BuckTarget> = info.runtime_dependencies
+            .iter()
+            .map(|d| BuckTarget::from(&d.package))
+            .collect();
+
+        let features: HashSet<String> = info.use_flags
+            .iter()
+            .filter(|f| f.default)
+            .map(|f| f.name.clone())
+            .collect();
+
+        Self {
+            id: info.id.clone(),
+            version: info.version.clone(),
+            buck_target,
+            srcs: Vec::new(),
+            deps,
+            build_deps,
+            runtime_deps,
+            features,
+            outputs: Vec::new(),
+        }
+    }
+}
+
+/// Helper function to get the number of CPUs (fallback implementation)
+mod num_cpus {
+    pub fn get() -> usize {
+        std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(4)
+    }
+}

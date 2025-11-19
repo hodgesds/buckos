@@ -1,0 +1,18 @@
+# Toolchain definitions for sideros
+# Compatible with sideros-build buck definitions
+
+load("@prelude//toolchains:rust.bzl", "system_rust_toolchain")
+
+# Use system Rust toolchain
+system_rust_toolchain(
+    name = "rust",
+    default_edition = "2021",
+    visibility = ["PUBLIC"],
+)
+
+# Export toolchain
+toolchain_alias(
+    name = "rust_toolchain",
+    actual = ":rust",
+    visibility = ["PUBLIC"],
+)

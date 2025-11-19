@@ -354,3 +354,34 @@ pub fn target_to_package(target: &str) -> Option<(String, String)> {
         None
     }
 }
+
+/// Convert package ID to Buck target using BuckTarget type
+pub fn package_id_to_target(pkg_id: &crate::PackageId) -> crate::BuckTarget {
+    crate::BuckTarget::for_package(&pkg_id.category, &pkg_id.name)
+}
+
+/// Parse Buck target string to package ID
+pub fn target_string_to_package_id(target: &str) -> Option<crate::PackageId> {
+    let (category, name) = target_to_package(target)?;
+    Some(crate::PackageId::new(category, name))
+}
+
+/// Generate Buck target for package metadata
+pub fn package_metadata_target(category: &str, name: &str) -> String {
+    format!("//packages/{}/{}:metadata", category, name)
+}
+
+/// Generate Buck target for package install script
+pub fn package_install_target(category: &str, name: &str) -> String {
+    format!("//packages/{}/{}:install", category, name)
+}
+
+/// Get all targets for a package (useful for sideros-build)
+pub fn package_all_targets(category: &str, name: &str) -> Vec<String> {
+    vec![
+        package_to_target(category, name),
+        package_metadata_target(category, name),
+        package_install_target(category, name),
+        format!("//packages/{}/{}:{}", category, name, name), // library target
+    ]
+}

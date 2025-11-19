@@ -1,0 +1,12 @@
+# Platform definitions for sideros
+# Compatible with sideros-build buck definitions
+
+load("@prelude//platforms:defs.bzl", "execution_platform", "host_configuration")
+
+# Default execution platform
+execution_platform(
+    name = "default",
+    cpu_configuration = host_configuration.cpu,
+    os_configuration = host_configuration.os,
+    visibility = ["PUBLIC"],
+)
