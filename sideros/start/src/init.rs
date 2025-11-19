@@ -83,8 +83,8 @@ impl Init {
         // Load service definitions
         self.manager.load_services().await?;
 
-        // Start enabled services
-        self.manager.start_enabled_services().await?;
+        // Start enabled services in parallel for faster boot
+        self.manager.start_enabled_services_parallel().await?;
 
         // Run the main event loop
         self.event_loop().await?;

@@ -25,6 +25,14 @@ pub enum Error {
     #[error("Service failed to stop: {name}: {reason}")]
     ServiceStopFailed { name: String, reason: String },
 
+    /// Service failed to reload
+    #[error("Service failed to reload: {name}: {reason}")]
+    ServiceReloadFailed { name: String, reason: String },
+
+    /// Service is masked
+    #[error("Service is masked: {0}")]
+    ServiceMasked(String),
+
     /// Service dependency error
     #[error("Service dependency error: {service} depends on {dependency}: {reason}")]
     DependencyError {
@@ -72,6 +80,34 @@ pub enum Error {
     /// Not running as PID 1
     #[error("Not running as PID 1 (current PID: {0})")]
     NotPid1(u32),
+
+    /// Health check failed
+    #[error("Health check failed for {name}: {reason}")]
+    HealthCheckFailed { name: String, reason: String },
+
+    /// Watchdog timeout
+    #[error("Watchdog timeout for service: {0}")]
+    WatchdogTimeout(String),
+
+    /// Socket activation error
+    #[error("Socket activation error for {name}: {reason}")]
+    SocketActivationError { name: String, reason: String },
+
+    /// Timer error
+    #[error("Timer error for {name}: {reason}")]
+    TimerError { name: String, reason: String },
+
+    /// Template instantiation error
+    #[error("Failed to instantiate template {template} with instance {instance}: {reason}")]
+    TemplateError {
+        template: String,
+        instance: String,
+        reason: String,
+    },
+
+    /// Resource limit error
+    #[error("Failed to set resource limits: {0}")]
+    ResourceLimitError(String),
 
     /// IO error
     #[error("IO error: {0}")]

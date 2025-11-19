@@ -7,6 +7,218 @@ use std::path::PathBuf;
 use std::time::Duration;
 use uuid::Uuid;
 
+/// Health check configuration for a service.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthCheck {
+    /// Command to run for health check
+    pub exec: String,
+    /// Interval between health checks
+    #[serde(default = "default_health_interval")]
+    #[serde(with = "humantime_serde")]
+    pub interval: Duration,
+    /// Timeout for health check command
+    #[serde(default = "default_health_timeout")]
+    #[serde(with = "humantime_serde")]
+    pub timeout: Duration,
+    /// Number of consecutive failures before marking unhealthy
+    #[serde(default = "default_health_retries")]
+    pub retries: u32,
+    /// Initial delay before starting health checks
+    #[serde(default = "default_health_start_period")]
+    #[serde(with = "humantime_serde")]
+    pub start_period: Duration,
+}
+
+fn default_health_interval() -> Duration {
+    Duration::from_secs(30)
+}
+
+fn default_health_timeout() -> Duration {
+    Duration::from_secs(10)
+}
+
+fn default_health_retries() -> u32 {
+    3
+}
+
+fn default_health_start_period() -> Duration {
+    Duration::from_secs(0)
+}
+
+impl Default for HealthCheck {
+    fn default() -> Self {
+        Self {
+            exec: String::new(),
+            interval: default_health_interval(),
+            timeout: default_health_timeout(),
+            retries: default_health_retries(),
+            start_period: default_health_start_period(),
+        }
+    }
+}
+
+/// Resource limits for a service.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ResourceLimits {
+    /// Memory limit in bytes (soft limit)
+    pub memory_soft: Option<u64>,
+    /// Memory limit in bytes (hard limit)
+    pub memory_hard: Option<u64>,
+    /// CPU quota (percentage, e.g., 50 for 50%)
+    pub cpu_percent: Option<u32>,
+    /// Maximum number of open file descriptors
+    pub nofile: Option<u64>,
+    /// Maximum number of processes
+    pub nproc: Option<u64>,
+    /// Maximum file size in bytes
+    pub fsize: Option<u64>,
+    /// Maximum core file size in bytes
+    pub core: Option<u64>,
+    /// Maximum stack size in bytes
+    pub stack: Option<u64>,
+    /// Maximum data segment size in bytes
+    pub data: Option<u64>,
+    /// Maximum locked memory in bytes
+    pub memlock: Option<u64>,
+    /// Maximum CPU time in seconds
+    pub cpu_time: Option<u64>,
+}
+
+/// Socket configuration for socket activation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SocketConfig {
+    /// Socket type: stream, dgram, seqpacket
+    #[serde(default = "default_socket_type")]
+    pub socket_type: String,
+    /// Listen address (e.g., "127.0.0.1:8080" or "/run/myservice.sock")
+    pub listen: String,
+    /// Accept connections (pass socket to service)
+    #[serde(default)]
+    pub accept: bool,
+    /// Maximum connections in backlog
+    #[serde(default = "default_socket_backlog")]
+    pub backlog: u32,
+    /// File permissions for Unix sockets
+    pub socket_mode: Option<u32>,
+    /// User for Unix sockets
+    pub socket_user: Option<String>,
+    /// Group for Unix sockets
+    pub socket_group: Option<String>,
+}
+
+fn default_socket_type() -> String {
+    "stream".to_string()
+}
+
+fn default_socket_backlog() -> u32 {
+    128
+}
+
+impl Default for SocketConfig {
+    fn default() -> Self {
+        Self {
+            socket_type: default_socket_type(),
+            listen: String::new(),
+            accept: false,
+            backlog: default_socket_backlog(),
+            socket_mode: None,
+            socket_user: None,
+            socket_group: None,
+        }
+    }
+}
+
+/// Timer configuration for scheduled service execution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimerConfig {
+    /// Calendar expression (cron-like): "daily", "weekly", "Mon *-*-* 00:00:00"
+    pub on_calendar: Option<String>,
+    /// Time after boot to trigger
+    #[serde(default)]
+    #[serde(with = "option_humantime_serde")]
+    pub on_boot: Option<Duration>,
+    /// Time after last activation to trigger
+    #[serde(default)]
+    #[serde(with = "option_humantime_serde")]
+    pub on_unit_active: Option<Duration>,
+    /// Time after unit became inactive to trigger
+    #[serde(default)]
+    #[serde(with = "option_humantime_serde")]
+    pub on_unit_inactive: Option<Duration>,
+    /// Whether timer is persistent (triggers missed runs on startup)
+    #[serde(default)]
+    pub persistent: bool,
+    /// Accuracy/randomization window
+    #[serde(default = "default_timer_accuracy")]
+    #[serde(with = "humantime_serde")]
+    pub accuracy: Duration,
+}
+
+fn default_timer_accuracy() -> Duration {
+    Duration::from_secs(60)
+}
+
+impl Default for TimerConfig {
+    fn default() -> Self {
+        Self {
+            on_calendar: None,
+            on_boot: None,
+            on_unit_active: None,
+            on_unit_inactive: None,
+            persistent: false,
+            accuracy: default_timer_accuracy(),
+        }
+    }
+}
+
+/// Watchdog configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchdogConfig {
+    /// Watchdog timeout - service must ping within this interval
+    #[serde(with = "humantime_serde")]
+    pub timeout: Duration,
+    /// Action on timeout: restart, kill, none
+    #[serde(default = "default_watchdog_action")]
+    pub action: String,
+}
+
+fn default_watchdog_action() -> String {
+    "restart".to_string()
+}
+
+impl Default for WatchdogConfig {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(30),
+            action: default_watchdog_action(),
+        }
+    }
+}
+
+/// Module for optional duration humantime serialization.
+mod option_humantime_serde {
+    use serde::{self, Deserialize, Deserializer, Serializer};
+    use std::time::Duration;
+
+    pub fn serialize<S>(duration: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match duration {
+            Some(d) => serializer.serialize_some(&d.as_secs()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt: Option<u64> = Option::deserialize(deserializer)?;
+        Ok(opt.map(Duration::from_secs))
+    }
+}
+
 /// Type of service execution model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -146,6 +358,38 @@ pub struct ServiceDefinition {
     /// Whether to enable this service by default
     #[serde(default)]
     pub enabled: bool,
+    /// Health check configuration
+    #[serde(default)]
+    pub health_check: Option<HealthCheck>,
+    /// Resource limits
+    #[serde(default)]
+    pub resource_limits: Option<ResourceLimits>,
+    /// Socket activation configuration
+    #[serde(default)]
+    pub sockets: Vec<SocketConfig>,
+    /// Timer configuration for scheduled execution
+    #[serde(default)]
+    pub timer: Option<TimerConfig>,
+    /// Watchdog configuration
+    #[serde(default)]
+    pub watchdog: Option<WatchdogConfig>,
+    /// Whether this service is a template (name contains @)
+    #[serde(default)]
+    pub template: bool,
+    /// Standard output handling: inherit, null, journal, file:/path
+    #[serde(default = "default_stdout")]
+    pub standard_output: String,
+    /// Standard error handling: inherit, null, journal, file:/path
+    #[serde(default = "default_stderr")]
+    pub standard_error: String,
+}
+
+fn default_stdout() -> String {
+    "journal".to_string()
+}
+
+fn default_stderr() -> String {
+    "journal".to_string()
 }
 
 fn default_restart_sec() -> Duration {
@@ -204,7 +448,36 @@ impl ServiceDefinition {
             timeout_start_sec: default_timeout_start(),
             timeout_stop_sec: default_timeout_stop(),
             enabled: false,
+            health_check: None,
+            resource_limits: None,
+            sockets: Vec::new(),
+            timer: None,
+            watchdog: None,
+            template: false,
+            standard_output: default_stdout(),
+            standard_error: default_stderr(),
         }
+    }
+
+    /// Check if this is a template service.
+    pub fn is_template(&self) -> bool {
+        self.template || self.name.contains('@')
+    }
+
+    /// Create an instance from a template with the given instance name.
+    pub fn instantiate(&self, instance: &str) -> Self {
+        let mut def = self.clone();
+        def.name = self.name.replace('@', &format!("@{}", instance));
+        def.template = false;
+        // Replace %i in commands with instance name
+        def.exec_start = def.exec_start.replace("%i", instance);
+        if let Some(ref mut cmd) = def.exec_stop {
+            *cmd = cmd.replace("%i", instance);
+        }
+        if let Some(ref mut cmd) = def.exec_reload {
+            *cmd = cmd.replace("%i", instance);
+        }
+        def
     }
 
     /// Load a service definition from a TOML file.
@@ -220,6 +493,37 @@ impl ServiceDefinition {
             .map_err(|e| crate::error::Error::ConfigError(e.to_string()))?;
         std::fs::write(path, content)?;
         Ok(())
+    }
+}
+
+/// Health status for a service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HealthStatus {
+    /// No health check configured
+    None,
+    /// Health check starting (in start_period)
+    Starting,
+    /// Service is healthy
+    Healthy,
+    /// Service is unhealthy
+    Unhealthy,
+}
+
+impl Default for HealthStatus {
+    fn default() -> Self {
+        HealthStatus::None
+    }
+}
+
+impl std::fmt::Display for HealthStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HealthStatus::None => write!(f, "none"),
+            HealthStatus::Starting => write!(f, "starting"),
+            HealthStatus::Healthy => write!(f, "healthy"),
+            HealthStatus::Unhealthy => write!(f, "unhealthy"),
+        }
     }
 }
 
@@ -248,6 +552,18 @@ pub struct ServiceInstance {
     pub restart_count: u32,
     /// Last failure reason
     pub failure_reason: Option<String>,
+    /// Health status
+    pub health_status: HealthStatus,
+    /// Number of consecutive health check failures
+    pub health_failures: u32,
+    /// Last health check time
+    pub last_health_check: Option<DateTime<Utc>>,
+    /// Last watchdog ping time
+    pub last_watchdog_ping: Option<DateTime<Utc>>,
+    /// Whether the service is masked
+    pub masked: bool,
+    /// Boot time for this service (for analyze)
+    pub boot_duration_ms: Option<u64>,
 }
 
 impl ServiceInstance {
@@ -265,6 +581,12 @@ impl ServiceInstance {
             exit_signal: None,
             restart_count: 0,
             failure_reason: None,
+            health_status: HealthStatus::None,
+            health_failures: 0,
+            last_health_check: None,
+            last_watchdog_ping: None,
+            masked: false,
+            boot_duration_ms: None,
         }
     }
 
@@ -310,6 +632,18 @@ pub struct ServiceStatus {
     pub uptime_secs: Option<u64>,
     /// Number of restarts
     pub restart_count: u32,
+    /// Health status
+    pub health_status: HealthStatus,
+    /// Whether the service is masked
+    pub masked: bool,
+    /// Boot duration in milliseconds
+    pub boot_duration_ms: Option<u64>,
+    /// Whether the service is enabled
+    pub enabled: bool,
+    /// Dependencies (requires)
+    pub requires: Vec<String>,
+    /// Soft dependencies (wants)
+    pub wants: Vec<String>,
 }
 
 impl ServiceStatus {
@@ -324,6 +658,12 @@ impl ServiceStatus {
             cpu_percent: None,  // TODO: Get from /proc
             uptime_secs: instance.uptime().map(|d| d.as_secs()),
             restart_count: instance.restart_count,
+            health_status: instance.health_status,
+            masked: instance.masked,
+            boot_duration_ms: instance.boot_duration_ms,
+            enabled: def.enabled,
+            requires: def.requires.clone(),
+            wants: def.wants.clone(),
         }
     }
 }
