@@ -4,7 +4,7 @@
 //! It can run as PID 1 or as a service management tool.
 
 use clap::{Parser, Subcommand};
-use sideros_start::{create_test_init, Init, InitConfig, ServiceDefinition, ServiceStatus, ShutdownType};
+use sideros_start::{create_test_init, Init, InitConfig, ServiceDefinition, ServiceStatus, ShutdownType, SystemdLoader};
 use std::path::PathBuf;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -144,6 +144,24 @@ enum Commands {
         /// Shutdown type: poweroff, reboot, or halt
         #[arg(default_value = "poweroff")]
         shutdown_type: String,
+    },
+
+    /// Migrate systemd unit files to sideros TOML format
+    Migrate {
+        /// Source path (file or directory with .service files)
+        source: PathBuf,
+        /// Destination path (file or directory for .toml files)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Print converted TOML to stdout instead of writing to file
+        #[arg(long)]
+        stdout: bool,
+    },
+
+    /// Convert a systemd unit file to TOML and print to stdout
+    Convert {
+        /// Path to systemd .service file
+        path: PathBuf,
     },
 }
 
@@ -400,6 +418,55 @@ async fn main() -> anyhow::Result<()> {
             // For now, just print a message
             println!("Shutdown type: {:?}", shutdown_type);
             println!("Note: Direct shutdown communication not yet implemented");
+        }
+
+        Some(Commands::Migrate { source, output, stdout }) => {
+            // Migrate systemd unit files to TOML format
+            if source.is_file() {
+                // Single file migration
+                if stdout {
+                    // Print to stdout
+                    let toml_content = SystemdLoader::convert_to_toml(&source)?;
+                    println!("{}", toml_content);
+                } else {
+                    // Write to file
+                    let dest = output.unwrap_or_else(|| {
+                        let stem = source.file_stem().and_then(|s| s.to_str()).unwrap_or("service");
+                        cli.services_dir.join(format!("{}.toml", stem))
+                    });
+
+                    // Ensure parent directory exists
+                    if let Some(parent) = dest.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+
+                    SystemdLoader::migrate(&source, &dest)?;
+                    println!("Migrated {} -> {}", source.display(), dest.display());
+                }
+            } else if source.is_dir() {
+                // Directory migration
+                let dest_dir = output.unwrap_or_else(|| cli.services_dir.clone());
+
+                let migrated = SystemdLoader::migrate_directory(&source, &dest_dir)?;
+
+                if migrated.is_empty() {
+                    println!("No .service files found in {}", source.display());
+                } else {
+                    println!("Migrated {} service files to {}", migrated.len(), dest_dir.display());
+                    for path in migrated {
+                        println!("  {}", path.display());
+                    }
+                }
+            } else {
+                error!("Source path does not exist: {}", source.display());
+                std::process::exit(1);
+            }
+        }
+
+        Some(Commands::Convert { path }) => {
+            // Convert a single systemd unit file and print to stdout
+            let toml_content = SystemdLoader::convert_to_toml(&path)?;
+            println!("{}", toml_content);
         }
     }
 
