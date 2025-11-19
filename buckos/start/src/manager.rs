@@ -843,17 +843,25 @@ impl ServiceManager {
         };
 
         if should_restart {
-            // Check restart count
-            let restart_count = {
-                let instances = self.instances.read().await;
-                instances
-                    .get(&service_name)
-                    .map(|i| i.restart_count)
-                    .unwrap_or(0)
+            // Check rate limiting and restart count
+            let can_restart = {
+                let mut instances = self.instances.write().await;
+                if let Some(instance) = instances.get_mut(&service_name) {
+                    instance.can_restart()
+                } else {
+                    false
+                }
             };
 
-            // TODO: Add max restart count and rate limiting
-            if restart_count < 5 {
+            if can_restart {
+                let restart_count = {
+                    let instances = self.instances.read().await;
+                    instances
+                        .get(&service_name)
+                        .map(|i| i.restart_count)
+                        .unwrap_or(0)
+                };
+
                 info!(
                     service = %service_name,
                     restart_count = restart_count,
@@ -880,10 +888,20 @@ impl ServiceManager {
                     }
                 });
             } else {
+                // Rate limited - mark as failed
+                {
+                    let mut instances = self.instances.write().await;
+                    if let Some(instance) = instances.get_mut(&service_name) {
+                        instance.state = ServiceState::Failed;
+                        instance.failure_reason = Some(
+                            "Service restart rate limit exceeded (5 restarts in 10 seconds)".to_string()
+                        );
+                    }
+                }
+
                 warn!(
                     service = %service_name,
-                    restart_count = restart_count,
-                    "Service exceeded max restart count"
+                    "Service restart rate limited - too many restarts in short period"
                 );
             }
         }

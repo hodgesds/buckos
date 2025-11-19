@@ -550,6 +550,8 @@ pub struct ServiceInstance {
     pub exit_signal: Option<i32>,
     /// Number of restarts
     pub restart_count: u32,
+    /// Timestamps of recent restarts (for rate limiting)
+    pub restart_timestamps: Vec<DateTime<Utc>>,
     /// Last failure reason
     pub failure_reason: Option<String>,
     /// Health status
@@ -580,6 +582,7 @@ impl ServiceInstance {
             exit_code: None,
             exit_signal: None,
             restart_count: 0,
+            restart_timestamps: Vec::new(),
             failure_reason: None,
             health_status: HealthStatus::None,
             health_failures: 0,
@@ -588,6 +591,34 @@ impl ServiceInstance {
             masked: false,
             boot_duration_ms: None,
         }
+    }
+
+    /// Check if the service can restart based on rate limiting.
+    ///
+    /// Returns true if restart is allowed, false if rate limited.
+    /// Uses a sliding window of 5 restarts in 10 seconds.
+    pub fn can_restart(&mut self) -> bool {
+        let now = Utc::now();
+        let window = chrono::Duration::seconds(10);
+        let max_restarts = 5;
+
+        // Clean up old timestamps outside the window
+        self.restart_timestamps.retain(|ts| now.signed_duration_since(*ts) < window);
+
+        // Check if we're within the limit
+        if self.restart_timestamps.len() >= max_restarts {
+            false
+        } else {
+            // Record this restart attempt
+            self.restart_timestamps.push(now);
+            true
+        }
+    }
+
+    /// Reset restart rate limiting (e.g., after successful long run).
+    pub fn reset_restart_rate(&mut self) {
+        self.restart_timestamps.clear();
+        self.restart_count = 0;
     }
 
     /// Check if the service is active (running or starting).
@@ -649,13 +680,19 @@ pub struct ServiceStatus {
 impl ServiceStatus {
     /// Create status from definition and instance.
     pub fn from_service(def: &ServiceDefinition, instance: &ServiceInstance) -> Self {
+        let (memory_bytes, cpu_percent) = if let Some(pid) = instance.main_pid {
+            (get_process_memory(pid), get_process_cpu(pid))
+        } else {
+            (None, None)
+        };
+
         Self {
             name: def.name.clone(),
             state: instance.state,
             description: def.description.clone(),
             main_pid: instance.main_pid,
-            memory_bytes: None, // TODO: Get from /proc
-            cpu_percent: None,  // TODO: Get from /proc
+            memory_bytes,
+            cpu_percent,
             uptime_secs: instance.uptime().map(|d| d.as_secs()),
             restart_count: instance.restart_count,
             health_status: instance.health_status,
@@ -665,5 +702,64 @@ impl ServiceStatus {
             requires: def.requires.clone(),
             wants: def.wants.clone(),
         }
+    }
+}
+
+/// Get memory usage for a process from /proc/{pid}/statm
+fn get_process_memory(pid: u32) -> Option<u64> {
+    let statm_path = format!("/proc/{}/statm", pid);
+    let content = std::fs::read_to_string(&statm_path).ok()?;
+    let parts: Vec<&str> = content.split_whitespace().collect();
+
+    if parts.len() >= 2 {
+        // Second field is resident set size in pages
+        let rss_pages: u64 = parts[1].parse().ok()?;
+        // Page size is typically 4096 bytes
+        let page_size = 4096u64;
+        Some(rss_pages * page_size)
+    } else {
+        None
+    }
+}
+
+/// Get CPU usage for a process from /proc/{pid}/stat
+fn get_process_cpu(pid: u32) -> Option<f64> {
+    let stat_path = format!("/proc/{}/stat", pid);
+    let content = std::fs::read_to_string(&stat_path).ok()?;
+
+    // Parse the stat file - fields are space-separated but comm field can contain spaces
+    // Format: pid (comm) state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime ...
+    let comm_end = content.rfind(')')?;
+    let after_comm = &content[comm_end + 2..];
+    let parts: Vec<&str> = after_comm.split_whitespace().collect();
+
+    if parts.len() >= 13 {
+        // utime is at index 11, stime is at index 12 (0-indexed after comm)
+        let utime: u64 = parts[11].parse().ok()?;
+        let stime: u64 = parts[12].parse().ok()?;
+        let total_time = utime + stime;
+
+        // Get system uptime
+        let uptime_content = std::fs::read_to_string("/proc/uptime").ok()?;
+        let uptime: f64 = uptime_content.split_whitespace().next()?.parse().ok()?;
+
+        // Get process start time (index 19 after comm)
+        let starttime: u64 = parts[19].parse().ok()?;
+
+        // Get clock ticks per second (typically 100)
+        let hertz = 100.0f64;
+
+        // Calculate process age in seconds
+        let process_age = uptime - (starttime as f64 / hertz);
+
+        if process_age > 0.0 {
+            // CPU percentage = (total_time / hertz) / process_age * 100
+            let cpu_percent = (total_time as f64 / hertz) / process_age * 100.0;
+            Some(cpu_percent)
+        } else {
+            Some(0.0)
+        }
+    } else {
+        None
     }
 }
