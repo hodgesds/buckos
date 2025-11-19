@@ -811,6 +811,67 @@ impl PackageManager {
 
         Ok(())
     }
+
+    /// Get reverse dependencies (packages that depend on a given package)
+    pub async fn get_reverse_dependencies(&self, package: &str) -> Result<Vec<String>> {
+        let db = self.db.read().await;
+        db.get_reverse_dependencies(package)
+    }
+
+    /// Find the package that owns a file
+    pub async fn find_file_owner(&self, path: &str) -> Result<Option<OwnerResult>> {
+        let db = self.db.read().await;
+
+        // Normalize the path
+        let normalized_path = if path.starts_with('/') {
+            path.to_string()
+        } else {
+            format!("/{}", path)
+        };
+
+        // Try exact match first
+        if let Some(pkg_name) = db.get_file_owner(&normalized_path)? {
+            if let Some(pkg) = db.get_installed(&pkg_name)? {
+                return Ok(Some(OwnerResult {
+                    package: pkg.id.clone(),
+                    version: pkg.version.clone(),
+                    file_path: normalized_path,
+                }));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Search for files matching a pattern and return their owners
+    pub async fn find_file_owners_by_pattern(&self, pattern: &str) -> Result<Vec<OwnerResult>> {
+        let db = self.db.read().await;
+        let installed = db.get_all_installed()?;
+
+        let mut results = Vec::new();
+
+        for pkg in installed {
+            for file in &pkg.files {
+                if file.path.contains(pattern) {
+                    results.push(OwnerResult {
+                        package: pkg.id.clone(),
+                        version: pkg.version.clone(),
+                        file_path: file.path.clone(),
+                    });
+                }
+            }
+        }
+
+        Ok(results)
+    }
+}
+
+/// Result of file owner query
+#[derive(Debug, Clone)]
+pub struct OwnerResult {
+    pub package: PackageId,
+    pub version: semver::Version,
+    pub file_path: String,
 }
 
 /// Options for install command
