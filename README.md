@@ -62,8 +62,15 @@ buckos info <package>        # Show package information
 buckos depclean              # Remove unused dependencies
 buckos build <package>       # Build without installing
 buckos verify                # Verify installed packages
-buckos audit                 # Security audit
+buckos audit                 # Security vulnerability audit
 ```
+
+**Security Audit**:
+The `audit` command checks installed packages against a comprehensive vulnerability database including:
+- CVEs for common packages (OpenSSL, curl, glibc, Linux kernel, OpenSSH, etc.)
+- Severity classification (critical, high, medium, low)
+- Version range checking with fix recommendations
+- Sorted output by severity for prioritization
 
 ### buckos-config (Configuration Management)
 
@@ -84,11 +91,29 @@ A modern init system and service manager designed to run as PID 1.
 
 **Binary**: `start`
 
+**Commands**:
+```bash
+start init                  # Run as PID 1
+start start <service>       # Start a service
+start stop <service>        # Stop a service
+start restart <service>     # Restart a service
+start status [service]      # Show service status
+start list                  # List all services
+start enable <service>      # Enable service at boot
+start disable <service>     # Disable service at boot
+start logs <service>        # Show service logs
+```
+
 **Features**:
-- Service dependency management
+- Service dependency management with parallel startup
 - Multiple service types (simple, forking, oneshot, notify, idle)
 - Automatic restart with configurable policies
+- Smart rate limiting (prevents restart loops)
+- Real-time memory/CPU monitoring per service
+- Health check support with configurable intervals
+- Watchdog support for service monitoring
 - Signal handling and zombie reaping
+- Boot timing analysis (similar to systemd-analyze)
 
 ### buckos-assist (System Diagnostics)
 
@@ -111,9 +136,32 @@ Core data types used throughout the project including Package, User, License, an
 
 Official website and documentation server built with Axum.
 
-### buckos-tools (Utilities)
+### buckos-tools (System Utilities)
 
-Collection of system administration and development utilities.
+A comprehensive collection of system administration and development utilities.
+
+**Binary**: `buckos-tools`
+
+**Commands**:
+```bash
+buckos-tools lsblk       # List block devices
+buckos-tools hwinfo      # Show hardware information
+buckos-tools tree        # Display directory tree
+buckos-tools envinfo     # Show environment information
+buckos-tools netinfo     # Show network interfaces
+buckos-tools meminfo     # Show memory information
+buckos-tools cpuinfo     # Show CPU information
+buckos-tools syscheck    # System health check
+buckos-tools diskfree    # Show disk usage
+buckos-tools ps          # Show process information
+buckos-tools report      # Generate system report
+```
+
+**Features**:
+- Visual progress bars for memory/CPU usage
+- Color-coded health status indicators
+- Multiple output formats (text, JSON)
+- Process sorting by CPU, memory, or PID
 
 ## Package Ecosystem
 

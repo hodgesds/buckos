@@ -3,7 +3,16 @@ name = "buckos-tools"
 version = "0.0.1"
 authors = ["Daniel Hodges <dsh@buckos.com>", "Buckos"]
 edition = "2021"
-description = "Tools"
+description = "Buckos System Tools - Collection of system administration utilities"
 readme = "../README.md"
 repository = "https://github.com/hodgesds/buckos"
 license = "Apache-2.0"
+
+[[bin]]
+name = "buckos-tools"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+console = "0.15"
+sysinfo = "0.31"
