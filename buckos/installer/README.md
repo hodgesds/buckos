@@ -1,0 +1,215 @@
+# buckos-installer
+
+A graphical installer for Buckos - a beginner-friendly system installation tool that guides users through installing Buckos on their system.
+
+## Overview
+
+buckos-installer provides an intuitive GUI for installing Buckos while maintaining the flexibility for manual installation similar to Gentoo. It's built with egui for a native, cross-platform experience.
+
+## Features
+
+- **Graphical Interface**: Easy-to-use wizard with progress tracking
+- **Text Mode**: Command-line instructions for manual installation
+- **Automatic Partitioning**: GPT/MBR support with EFI/BIOS detection
+- **Installation Profiles**: Pre-configured package sets for different use cases
+- **System Detection**: Automatic hardware and disk detection
+- **Dry Run Mode**: Test installation without making changes
+
+## Installation Profiles
+
+| Profile | Description | Package Sets |
+|---------|-------------|--------------|
+| Desktop | Full desktop environment with common applications | @system, @desktop, @audio, @network |
+| Minimal | Base system with essential utilities only | @system |
+| Server | Server configuration with common services | @system, @server, @network |
+| Custom | Select packages manually | @system |
+
+## Building
+
+```bash
+cd buckos/installer
+cargo build --release
+```
+
+The binary will be available at `target/release/buckos-installer`.
+
+## Usage
+
+### Graphical Mode (Default)
+
+```bash
+sudo buckos-installer
+```
+
+### Text Mode
+
+For manual installation instructions:
+
+```bash
+sudo buckos-installer --text-mode
+```
+
+### Command-Line Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--text-mode` | Run in text-only mode (no GUI) | false |
+| `--target <PATH>` | Target root directory for installation | /mnt/buckos |
+| `--skip-checks` | Skip system requirements check | false |
+| `--debug` | Enable debug logging | false |
+| `--dry-run` | Perform a dry run without making changes | false |
+
+### Examples
+
+```bash
+# Run installer with custom target directory
+sudo buckos-installer --target /mnt/myroot
+
+# Dry run to preview installation
+sudo buckos-installer --dry-run
+
+# Debug mode with custom target
+sudo buckos-installer --debug --target /mnt/buckos
+
+# Skip system checks (advanced users)
+sudo buckos-installer --skip-checks
+```
+
+## Installation Wizard Steps
+
+1. **Welcome** - System information and overview
+2. **Disk Setup** - Select target disk and partitioning method
+3. **Profile Selection** - Choose installation profile
+4. **User Setup** - Configure root password and create user accounts
+5. **Network Setup** - Set hostname and network configuration
+6. **Timezone & Locale** - Configure timezone, locale, and keyboard layout
+7. **Summary** - Review settings before installation
+8. **Installing** - Installation progress
+9. **Complete** - Post-installation instructions
+
+## Manual Installation
+
+If you prefer to install manually (similar to Gentoo), use text mode to get the commands:
+
+```bash
+buckos-installer --text-mode
+```
+
+This displays the manual installation steps:
+
+1. **Partition your disk**:
+   ```bash
+   fdisk /dev/sdX  # or parted /dev/sdX
+   ```
+
+2. **Create filesystems**:
+   ```bash
+   mkfs.ext4 /dev/sdX1
+   mkswap /dev/sdX2
+   ```
+
+3. **Mount the target**:
+   ```bash
+   mount /dev/sdX1 /mnt/buckos
+   ```
+
+4. **Install the base system**:
+   ```bash
+   buckos --root /mnt/buckos install @system
+   ```
+
+5. **Configure the bootloader**:
+   ```bash
+   chroot /mnt/buckos grub-install /dev/sdX
+   chroot /mnt/buckos grub-mkconfig -o /boot/grub/grub.cfg
+   ```
+
+6. **Set up users and finalize**:
+   ```bash
+   chroot /mnt/buckos passwd root
+   chroot /mnt/buckos useradd -m -G wheel username
+   ```
+
+## System Requirements
+
+### Required Tools
+
+The installer requires these tools to be available:
+
+| Tool | Package |
+|------|---------|
+| fdisk | util-linux |
+| mkfs.ext4 | e2fsprogs |
+| mount | util-linux |
+| umount | util-linux |
+| chroot | coreutils |
+
+### Recommended Tools
+
+| Tool | Package |
+|------|---------|
+| parted | parted |
+| mkfs.btrfs | btrfs-progs |
+| mkfs.xfs | xfsprogs |
+| grub-install | grub |
+| blkid | util-linux |
+| lsblk | util-linux |
+
+### Minimum Hardware
+
+- Root privileges required
+- UEFI or BIOS boot support
+- Sufficient disk space for chosen profile
+
+## Automatic Partitioning
+
+When using automatic partitioning, the installer creates:
+
+### UEFI Systems
+- EFI System Partition (512 MB, FAT32)
+- Swap Partition (based on RAM size, max 8 GB)
+- Root Partition (remaining space, ext4)
+
+### BIOS Systems
+- BIOS Boot Partition (1 MB)
+- Swap Partition (based on RAM size, max 8 GB)
+- Root Partition (remaining space, ext4)
+
+## Post-Installation
+
+After installation, follow these steps:
+
+1. Remove the installation media
+2. Reboot your computer
+3. Log in with your user account
+4. Update package information:
+   ```bash
+   buckos sync
+   ```
+5. Update all packages:
+   ```bash
+   buckos update @world
+   ```
+
+## Useful Commands
+
+```bash
+buckos search <package>   # Search for packages
+buckos install <package>  # Install a package
+buckos info <package>     # Show package info
+buckos --help             # Show all commands
+```
+
+## Dependencies
+
+- eframe / egui - GUI framework
+- sysinfo - System information gathering
+- nix - POSIX system calls
+- clap - Command-line argument parsing
+- serde / toml - Configuration serialization
+- tokio - Async runtime
+- tracing - Logging
+
+## License
+
+Apache-2.0
