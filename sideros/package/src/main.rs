@@ -1,21 +1,24 @@
 //! Sideros Package Manager CLI
 //!
 //! Command-line interface for the Sideros package manager.
+//! Designed to be compatible with Gentoo's emerge command.
 
 use clap::{Args, Parser, Subcommand};
 use console::style;
+use dialoguer::Confirm;
 use sideros_package::{
-    BuildOptions, CleanOptions, Config, InstallOptions, PackageManager, RemoveOptions,
-    UpdateOptions,
+    BuildOptions, CleanOptions, Config, DepcleanOptions, EmergeOptions, InstallOptions,
+    PackageManager, RemoveOptions, Resolution, SyncOptions, UpdateOptions,
 };
+use std::collections::HashSet;
 use std::process::ExitCode;
-use tracing::error;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 #[command(
     name = "sideros-pkg",
-    about = "Sideros Package Manager - A scalable Buck-based package manager",
+    about = "Sideros Package Manager - A scalable Buck-based package manager (emerge-compatible)",
     version,
     author
 )]
@@ -36,28 +39,57 @@ struct Cli {
     #[arg(short, long, global = true)]
     pretend: bool,
 
+    /// Ask for confirmation before performing actions
+    #[arg(short, long, global = true)]
+    ask: bool,
+
+    /// Only download packages, don't install
+    #[arg(long = "fetchonly", global = true)]
+    fetch_only: bool,
+
+    /// Don't add packages to the world set
+    #[arg(long = "oneshot", short = '1', global = true)]
+    oneshot: bool,
+
+    /// Update dependencies of packages too
+    #[arg(long, short = 'D', global = true)]
+    deep: bool,
+
+    /// Rebuild packages with USE flag changes
+    #[arg(long = "newuse", short = 'N', global = true)]
+    newuse: bool,
+
+    /// Show what packages would be built with USE flags
+    #[arg(long = "tree", short = 't', global = true)]
+    tree: bool,
+
+    /// Number of parallel jobs
+    #[arg(short, long, global = true)]
+    jobs: Option<usize>,
+
     #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Install packages
+    /// Install packages (emerge-style)
     Install(InstallArgs),
 
-    /// Remove packages
+    /// Remove/unmerge packages
+    #[command(alias = "unmerge")]
     Remove(RemoveArgs),
 
-    /// Update packages
+    /// Update packages (@world update)
     Update(UpdateArgs),
 
-    /// Sync package repositories
-    Sync,
+    /// Sync package repositories (emerge --sync)
+    Sync(SyncArgs),
 
-    /// Search for packages
+    /// Search for packages (emerge --search)
     Search(SearchArgs),
 
-    /// Show package information
+    /// Show package information (emerge --info / equery)
     Info(InfoArgs),
 
     /// List installed packages
@@ -66,28 +98,40 @@ enum Commands {
     /// Build a package from source
     Build(BuildArgs),
 
-    /// Clean cache
+    /// Clean cache (eclean equivalent)
     Clean(CleanArgs),
 
-    /// Verify installed packages
+    /// Verify installed packages (qcheck equivalent)
     Verify,
 
-    /// Query package database
+    /// Query package database (equery equivalent)
     Query(QueryArgs),
 
-    /// Show package that owns a file
+    /// Show package that owns a file (equery belongs)
     Owner(OwnerArgs),
 
-    /// Show dependency tree
+    /// Show dependency tree (equery depends)
     Depgraph(DepgraphArgs),
 
-    /// Show configuration
+    /// Show configuration (emerge --info)
     Config,
+
+    /// Remove unused packages (emerge --depclean)
+    Depclean(DepcleanArgs),
+
+    /// Resume interrupted operation (emerge --resume)
+    Resume,
+
+    /// Rebuild packages with changed USE flags
+    Newuse(NewuseArgs),
+
+    /// Check for security vulnerabilities (glsa-check equivalent)
+    Audit,
 }
 
 #[derive(Args)]
 struct InstallArgs {
-    /// Packages to install
+    /// Packages to install (supports @world, @system, @selected sets)
     #[arg(required = true)]
     packages: Vec<String>,
 
@@ -96,7 +140,7 @@ struct InstallArgs {
     force: bool,
 
     /// Don't install dependencies
-    #[arg(long)]
+    #[arg(long = "nodeps")]
     no_deps: bool,
 
     /// Build from source
@@ -106,6 +150,18 @@ struct InstallArgs {
     /// USE flags to enable
     #[arg(long, value_delimiter = ',')]
     use_flags: Vec<String>,
+
+    /// USE flags to disable
+    #[arg(long = "disable-use", value_delimiter = ',')]
+    disable_use_flags: Vec<String>,
+
+    /// Only install if not already installed (skip installed)
+    #[arg(long = "noreplace")]
+    no_replace: bool,
+
+    /// Empty dependency tree before installing
+    #[arg(long = "emptytree", short = 'e')]
+    empty_tree: bool,
 }
 
 #[derive(Args)]
@@ -125,16 +181,62 @@ struct RemoveArgs {
 
 #[derive(Args)]
 struct UpdateArgs {
-    /// Packages to update (all if not specified)
+    /// Packages to update (all if not specified, use @world for world set)
     packages: Vec<String>,
 
     /// Don't sync repositories first
-    #[arg(long)]
+    #[arg(long = "nosync")]
     no_sync: bool,
 
-    /// Only check for updates
+    /// Only check for updates (like emerge -pvu @world)
     #[arg(short, long)]
     check: bool,
+
+    /// Only update if newer version available (don't rebuild same version)
+    #[arg(long = "update", short = 'u')]
+    update_only: bool,
+
+    /// Include deep dependencies
+    #[arg(long)]
+    with_bdeps: bool,
+}
+
+#[derive(Args)]
+struct SyncArgs {
+    /// Specific repositories to sync
+    repos: Vec<String>,
+
+    /// Sync all repositories
+    #[arg(short, long)]
+    all: bool,
+
+    /// Web sync mode
+    #[arg(long = "webrsync")]
+    webrsync: bool,
+}
+
+#[derive(Args)]
+struct DepcleanArgs {
+    /// Specific packages to depclean
+    packages: Vec<String>,
+
+    /// Only show what would be removed
+    #[arg(long)]
+    pretend: bool,
+
+    /// Remove all packages not in world or system
+    #[arg(short, long)]
+    all: bool,
+}
+
+#[derive(Args)]
+struct NewuseArgs {
+    /// Packages to check for USE flag changes (all if not specified)
+    packages: Vec<String>,
+
+    /// Include deep dependencies
+    #[arg(short = 'D', long)]
+    deep: bool,
 }
 
 #[derive(Args)]
@@ -269,12 +371,26 @@ async fn main() -> ExitCode {
         }
     };
 
+    // Build global emerge options
+    let emerge_opts = EmergeOptions {
+        pretend: cli.pretend,
+        ask: cli.ask,
+        fetch_only: cli.fetch_only,
+        oneshot: cli.oneshot,
+        deep: cli.deep,
+        newuse: cli.newuse,
+        tree: cli.tree,
+        verbose: cli.verbose,
+        quiet: cli.quiet,
+        jobs: cli.jobs,
+    };
+
     // Execute command
     let result = match cli.command {
-        Commands::Install(args) => cmd_install(&pkg_manager, args).await,
-        Commands::Remove(args) => cmd_remove(&pkg_manager, args).await,
-        Commands::Update(args) => cmd_update(&pkg_manager, args).await,
-        Commands::Sync => cmd_sync(&pkg_manager).await,
+        Commands::Install(args) => cmd_install(&pkg_manager, args, &emerge_opts).await,
+        Commands::Remove(args) => cmd_remove(&pkg_manager, args, &emerge_opts).await,
+        Commands::Update(args) => cmd_update(&pkg_manager, args, &emerge_opts).await,
+        Commands::Sync(args) => cmd_sync(&pkg_manager, args).await,
         Commands::Search(args) => cmd_search(&pkg_manager, args).await,
         Commands::Info(args) => cmd_info(&pkg_manager, args).await,
         Commands::List(args) => cmd_list(&pkg_manager, args).await,
@@ -285,6 +401,10 @@ async fn main() -> ExitCode {
         Commands::Owner(args) => cmd_owner(&pkg_manager, args).await,
         Commands::Depgraph(args) => cmd_depgraph(&pkg_manager, args).await,
         Commands::Config => cmd_config().await,
+        Commands::Depclean(args) => cmd_depclean(&pkg_manager, args, &emerge_opts).await,
+        Commands::Resume => cmd_resume(&pkg_manager).await,
+        Commands::Newuse(args) => cmd_newuse(&pkg_manager, args, &emerge_opts).await,
+        Commands::Audit => cmd_audit(&pkg_manager).await,
     };
 
     match result {
@@ -296,68 +416,239 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn cmd_install(pm: &PackageManager, args: InstallArgs) -> sideros_package::Result<()> {
-    println!(
-        "{} Installing {} package(s)...",
-        style(">>>").green().bold(),
-        args.packages.len()
-    );
+async fn cmd_install(
+    pm: &PackageManager,
+    args: InstallArgs,
+    emerge_opts: &EmergeOptions,
+) -> sideros_package::Result<()> {
+    // Expand package sets
+    let packages = expand_package_sets(pm, &args.packages).await?;
 
     let opts = InstallOptions {
         force: args.force,
         no_deps: args.no_deps,
         build: args.build,
         use_flags: args.use_flags,
+        oneshot: emerge_opts.oneshot,
+        fetch_only: emerge_opts.fetch_only,
+        deep: emerge_opts.deep,
+        newuse: emerge_opts.newuse,
+        empty_tree: args.empty_tree,
+        no_replace: args.no_replace,
     };
 
-    pm.install(&args.packages, opts).await?;
+    // Resolve dependencies first to show what will be installed
+    let resolution = pm.resolve_packages(&packages, &opts).await?;
 
-    println!("{} Installation complete", style(">>>").green().bold());
+    if resolution.packages.is_empty() {
+        if !emerge_opts.quiet {
+            println!("\n{}", style(">>> No packages to install").green().bold());
+        }
+        return Ok(());
+    }
+
+    // Display emerge-style package list
+    print_emerge_list(&resolution, emerge_opts, "install")?;
+
+    // Pretend mode - just show what would be done
+    if emerge_opts.pretend {
+        return Ok(());
+    }
+
+    // Ask mode - prompt for confirmation
+    if emerge_opts.ask {
+        if !Confirm::new()
+            .with_prompt("Would you like to merge these packages?")
+            .default(true)
+            .interact()?
+        {
+            println!("{}", style(">>> Exiting.").yellow().bold());
+            return Ok(());
+        }
+        println!();
+    }
+
+    // Actually install
+    pm.install(&packages, opts).await?;
+
+    println!(
+        "\n{} {} packages installed",
+        style(">>>").green().bold(),
+        resolution.packages.len()
+    );
 
     Ok(())
 }
 
-async fn cmd_remove(pm: &PackageManager, args: RemoveArgs) -> sideros_package::Result<()> {
-    println!(
-        "{} Removing {} package(s)...",
-        style(">>>").yellow().bold(),
-        args.packages.len()
-    );
+async fn cmd_remove(
+    pm: &PackageManager,
+    args: RemoveArgs,
+    emerge_opts: &EmergeOptions,
+) -> sideros_package::Result<()> {
+    // Expand package sets
+    let packages = expand_package_sets(pm, &args.packages).await?;
 
     let opts = RemoveOptions {
         force: args.force,
         recursive: args.recursive,
     };
 
-    pm.remove(&args.packages, opts).await?;
+    // Get packages that would be removed
+    let to_remove = pm.get_removal_list(&packages, &opts).await?;
 
-    println!("{} Removal complete", style(">>>").green().bold());
+    if to_remove.is_empty() {
+        println!(
+            "{} No packages to unmerge",
+            style(">>>").yellow().bold()
+        );
+        return Ok(());
+    }
+
+    // Display unmerge list
+    println!(
+        "\n{} These are the packages that would be unmerged:\n",
+        style(">>>").red().bold()
+    );
+
+    for pkg in &to_remove {
+        println!(
+            "  {} {}/{}",
+            style("R").red().bold(),
+            style(&pkg.id.category).cyan(),
+            style(format!("{}-{}", &pkg.name, &pkg.version)).red()
+        );
+    }
+
+    println!(
+        "\n>>> Unmerging {} package(s)...",
+        style(to_remove.len()).bold()
+    );
+
+    // Pretend mode
+    if emerge_opts.pretend {
+        return Ok(());
+    }
+
+    // Ask mode
+    if emerge_opts.ask {
+        if !Confirm::new()
+            .with_prompt("Would you like to unmerge these packages?")
+            .default(false)
+            .interact()?
+        {
+            println!("{}", style(">>> Exiting.").yellow().bold());
+            return Ok(());
+        }
+        println!();
+    }
+
+    pm.remove(&packages, opts).await?;
+
+    println!(
+        "{} {} packages unmerged",
+        style(">>>").green().bold(),
+        to_remove.len()
+    );
 
     Ok(())
 }
 
-async fn cmd_update(pm: &PackageManager, args: UpdateArgs) -> sideros_package::Result<()> {
-    println!("{} Checking for updates...", style(">>>").blue().bold());
+async fn cmd_update(
+    pm: &PackageManager,
+    args: UpdateArgs,
+    emerge_opts: &EmergeOptions,
+) -> sideros_package::Result<()> {
+    // Expand package sets (default to @world if nothing specified)
+    let packages = if args.packages.is_empty() {
+        vec!["@world".to_string()]
+    } else {
+        args.packages.clone()
+    };
+    let expanded = expand_package_sets(pm, &packages).await?;
 
     let opts = UpdateOptions {
         sync: !args.no_sync,
-        check_only: args.check,
+        check_only: args.check || emerge_opts.pretend,
+        deep: emerge_opts.deep,
+        newuse: emerge_opts.newuse,
+        with_bdeps: args.with_bdeps,
     };
 
-    let packages = if args.packages.is_empty() {
+    // Sync first if requested
+    if opts.sync && !emerge_opts.quiet {
+        println!("{} Syncing repositories...", style(">>>").blue().bold());
+        pm.sync().await?;
+    }
+
+    if !emerge_opts.quiet {
+        println!("{} Calculating dependencies...", style(">>>").blue().bold());
+    }
+
+    let packages_slice = if expanded.is_empty() {
         None
     } else {
-        Some(args.packages.as_slice())
+        Some(expanded.as_slice())
     };
 
-    pm.update(packages, opts).await?;
+    // Get update resolution
+    let resolution = pm.get_update_resolution(packages_slice, &opts).await?;
+
+    if resolution.packages.is_empty() {
+        if !emerge_opts.quiet {
+            println!(
+                "\n{} @world set is up-to-date",
+                style(">>>").green().bold()
+            );
+        }
+        return Ok(());
+    }
+
+    // Display emerge-style list
+    print_emerge_list(&resolution, emerge_opts, "update")?;
+
+    // Pretend or check mode
+    if emerge_opts.pretend || args.check {
+        return Ok(());
+    }
+
+    // Ask mode
+    if emerge_opts.ask {
+        if !Confirm::new()
+            .with_prompt("Would you like to merge these packages?")
+            .default(true)
+            .interact()?
+        {
+            println!("{}", style(">>> Exiting.").yellow().bold());
+            return Ok(());
+        }
+        println!();
+    }
+
+    pm.update(packages_slice, opts).await?;
+
+    println!(
+        "\n{} {} packages updated",
+        style(">>>").green().bold(),
+        resolution.packages.len()
+    );
 
     Ok(())
 }
 
-async fn cmd_sync(pm: &PackageManager) -> sideros_package::Result<()> {
-    println!("{} Syncing repositories...", style(">>>").blue().bold());
-    pm.sync().await?;
+async fn cmd_sync(pm: &PackageManager, args: SyncArgs) -> sideros_package::Result<()> {
+    if args.repos.is_empty() || args.all {
+        println!("{} Syncing all repositories...", style(">>>").blue().bold());
+        pm.sync().await?;
+    } else {
+        for repo in &args.repos {
+            println!(
+                "{} Syncing repository: {}...",
+                style(">>>").blue().bold(),
+                repo
+            );
+            pm.sync_repo(repo).await?;
+        }
+    }
     println!("{} Sync complete", style(">>>").green().bold());
     Ok(())
 }
@@ -654,4 +945,404 @@ fn format_size(bytes: u64) -> String {
     } else {
         format!("{} B", bytes)
     }
+}
+
+/// Expand package sets (@world, @system, @selected) to individual packages
+async fn expand_package_sets(
+    pm: &PackageManager,
+    packages: &[String],
+) -> sideros_package::Result<Vec<String>> {
+    let mut result = Vec::new();
+
+    for pkg in packages {
+        if pkg.starts_with('@') {
+            match pkg.as_str() {
+                "@world" => {
+                    let world = pm.get_world_set().await?;
+                    result.extend(world.packages.iter().map(|p| p.full_name()));
+                }
+                "@system" => {
+                    let system = pm.get_system_set().await?;
+                    result.extend(system.packages.iter().map(|p| p.full_name()));
+                }
+                "@selected" => {
+                    let selected = pm.get_selected_set().await?;
+                    result.extend(selected.packages.iter().map(|p| p.full_name()));
+                }
+                "@installed" => {
+                    let installed = pm.list_installed().await?;
+                    result.extend(installed.iter().map(|p| p.id.full_name()));
+                }
+                _ => {
+                    // Unknown set, treat as literal
+                    result.push(pkg.clone());
+                }
+            }
+        } else {
+            result.push(pkg.clone());
+        }
+    }
+
+    Ok(result)
+}
+
+/// Print emerge-style package list with colors and USE flags
+fn print_emerge_list(
+    resolution: &Resolution,
+    opts: &EmergeOptions,
+    action: &str,
+) -> sideros_package::Result<()> {
+    println!(
+        "\n{} These are the packages that would be {}:\n",
+        style(">>>").green().bold(),
+        match action {
+            "install" => "merged",
+            "update" => "merged",
+            "rebuild" => "rebuilt",
+            _ => action,
+        }
+    );
+
+    // Calculate counts
+    let new_count = resolution.packages.iter().filter(|p| !p.is_upgrade).count();
+    let update_count = resolution.packages.iter().filter(|p| p.is_upgrade).count();
+    let rebuild_count = resolution.packages.iter().filter(|p| p.is_rebuild).count();
+
+    for (idx, pkg) in resolution.packages.iter().enumerate() {
+        // Determine status marker
+        let marker = if pkg.is_rebuild {
+            style("R").yellow().bold()  // Rebuild
+        } else if pkg.is_upgrade {
+            style("U").blue().bold()  // Update
+        } else {
+            style("N").green().bold()  // New
+        };
+
+        // Build slot string
+        let slot = if pkg.slot != "0" {
+            format!(":{}", pkg.slot)
+        } else {
+            String::new()
+        };
+
+        // Print package line
+        print!(
+            "[{:>3}] {} {}/{}",
+            idx + 1,
+            marker,
+            style(&pkg.id.category).cyan(),
+            style(format!("{}-{}{}", &pkg.id.name, &pkg.version, slot)).bold()
+        );
+
+        // Show USE flags if verbose or tree mode
+        if opts.verbose > 0 || opts.tree {
+            if !pkg.use_flags.is_empty() {
+                print!(" USE=\"");
+                for (i, flag) in pkg.use_flags.iter().enumerate() {
+                    if i > 0 {
+                        print!(" ");
+                    }
+                    if flag.enabled {
+                        print!("{}", style(&flag.name).green());
+                    } else {
+                        print!("{}", style(format!("-{}", flag.name)).red());
+                    }
+                }
+                print!("\"");
+            }
+        }
+
+        // Show size if verbose
+        if opts.verbose > 1 {
+            print!(" [{}]", format_size(pkg.installed_size));
+        }
+
+        println!();
+
+        // Show tree if requested
+        if opts.tree && !pkg.dependencies.is_empty() {
+            for dep in &pkg.dependencies {
+                println!("      └── {}", dep.package);
+            }
+        }
+    }
+
+    // Print summary
+    println!();
+    println!(
+        "Total: {} package(s)",
+        style(resolution.packages.len()).bold()
+    );
+    if new_count > 0 {
+        print!("{} new, ", style(new_count).green());
+    }
+    if update_count > 0 {
+        print!("{} updates, ", style(update_count).blue());
+    }
+    if rebuild_count > 0 {
+        print!("{} rebuilds, ", style(rebuild_count).yellow());
+    }
+    println!();
+
+    // Size totals
+    println!(
+        "Download size: {}",
+        style(format_size(resolution.download_size)).cyan()
+    );
+    println!(
+        "Space required: {}",
+        style(format_size(resolution.install_size)).cyan()
+    );
+
+    Ok(())
+}
+
+/// Depclean command - remove unused packages
+async fn cmd_depclean(
+    pm: &PackageManager,
+    args: DepcleanArgs,
+    emerge_opts: &EmergeOptions,
+) -> sideros_package::Result<()> {
+    println!(
+        "{} Calculating dependencies...",
+        style(">>>").blue().bold()
+    );
+
+    let opts = DepcleanOptions {
+        packages: args.packages.clone(),
+        pretend: args.pretend || emerge_opts.pretend,
+    };
+
+    let to_remove = pm.calculate_depclean(&opts).await?;
+
+    if to_remove.is_empty() {
+        println!(
+            "{} No packages to depclean",
+            style(">>>").green().bold()
+        );
+        return Ok(());
+    }
+
+    // Display packages to remove
+    println!(
+        "\n{} These are the packages that would be unmerged:\n",
+        style(">>>").red().bold()
+    );
+
+    let mut total_size = 0u64;
+    for pkg in &to_remove {
+        println!(
+            "  {} {}/{}",
+            style("D").red().bold(),
+            style(&pkg.id.category).cyan(),
+            style(format!("{}-{}", &pkg.name, &pkg.version)).red()
+        );
+        total_size += pkg.size;
+    }
+
+    println!(
+        "\n>>> {} package(s) selected for depclean",
+        style(to_remove.len()).bold()
+    );
+    println!(
+        ">>> Space freed: {}",
+        style(format_size(total_size)).cyan()
+    );
+
+    // Pretend mode
+    if opts.pretend || emerge_opts.pretend {
+        return Ok(());
+    }
+
+    // Ask mode
+    if emerge_opts.ask {
+        if !Confirm::new()
+            .with_prompt("Would you like to unmerge these packages?")
+            .default(false)
+            .interact()?
+        {
+            println!("{}", style(">>> Exiting.").yellow().bold());
+            return Ok(());
+        }
+        println!();
+    }
+
+    // Actually remove
+    pm.depclean(&opts).await?;
+
+    println!(
+        "{} {} packages unmerged",
+        style(">>>").green().bold(),
+        to_remove.len()
+    );
+
+    Ok(())
+}
+
+/// Resume interrupted operation
+async fn cmd_resume(pm: &PackageManager) -> sideros_package::Result<()> {
+    println!("{} Resuming last operation...", style(">>>").blue().bold());
+
+    if pm.resume().await? {
+        println!("{} Resume complete", style(">>>").green().bold());
+    } else {
+        println!(
+            "{} No interrupted operation to resume",
+            style(">>>").yellow().bold()
+        );
+    }
+
+    Ok(())
+}
+
+/// Rebuild packages with changed USE flags
+async fn cmd_newuse(
+    pm: &PackageManager,
+    args: NewuseArgs,
+    emerge_opts: &EmergeOptions,
+) -> sideros_package::Result<()> {
+    println!(
+        "{} Checking for USE flag changes...",
+        style(">>>").blue().bold()
+    );
+
+    let packages = if args.packages.is_empty() {
+        None
+    } else {
+        Some(args.packages.as_slice())
+    };
+
+    let to_rebuild = pm.find_newuse_packages(packages, args.deep).await?;
+
+    if to_rebuild.is_empty() {
+        println!(
+            "{} No packages need rebuilding",
+            style(">>>").green().bold()
+        );
+        return Ok(());
+    }
+
+    // Display packages to rebuild
+    println!(
+        "\n{} These packages have USE flag changes:\n",
+        style(">>>").yellow().bold()
+    );
+
+    for pkg in &to_rebuild {
+        println!(
+            "  {} {}/{}",
+            style("R").yellow().bold(),
+            style(&pkg.id.category).cyan(),
+            style(format!("{}-{}", &pkg.name, &pkg.version)).yellow()
+        );
+
+        // Show USE flag changes
+        if !pkg.use_changes.is_empty() {
+            print!("      USE: ");
+            for (i, change) in pkg.use_changes.iter().enumerate() {
+                if i > 0 {
+                    print!(" ");
+                }
+                if change.added {
+                    print!("{}", style(format!("+{}", change.flag)).green());
+                } else {
+                    print!("{}", style(format!("-{}", change.flag)).red());
+                }
+            }
+            println!();
+        }
+    }
+
+    println!(
+        "\n>>> {} package(s) with USE flag changes",
+        style(to_rebuild.len()).bold()
+    );
+
+    // Pretend mode
+    if emerge_opts.pretend {
+        return Ok(());
+    }
+
+    // Ask mode
+    if emerge_opts.ask {
+        if !Confirm::new()
+            .with_prompt("Would you like to rebuild these packages?")
+            .default(true)
+            .interact()?
+        {
+            println!("{}", style(">>> Exiting.").yellow().bold());
+            return Ok(());
+        }
+        println!();
+    }
+
+    // Rebuild packages
+    let pkg_names: Vec<String> = to_rebuild
+        .iter()
+        .map(|p| p.id.full_name())
+        .collect();
+
+    let opts = InstallOptions {
+        force: true,
+        ..Default::default()
+    };
+
+    pm.install(&pkg_names, opts).await?;
+
+    println!(
+        "{} {} packages rebuilt",
+        style(">>>").green().bold(),
+        to_rebuild.len()
+    );
+
+    Ok(())
+}
+
+/// Audit for security vulnerabilities
+async fn cmd_audit(pm: &PackageManager) -> sideros_package::Result<()> {
+    println!(
+        "{} Checking for security vulnerabilities...",
+        style(">>>").blue().bold()
+    );
+
+    let vulnerabilities = pm.audit().await?;
+
+    if vulnerabilities.is_empty() {
+        println!(
+            "{} No known vulnerabilities found",
+            style(">>>").green().bold()
+        );
+        return Ok(());
+    }
+
+    println!(
+        "\n{} Found {} security issue(s):\n",
+        style(">>>").red().bold(),
+        vulnerabilities.len()
+    );
+
+    for vuln in &vulnerabilities {
+        println!(
+            "  {} {}/{} - {}",
+            match vuln.severity.as_str() {
+                "critical" => style("!").red().bold(),
+                "high" => style("!").red(),
+                "medium" => style("*").yellow(),
+                _ => style("*").white(),
+            },
+            style(&vuln.package.category).cyan(),
+            style(&vuln.package.name).bold(),
+            vuln.id
+        );
+        if !vuln.title.is_empty() {
+            println!("    {}", vuln.title);
+        }
+    }
+
+    println!(
+        "\n>>> Run '{} install <package>' to update affected packages",
+        style("sideros-pkg").bold()
+    );
+
+    Ok(())
 }

@@ -4,16 +4,23 @@
 
 use crate::db::PackageDb;
 use crate::repository::RepositoryManager;
-use crate::{
-    Dependency, Error, InstallOptions, PackageId, PackageInfo, Resolution, Result, VersionSpec,
-};
+use crate::{Error, InstallOptions, PackageId, PackageInfo, Result};
 use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::info;
 use varisat::{ExtendFormula, Lit, Solver};
+
+/// Internal resolution result (uses PackageInfo)
+#[derive(Debug, Clone)]
+pub struct InternalResolution {
+    pub packages: Vec<PackageInfo>,
+    pub build_order: Vec<usize>,
+    pub download_size: u64,
+    pub install_size: u64,
+}
 
 /// Dependency resolver
 pub struct DependencyResolver {
@@ -32,7 +39,7 @@ impl DependencyResolver {
         &self,
         packages: &[String],
         opts: &InstallOptions,
-    ) -> Result<Resolution> {
+    ) -> Result<InternalResolution> {
         info!("Resolving dependencies for {} packages", packages.len());
 
         // Parse package specifications
@@ -170,7 +177,7 @@ impl DependencyResolver {
             format_size(install_size)
         );
 
-        Ok(Resolution {
+        Ok(InternalResolution {
             packages,
             build_order,
             download_size,
@@ -183,7 +190,7 @@ impl DependencyResolver {
         &self,
         packages: &[String],
         opts: &InstallOptions,
-    ) -> Result<Resolution> {
+    ) -> Result<InternalResolution> {
         info!("Using SAT solver for dependency resolution");
 
         let mut solver = Solver::new();
@@ -297,7 +304,7 @@ impl DependencyResolver {
         let download_size: u64 = packages.iter().map(|p| p.size).sum();
         let install_size: u64 = packages.iter().map(|p| p.installed_size).sum();
 
-        Ok(Resolution {
+        Ok(InternalResolution {
             build_order: (0..packages.len()).collect(),
             packages,
             download_size,
