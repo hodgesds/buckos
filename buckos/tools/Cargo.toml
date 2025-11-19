@@ -1,0 +1,9 @@
+[package]
+name = "buckos-tools"
+version = "0.0.1"
+authors = ["Daniel Hodges <dsh@buckos.com>", "Buckos"]
+edition = "2021"
+description = "Tools"
+readme = "../README.md"
+repository = "https://github.com/hodgesds/buckos"
+license = "Apache-2.0"

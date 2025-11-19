@@ -1,14 +1,14 @@
-# Third-party crate definitions for sideros
+# Third-party crate definitions for buckos
 #
 # This file defines aliases for third-party Rust crates.
-# When using sideros-build, these will be populated by the
+# When using buckos-build, these will be populated by the
 # reindeer tool or similar Cargo-to-Buck converter.
 #
 # To generate these targets from Cargo.lock:
 #   reindeer buckify
 #
 # For now, these are placeholder targets that should be
-# provided by sideros-build or generated from Cargo dependencies.
+# provided by buckos-build or generated from Cargo dependencies.
 
 load("@prelude//rust:defs.bzl", "rust_library")
 
@@ -16,18 +16,18 @@ load("@prelude//rust:defs.bzl", "rust_library")
 # Core dependencies
 # ============================================================================
 
-# These are placeholder targets. In a real sideros-build setup,
+# These are placeholder targets. In a real buckos-build setup,
 # these would be generated from Cargo.toml/Cargo.lock using reindeer.
 
-# When sideros-build is available, replace this file with generated targets
+# When buckos-build is available, replace this file with generated targets
 # using: reindeer --third-party-dir third-party buckify
 
 # Placeholder macro for external crates
-# sideros-build will provide the actual implementation
+# buckos-build will provide the actual implementation
 def _external_crate(name, version = None, features = None):
     """Placeholder for external crate definition.
 
-    This will be replaced by sideros-build's actual crate definitions.
+    This will be replaced by buckos-build's actual crate definitions.
     """
     native.alias(
         name = name,
@@ -36,7 +36,7 @@ def _external_crate(name, version = None, features = None):
     )
 
 # ============================================================================
-# Note: The actual crate definitions should be provided by sideros-build
+# Note: The actual crate definitions should be provided by buckos-build
 # ============================================================================
 
 # Example structure (these will be generated):

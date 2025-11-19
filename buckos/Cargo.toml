@@ -1,0 +1,27 @@
+[package]
+name = "buckos"
+version = "0.0.1"
+authors = ["Daniel Hodges <dsh@buckos.com>", "Buckos"]
+edition = "2021"
+description = "An OS"
+readme = "../README.md"
+repository = "https://github.com/hodgesds/buckos"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = "1.0.65"
+assist = { package="buckos-assist", version = "0.0.1", path="assist" }
+clap = { version = "3.2.17", features = ["derive", "env", "regex", "unicode", "wrap_help"] }
+clap_complete = "3.0.4"
+config = { package = "buckos-config", version = "0.0.1", path = "config" }
+libc = "0.2.137"
+model = { package = "buckos-model", version = "0.0.1", path = "model" }
+package = { package = "buckos-package", version = "0.0.1", path = "package" }
+regex = { version = "1.6.0", features = ["std", "unicode-perl"], default-features = false }
+serde_json = { version = "1.0.79", features = ["float_roundtrip", "unbounded_depth"] }
+start = { package = "buckos-start", version = "0.0.1", path = "start" }
+tools = { package = "buckos-tools", version = "0.0.1", path = "tools" }
+web = { package = "buckos-web", version = "0.0.1", path = "web" }
+tar = "0.4.38"
+tempdir = "0.3"
+users = "0.11"

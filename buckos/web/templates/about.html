@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}About{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>About Buckos</h1>
+</div>
+
+<section>
+    <h2>What is Buckos?</h2>
+    <p>Buckos (from the Greek word for "iron") is a modern Linux distribution built entirely in Rust. Our goal is to create a fast, secure, and highly configurable operating system that takes the best ideas from existing distributions while providing a clean, modern implementation.</p>
+
+    <p>The name "Iron Works" reflects our commitment to building robust, industrial-strength system software that can be relied upon for production use.</p>
+</section>
+
+<section>
+    <h2>Philosophy</h2>
+
+    <h3>Modern Foundation</h3>
+    <p>We believe system software should take advantage of modern programming language features. Rust provides memory safety guarantees, fearless concurrency, and excellent performance - all crucial for core system components.</p>
+
+    <h3>User Control</h3>
+    <p>Like Gentoo, Buckos is source-based and gives users fine-grained control over their systems. USE flags let you enable exactly the features you need, while the package manager handles complex dependency resolution.</p>
+
+    <h3>Simplicity</h3>
+    <p>While powerful, Buckos strives for simplicity in its implementation. Clean code is easier to audit, maintain, and contribute to. We avoid unnecessary complexity and legacy baggage.</p>
+
+    <h3>Transparency</h3>
+    <p>Buckos is fully open source under the Apache-2.0 license. We believe in transparent development and welcome community involvement at all levels.</p>
+</section>
+
+<section>
+    <h2>Inspiration</h2>
+    <p>Buckos draws inspiration from several sources:</p>
+
+    <ul>
+        <li><strong>Gentoo Linux:</strong> Package management concepts, USE flags, slots, and the Portage system</li>
+        <li><strong>Rust Ecosystem:</strong> Modern systems programming practices and tooling</li>
+        <li><strong>Unix Philosophy:</strong> Simple, composable tools that do one thing well</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Project Status</h2>
+    <p>Buckos is currently in active development. Core components are being built out:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Component</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Package Manager</td>
+                <td>In Development</td>
+            </tr>
+            <tr>
+                <td>Init System</td>
+                <td>In Development</td>
+            </tr>
+            <tr>
+                <td>Configuration System</td>
+                <td>In Development</td>
+            </tr>
+            <tr>
+                <td>Package Repository</td>
+                <td>Planned</td>
+            </tr>
+            <tr>
+                <td>Installation Media</td>
+                <td>Planned</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>We're building the foundation first - the tools needed to build and manage a complete system. Once these are solid, we'll focus on creating installation media and a package repository.</p>
+</section>
+
+<section>
+    <h2>Get Involved</h2>
+    <p>Buckos is a community project and we welcome contributors!</p>
+
+    <h3>Ways to Contribute</h3>
+    <ul>
+        <li><strong>Code:</strong> Help develop core components or write packages</li>
+        <li><strong>Documentation:</strong> Improve guides, wiki pages, and code comments</li>
+        <li><strong>Testing:</strong> Try out Buckos and report bugs</li>
+        <li><strong>Design:</strong> Help with UX, website design, or system architecture</li>
+        <li><strong>Community:</strong> Help other users and spread the word</li>
+    </ul>
+
+    <h3>Resources</h3>
+    <ul>
+        <li><a href="https://github.com/hodgesds/buckos">GitHub Repository</a></li>
+        <li><a href="https://github.com/hodgesds/buckos/issues">Issue Tracker</a></li>
+        <li><a href="/wiki">Documentation Wiki</a></li>
+    </ul>
+</section>
+
+<section>
+    <h2>License</h2>
+    <p>Buckos is licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>, a permissive open source license that allows for broad use while providing patent protection.</p>
+</section>
+
+<section>
+    <h2>Contact</h2>
+    <p>For questions, suggestions, or to get involved:</p>
+    <ul>
+        <li>Open an issue on <a href="https://github.com/hodgesds/buckos/issues">GitHub</a></li>
+        <li>Email: <a href="mailto:dsh@buckos.com">dsh@buckos.com</a></li>
+    </ul>
+</section>
+{% endblock %}

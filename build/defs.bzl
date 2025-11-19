@@ -1,12 +1,12 @@
-# Sideros build definitions
-# Compatible with sideros-build buck definitions
+# Buckos build definitions
+# Compatible with buckos-build buck definitions
 #
-# This file provides macros and rules for building sideros components.
-# It can be extended by sideros-build to provide additional functionality.
+# This file provides macros and rules for building buckos components.
+# It can be extended by buckos-build to provide additional functionality.
 
 load("@prelude//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
-def sideros_rust_library(
+def buckos_rust_library(
     name,
     srcs = None,
     deps = None,
@@ -15,9 +15,9 @@ def sideros_rust_library(
     visibility = None,
     **kwargs
 ):
-    """Create a Rust library for the sideros project.
+    """Create a Rust library for the buckos project.
 
-    This macro wraps rust_library with sideros-specific defaults and
+    This macro wraps rust_library with buckos-specific defaults and
     conventions. It automatically handles:
     - Default edition (2021)
     - Common dependencies
@@ -54,7 +54,7 @@ def sideros_rust_library(
         **kwargs
     )
 
-def sideros_rust_binary(
+def buckos_rust_binary(
     name,
     srcs = None,
     deps = None,
@@ -62,9 +62,9 @@ def sideros_rust_binary(
     visibility = None,
     **kwargs
 ):
-    """Create a Rust binary for the sideros project.
+    """Create a Rust binary for the buckos project.
 
-    This macro wraps rust_binary with sideros-specific defaults.
+    This macro wraps rust_binary with buckos-specific defaults.
 
     Args:
         name: Target name
@@ -89,7 +89,7 @@ def sideros_rust_binary(
         **kwargs
     )
 
-def sideros_package(
+def buckos_package(
     name,
     category,
     version,
@@ -103,10 +103,10 @@ def sideros_package(
     keywords = None,
     **kwargs
 ):
-    """Define a sideros package for the package manager.
+    """Define a buckos package for the package manager.
 
     This macro creates the necessary targets for a package that can be
-    managed by sideros-pkg. It generates:
+    managed by buckos-pkg. It generates:
     - Package metadata
     - Build target
     - Install target
@@ -178,7 +178,7 @@ def sideros_package(
         visibility = ["PUBLIC"],
     )
 
-def sideros_crate_deps(deps_list):
+def buckos_crate_deps(deps_list):
     """Convert a list of crate names to third-party targets.
 
     Args:
@@ -191,7 +191,7 @@ def sideros_crate_deps(deps_list):
 
 # Package target naming convention
 def package_target(category, name):
-    """Generate a Buck target for a sideros package.
+    """Generate a Buck target for a buckos package.
 
     Args:
         category: Package category
