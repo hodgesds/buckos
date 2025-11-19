@@ -3,7 +3,54 @@ name = "sideros-assist"
 version = "0.0.1"
 authors = ["Daniel Hodges <dsh@sideros.com>", "Sideros"]
 edition = "2021"
-description = "Help"
+description = "System diagnostics and troubleshooting assistant for Sideros OS"
 readme = "README.md"
 repository = "https://github.com/sideros/sideros"
 license = "Apache-2.0"
+
+[lib]
+name = "sideros_assist"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sideros-assist"
+path = "src/main.rs"
+
+[dependencies]
+# Core
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI
+clap = { version = "4.4", features = ["derive", "env", "wrap_help"] }
+
+# Interactive prompts
+dialoguer = "0.11"
+console = "0.15"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# System information
+sysinfo = "0.30"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# File operations
+walkdir = "2.4"
+
+# UUID for report IDs
+uuid = { version = "1.0", features = ["v4"] }
+
+# Regex for redaction patterns
+regex = "1.10"
+
+# Hostname detection
+hostname = "0.3"
