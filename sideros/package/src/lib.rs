@@ -16,6 +16,7 @@
 
 pub mod buck;
 pub mod cache;
+pub mod catalog;
 pub mod config;
 pub mod db;
 pub mod error;
@@ -24,6 +25,7 @@ pub mod repository;
 pub mod resolver;
 pub mod transaction;
 pub mod types;
+pub mod validation;
 
 pub use config::Config;
 pub use error::{Error, Result};
