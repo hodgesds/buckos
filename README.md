@@ -31,7 +31,7 @@ buckos/
 ├── buckos/               # Main workspace
 │   ├── Cargo.toml        # Rust workspace configuration
 │   ├── model/            # Core data models
-│   ├── package/          # Package manager (buckos-pkg)
+│   ├── package/          # Package manager (buckos)
 │   ├── assist/           # System diagnostics
 │   ├── config/           # Configuration management
 │   ├── start/            # Init system (PID 1)
@@ -49,20 +49,20 @@ buckos/
 
 The core package manager with a Portage-like interface. Handles package installation, dependency resolution, and Buck2 integration.
 
-**Binary**: `buckos-pkg`
+**Binary**: `buckos`
 
 **Key Commands**:
 ```bash
-buckos-pkg install <package>     # Install a package
-buckos-pkg remove <package>      # Remove a package
-buckos-pkg update                # Update installed packages
-buckos-pkg sync                  # Sync package repositories
-buckos-pkg search <query>        # Search for packages
-buckos-pkg info <package>        # Show package information
-buckos-pkg depclean              # Remove unused dependencies
-buckos-pkg build <package>       # Build without installing
-buckos-pkg verify                # Verify installed packages
-buckos-pkg audit                 # Security audit
+buckos install <package>     # Install a package
+buckos remove <package>      # Remove a package
+buckos update                # Update installed packages
+buckos sync                  # Sync package repositories
+buckos search <query>        # Search for packages
+buckos info <package>        # Show package information
+buckos depclean              # Remove unused dependencies
+buckos build <package>       # Build without installing
+buckos verify                # Verify installed packages
+buckos audit                 # Security audit
 ```
 
 ### buckos-config (Configuration Management)
@@ -245,7 +245,7 @@ Build flags are translated to Buck2 configuration:
 
 ```bash
 # Install with specific features
-buckos-pkg install ripgrep --use="pcre2"
+buckos install ripgrep --use="pcre2"
 
 # This translates to Buck2 config
 buck2 build //packages/ripgrep:ripgrep --config //config:use_pcre2=True
@@ -286,10 +286,10 @@ sudo mkdir -p /etc/buckos
 sudo cp -r config/defaults/* /etc/buckos/
 
 # Initialize package database
-buckos-pkg --init
+buckos --init
 
 # Sync repositories
-buckos-pkg sync
+buckos sync
 ```
 
 ## Usage Examples
@@ -298,26 +298,26 @@ buckos-pkg sync
 
 ```bash
 # Sync package repository
-buckos-pkg sync
+buckos sync
 
 # Search for a package
-buckos-pkg search "web browser"
+buckos search "web browser"
 
 # Get package information
-buckos-pkg info www-client/firefox
+buckos info www-client/firefox
 
 # Install with specific USE flags
-buckos-pkg install www-client/firefox --use="wayland -dbus"
+buckos install www-client/firefox --use="wayland -dbus"
 
 # Update all packages
-buckos-pkg update @world
+buckos update @world
 
 # Remove a package and unused dependencies
-buckos-pkg remove www-client/firefox
-buckos-pkg depclean
+buckos remove www-client/firefox
+buckos depclean
 
 # Verify installed packages
-buckos-pkg verify
+buckos verify
 ```
 
 ### System Diagnostics
@@ -368,7 +368,7 @@ buckos-start logs nginx
 ┌─────────────────────────────────────────────────────────┐
 │                    User Interface                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  buckos-pkg  │  │buckos-assist │  │ buckos-start │   │
+│  │   buckos     │  │buckos-assist │  │ buckos-start │   │
 │  └──────────────┘  └──────────────┘  └──────────────┘   │
 ├─────────────────────────────────────────────────────────┤
 │                    Core Libraries                        │

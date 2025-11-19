@@ -89,7 +89,7 @@ assist docs
 assist docs package-management
 
 # Show man page
-assist man buckos-pkg
+assist man buckos
 
 # List available documentation
 assist docs --list
@@ -229,7 +229,7 @@ Detailed explanation...
 
 ```bash
 # Example command
-buckos-pkg install www-client/firefox
+buckos install www-client/firefox
 ```
 
 ## Troubleshooting

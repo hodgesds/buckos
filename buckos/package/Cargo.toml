@@ -13,7 +13,7 @@ name = "buckos_package"
 path = "src/lib.rs"
 
 [[bin]]
-name = "buckos-pkg"
+name = "buckos"
 path = "src/main.rs"
 
 [dependencies]

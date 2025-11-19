@@ -34,82 +34,82 @@ cargo install --path buckos/package
 
 ## CLI Usage
 
-The `buckos-pkg` binary provides an emerge-compatible command-line interface.
+The `buckos` binary provides an emerge-compatible command-line interface.
 
 ### Basic Commands
 
 ```bash
 # Sync package repositories
-buckos-pkg sync
+buckos sync
 
 # Search for packages
-buckos-pkg search firefox
+buckos search firefox
 
 # Show package information
-buckos-pkg info www-client/firefox
+buckos info www-client/firefox
 
 # Install packages
-buckos-pkg install www-client/firefox
+buckos install www-client/firefox
 
 # Remove packages
-buckos-pkg remove www-client/firefox
+buckos remove www-client/firefox
 
 # Clean build artifacts
-buckos-pkg clean
+buckos clean
 
 # Remove unused dependencies
-buckos-pkg depclean
+buckos depclean
 ```
 
 ### Installation Options
 
 ```bash
 # Pretend (dry run)
-buckos-pkg install -p www-client/firefox
+buckos install -p www-client/firefox
 
 # Ask for confirmation
-buckos-pkg install -a www-client/firefox
+buckos install -a www-client/firefox
 
 # Verbose output
-buckos-pkg install -v www-client/firefox
+buckos install -v www-client/firefox
 
 # Install without adding to @world set
-buckos-pkg install --oneshot sys-apps/temporary-tool
+buckos install --oneshot sys-apps/temporary-tool
 
 # Fetch only (download without installing)
-buckos-pkg install --fetchonly www-client/firefox
+buckos install --fetchonly www-client/firefox
 
 # Specify number of parallel jobs
-buckos-pkg install -j 8 www-client/firefox
+buckos install -j 8 www-client/firefox
 ```
 
 ### Update Operations
 
 ```bash
 # Update a single package
-buckos-pkg install www-client/firefox
+buckos install www-client/firefox
 
 # Update entire system
-buckos-pkg install -uDN @world
+buckos install -uDN @world
 
 # Deep update (include dependencies)
-buckos-pkg install -u --deep @world
+buckos install -u --deep @world
 
 # Rebuild packages with USE flag changes
-buckos-pkg install -N @world
+buckos install -N @world
 
 # Show dependency tree
-buckos-pkg install -t www-client/firefox
+buckos install -t www-client/firefox
 ```
 
 ### Build Operations
 
 ```bash
 # Build a package
-buckos-pkg build www-client/firefox
+buckos build www-client/firefox
 
 # Build with specific configuration
-buckos-pkg build --config /path/to/config.toml www-client/firefox
+buckos build --config /path/to/config.toml www-client/firefox
 ```
 
 ## Architecture

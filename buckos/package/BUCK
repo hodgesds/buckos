@@ -60,11 +60,11 @@ rust_library(
     features = [],
 )
 
-# Binary executable for buckos-pkg
+# Binary executable for buckos
 rust_binary(
-    name = "buckos-pkg",
+    name = "buckos",
     srcs = ["src/main.rs"],
-    crate = "buckos_pkg",
+    crate = "buckos",
     edition = "2021",
     deps = [
         ":buckos-package",

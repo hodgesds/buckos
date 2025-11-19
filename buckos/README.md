@@ -72,8 +72,7 @@ cargo install --path .
 
 After building, the following binaries will be available:
 
-- `buckos` - Main CLI
-- `buckos-pkg` - Package manager
+- `buckos` - Package manager (main CLI)
 - `start` - Init system
 - `buckos-web` - Documentation server
 
@@ -83,19 +82,19 @@ After building, the following binaries will be available:
 
 ```bash
 # Sync package repositories
-buckos-pkg sync
+buckos sync
 
 # Search for packages
-buckos-pkg search firefox
+buckos search firefox
 
 # Install a package
-buckos-pkg install www-client/firefox
+buckos install www-client/firefox
 
 # Remove a package
-buckos-pkg remove www-client/firefox
+buckos remove www-client/firefox
 
 # Update system
-buckos-pkg install -uDN @world
+buckos install -uDN @world
 ```
 
 ### Service Management
