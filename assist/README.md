@@ -26,7 +26,7 @@ buckos-assist = { path = "../assist" }
 Or install the binary:
 
 ```bash
-cargo install --path buckos/assist
+cargo install --path assist
 ```
 
 ## Planned CLI Usage

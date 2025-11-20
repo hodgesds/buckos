@@ -12,9 +12,9 @@ export_file(
 filegroup(
     name = "buckos",
     srcs = [
-        "//buckos/model:buckos-model",
-        "//buckos/package:buckos-package",
-        "//buckos/package:buckos",
+        "//model:buckos-model",
+        "//package:buckos-package",
+        "//package:buckos",
     ],
     visibility = ["PUBLIC"],
 )

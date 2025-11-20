@@ -42,17 +42,17 @@ buckos/
 ├── .buckroot             # Buck2 workspace root marker
 ├── BUCK                  # Root build definitions
 ├── README.md             # This file
-├── buckos/               # Main workspace
-│   ├── Cargo.toml        # Rust workspace configuration
-│   ├── model/            # Core data models
-│   ├── package/          # Package manager (buckos)
-│   ├── assist/           # System diagnostics
-│   ├── config/           # Configuration management
-│   ├── boss/             # Init system (PID 1)
-│   ├── installer/        # GUI system installer
-│   ├── web/              # Documentation website
-│   └── tools/            # System utilities
+├── Cargo.toml            # Rust workspace configuration
+├── model/                # Core data models
+├── package/              # Package manager (buckos)
+├── assist/               # System diagnostics
+├── config/               # Configuration management
+├── boss/                 # Init system (PID 1)
+├── installer/            # GUI system installer
+├── web/                  # Documentation website
+├── tools/                # System utilities
 ├── build/                # Build artifacts
+├── defs/                 # Build definition system
 ├── platforms/            # Platform definitions
 ├── third-party/          # Third-party dependencies
 └── toolchains/           # Build toolchain configurations
@@ -628,10 +628,10 @@ cd buckos
 cargo build --release
 
 # Install binaries
-cargo install --path buckos/package
-cargo install --path buckos/boss
-cargo install --path buckos/assist
-cargo install --path buckos/tools
+cargo install --path package
+cargo install --path boss
+cargo install --path assist
+cargo install --path tools
 ```
 
 ### Initial Setup

@@ -28,7 +28,7 @@ buckos-boss = { path = "../boss" }
 Or install the binary:
 
 ```bash
-cargo install --path buckos/boss
+cargo install --path boss
 ```
 
 ## CLI Usage
@@ -483,7 +483,7 @@ RUST_LOG=buckos_boss::service=debug boss init
 ### Global Configuration
 
 ```toml
-# /etc/buckos/boss.toml
+# /etc/boss.toml
 
 [init]
 # Hostname

@@ -106,7 +106,7 @@ The installer automatically detects and suggests packages for:
 ## Building
 
 ```bash
-cd buckos/installer
+cd installer
 cargo build --release
 ```
 

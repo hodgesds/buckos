@@ -13,32 +13,31 @@ Buckos is a comprehensive Linux distribution framework built on Buck2 for determ
 ### Main Directory Layout
 ```
 buckos/
-├── buckos/                    # Main Rust workspace
-│   ├── Cargo.toml            # Workspace configuration
-│   ├── model/                # Core data models (21 modules)
-│   ├── package/              # Package manager CLI (PRIMARY)
-│   ├── config/               # Configuration system (20 modules)
-│   ├── installer/            # GUI installer with hardware detection
-│   ├── assist/               # System diagnostics
-│   ├── boss/                 # Init system (PID 1)
-│   ├── tools/                # System utilities
-│   └── web/                  # Documentation site
-├── defs/                      # Build definition system
-│   ├── eapi.bzl              # EAPI version support (6, 7, 8)
-│   ├── eclasses.bzl          # Eclass implementations
-│   ├── licenses.bzl          # License definitions
-│   ├── versions.bzl          # Subslot/ABI tracking
-│   ├── use_flags.bzl         # USE flag definitions
-│   ├── package_defs.bzl      # Core package macro
-│   ├── package_sets.bzl      # @world, @system sets
-│   ├── tooling.bzl           # Tool integration
-│   ├── registry.bzl          # Package catalog
-│   ├── maintainers.bzl       # Maintainer info
+├── Cargo.toml                # Workspace configuration
+├── model/                    # Core data models (21 modules)
+├── package/                  # Package manager CLI (PRIMARY)
+├── config/                   # Configuration system (20 modules)
+├── installer/                # GUI installer with hardware detection
+├── assist/                   # System diagnostics
+├── boss/                     # Init system (PID 1)
+├── tools/                    # System utilities
+├── web/                      # Documentation site
+├── defs/                     # Build definition system
+│   ├── eapi.bzl             # EAPI version support (6, 7, 8)
+│   ├── eclasses.bzl         # Eclass implementations
+│   ├── licenses.bzl         # License definitions
+│   ├── versions.bzl         # Subslot/ABI tracking
+│   ├── use_flags.bzl        # USE flag definitions
+│   ├── package_defs.bzl     # Core package macro
+│   ├── package_sets.bzl     # @world, @system sets
+│   ├── tooling.bzl          # Tool integration
+│   ├── registry.bzl         # Package catalog
+│   ├── maintainers.bzl      # Maintainer info
 │   └── package_customize.bzl # Per-package customizations
-├── build/defs.bzl            # Buck2 build macros
-├── platforms/                # Platform configurations
-├── toolchains/               # Toolchain definitions
-└── third-party/              # External dependencies
+├── build/defs.bzl           # Buck2 build macros
+├── platforms/               # Platform configurations
+├── toolchains/              # Toolchain definitions
+└── third-party/             # External dependencies
 ```
 
 ### Key Crates
@@ -186,7 +185,7 @@ Implements Portage-compatible package sets:
 
 ### 3.1 CLI Commands
 
-**File**: `buckos/package/src/main.rs` (1,395+ lines)
+**File**: `package/src/main.rs` (1,395+ lines)
 
 | Command | Description | Status |
 |---------|-------------|--------|
@@ -212,7 +211,7 @@ Implements Portage-compatible package sets:
 ### 3.2 Submodules
 
 ```
-buckos/package/src/
+package/src/
 ├── main.rs           # CLI entry point
 ├── lib.rs            # Package manager library
 ├── types.rs          # Data types
@@ -253,13 +252,13 @@ Uses Varisat SAT solver for:
 
 ### 4.1 Overview
 
-**Directory**: `buckos/config/` (20 modules, 10,000+ lines)
+**Directory**: `config/` (20 modules, 10,000+ lines)
 
 Portage-compatible configuration with full feature support.
 
 ### 4.2 USE Flag Configuration
 
-**File**: `buckos/config/src/use_flags.rs` (495 lines)
+**File**: `config/src/use_flags.rs` (495 lines)
 
 ```rust
 pub struct UseConfig {
@@ -333,7 +332,7 @@ pub struct Config {
 
 ### 5.1 Overview
 
-**Directory**: `buckos/installer/` (5 files, ~125 KB)
+**Directory**: `installer/` (5 files, ~125 KB)
 
 GUI installation wizard built with egui/eframe.
 
@@ -397,7 +396,7 @@ Automatic detection of:
 
 ### 6.1 Overview
 
-**Directory**: `buckos/start/` (8 files, ~110 KB)
+**Directory**: `start/` (8 files, ~110 KB)
 
 PID 1 init system with service supervision.
 
@@ -440,7 +439,7 @@ delay = "5s"
 
 ### 7.1 Assist (buckos-assist)
 
-**Directory**: `buckos/assist/` (6 files, ~43 KB)
+**Directory**: `assist/` (6 files, ~43 KB)
 
 System diagnostics and help system:
 - Hardware information gathering
@@ -450,7 +449,7 @@ System diagnostics and help system:
 
 ### 7.2 Tools (buckos-tools)
 
-**Directory**: `buckos/tools/` (1 file, ~22 KB)
+**Directory**: `tools/` (1 file, ~22 KB)
 
 System utility framework for common operations.
 
@@ -483,7 +482,7 @@ def buckos_package(
 
 ### 8.2 Buck Integration Module
 
-**File**: `buckos/package/src/buck/mod.rs`
+**File**: `package/src/buck/mod.rs`
 
 - Basic `buck build` execution
 - Job count configuration
@@ -496,7 +495,7 @@ def buckos_package(
 
 ### 9.1 Overview
 
-**Directory**: `buckos/model/` (21 modules)
+**Directory**: `model/` (21 modules)
 
 Foundational data types used across all crates.
 
