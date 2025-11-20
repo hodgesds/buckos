@@ -139,7 +139,7 @@ pub enum Error {
         message: String,
     },
 
-    #[error("Distfile download failed for {filename}: {reason}")]
+    #[error("Download failed for {filename}: {reason}")]
     DistfileDownloadFailed {
         filename: String,
         reason: String,

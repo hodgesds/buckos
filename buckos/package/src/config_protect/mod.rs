@@ -176,7 +176,9 @@ impl ConfigProtect {
     pub fn find_pending_updates(&mut self) -> Result<Vec<ConfigUpdate>> {
         self.pending_updates.clear();
 
-        for protected_path in &self.config.protected_paths {
+        // Clone paths to avoid borrow checker issue
+        let protected_paths: Vec<_> = self.config.protected_paths.clone();
+        for protected_path in &protected_paths {
             if !protected_path.exists() {
                 continue;
             }

@@ -409,8 +409,9 @@ pub fn eselect_news_command(args: &[&str], manager: &mut NewsManager) -> Result<
                 // Read specific item
                 let name = args[1];
                 if let Some(item) = manager.get(name) {
+                    let formatted = format_news_item(item);
                     manager.mark_read(name)?;
-                    Ok(format_news_item(item))
+                    Ok(formatted)
                 } else {
                     Err(Error::NewsNotFound(name.to_string()))
                 }
