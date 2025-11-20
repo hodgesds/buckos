@@ -4,8 +4,9 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ## Implementation Status Summary
 
-**Core Package Management:** 5/6 high priority complete, 4/5 medium priority complete
+**Core Package Management:** 5/6 high priority complete, 5/5 medium priority complete
 - Repository sync, USE flags, package sets, slots all implemented
+- Masking and keywords system implemented (package.mask/unmask, ACCEPT_KEYWORDS, license-based masking)
 - Missing: Ebuild-like build scripts
 
 **Dependency Resolution:** 5/5 high priority complete, 2/2 medium priority complete
@@ -78,11 +79,13 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - Architecture-specific profiles
   - Location: `buckos/package/src/profile/`
 
-- [ ] **Masking and Keywords** - Package availability control
+- [x] **Masking and Keywords** - Package availability control
   - package.mask / package.unmask
   - ACCEPT_KEYWORDS (stable/testing)
   - ~arch vs arch keywords
   - License-based masking
+  - Autounmask suggestions
+  - License groups (@FREE, @OSI-APPROVED, @COPYLEFT, etc.)
   - Location: `buckos/package/src/mask/`
 
 - [x] **Preserved Libraries** - Handle shared library transitions
@@ -97,7 +100,7 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - ._cfg0000_ file management
   - Location: `buckos/package/src/config_protect/`
 
-- [ ] **Binary Package Support** - Pre-built binary packages
+- [x] **Binary Package Support** - Pre-built binary packages
   - PKGDIR for binary package storage
   - binpkg-multi-instance support
   - Binary package signing

@@ -14,6 +14,7 @@
 //! - **Cache**: Download and build artifact caching
 //! - **Repository**: Package repository management
 
+pub mod binary;
 pub mod buck;
 pub mod cache;
 pub mod catalog;
@@ -25,6 +26,7 @@ pub mod distfile;
 pub mod error;
 pub mod executor;
 pub mod features;
+pub mod mask;
 pub mod news;
 pub mod preserved_libs;
 pub mod profile;
@@ -1109,6 +1111,18 @@ pub struct InstallOptions {
     pub empty_tree: bool,
     /// Don't reinstall if already installed
     pub no_replace: bool,
+    /// Use binary packages when available (--usepkg)
+    pub use_pkg: bool,
+    /// Only use binary packages, fail if not available (--usepkgonly)
+    pub use_pkg_only: bool,
+    /// Fetch binary packages from remote (--getbinpkg)
+    pub get_binpkg: bool,
+    /// Only fetch binary packages, don't build (--getbinpkgonly)
+    pub get_binpkg_only: bool,
+    /// Build binary packages after compilation (--buildpkg)
+    pub build_pkg: bool,
+    /// Only build binary packages (--buildpkgonly)
+    pub build_pkg_only: bool,
 }
 
 /// Global emerge-style options
@@ -1134,6 +1148,18 @@ pub struct EmergeOptions {
     pub quiet: bool,
     /// Number of parallel jobs
     pub jobs: Option<usize>,
+    /// Use binary packages when available (--usepkg)
+    pub use_pkg: bool,
+    /// Only use binary packages (--usepkgonly)
+    pub use_pkg_only: bool,
+    /// Fetch binary packages from remote (--getbinpkg)
+    pub get_binpkg: bool,
+    /// Only fetch binary packages (--getbinpkgonly)
+    pub get_binpkg_only: bool,
+    /// Build binary packages after compilation (--buildpkg)
+    pub build_pkg: bool,
+    /// Only build binary packages (--buildpkgonly)
+    pub build_pkg_only: bool,
 }
 
 /// Options for depclean command

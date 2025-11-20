@@ -180,6 +180,42 @@ pub enum Error {
 
     #[error("Sysroot not found: {0}")]
     SysrootNotFound(std::path::PathBuf),
+    #[error("Binary package not found: {0}")]
+    BinaryPackageNotFound(String),
+
+    #[error("Binary package verification failed for {package}: {message}")]
+    BinaryPackageVerificationFailed { package: String, message: String },
+
+    #[error("Binary package creation failed for {package}: {message}")]
+    BinaryPackageCreationFailed { package: String, message: String },
+
+    #[error("Binary package server error: {0}")]
+    BinaryPackageServerError(String),
+    #[error("Package masked: {package} ({reason})")]
+    PackageMasked {
+        package: String,
+        reason: String,
+    },
+
+    #[error("Package keyword masked: {package} has keywords {keywords:?}, but only {accepted:?} are accepted")]
+    KeywordMasked {
+        package: String,
+        keywords: Vec<String>,
+        accepted: Vec<String>,
+    },
+
+    #[error("License not accepted: {package} has license '{license}', accepted: {accepted:?}")]
+    LicenseNotAccepted {
+        package: String,
+        license: String,
+        accepted: Vec<String>,
+    },
+
+    #[error("Invalid keyword: {0}")]
+    InvalidKeyword(String),
+
+    #[error("Invalid license: {0}")]
+    InvalidLicense(String),
 
     #[error("{0}")]
     Other(String),
