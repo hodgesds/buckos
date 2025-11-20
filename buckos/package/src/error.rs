@@ -163,6 +163,23 @@ pub enum Error {
     #[error("Profile inheritance cycle detected: {0}")]
     ProfileCycle(String),
 
+    #[error("Feature error: {0}")]
+    FeatureError(String),
+
+    #[error("Unknown feature: {0}")]
+    UnknownFeature(String),
+
+    #[error("Cross-compilation error: {0}")]
+    CrossCompileError(String),
+
+    #[error("Invalid target triplet: {0}")]
+    InvalidTriplet(String),
+
+    #[error("Toolchain not found: {0}")]
+    ToolchainNotFound(String),
+
+    #[error("Sysroot not found: {0}")]
+    SysrootNotFound(std::path::PathBuf),
     #[error("Binary package not found: {0}")]
     BinaryPackageNotFound(String),
 

@@ -12,9 +12,11 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 **Dependency Resolution:** 5/5 high priority complete, 2/2 medium priority complete
 - SAT solver, virtual packages, blockers, circular deps, backtracking, autounmask all implemented
 
-**Build System:** 2/3 high priority complete, 0/2 medium priority complete
+**Build System:** 2/3 high priority complete, 2/2 medium priority complete
 - Sandbox and distfile management implemented
-- Missing: Parallel building with load average, FEATURES flags, cross-compilation
+- FEATURES flags (test, doc, ccache, distcc, split-log, parallel-fetch, binpkg-logs, unmerge-orphans)
+- Cross-compilation (CBUILD, CHOST, CTARGET, sysroot, toolchain management)
+- Missing: Parallel building with load average
 
 **Database & Querying:** 4/4 complete
 - SQLite VDB, file collision detection, file ownership, reverse dependencies
@@ -192,16 +194,22 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ### Medium Priority
 
-- [ ] **FEATURES Flags** - Build behavior control
+- [x] **FEATURES Flags** - Build behavior control
   - test, doc, ccache, distcc
   - split-log, parallel-fetch
   - binpkg-logs, unmerge-orphans
+  - FeaturesConfig, FeaturesManager, FeatureContext
+  - ccache/distcc configuration and environment setup
+  - Logging configuration for split-log and binpkg-logs
   - Location: `buckos/package/src/features/`
 
-- [ ] **Cross-Compilation** - Build for other architectures
+- [x] **Cross-Compilation** - Build for other architectures
   - CBUILD, CHOST, CTARGET
   - Sysroot support
   - Cross-toolchain management
+  - TargetTriplet parsing and common triplets
+  - CrossToolchain with environment variables
+  - CMake toolchain and Meson cross-file generation
   - Location: `buckos/package/src/cross/`
 
 ---
