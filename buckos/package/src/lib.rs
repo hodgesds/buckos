@@ -28,6 +28,7 @@ pub mod executor;
 pub mod features;
 pub mod mask;
 pub mod news;
+pub mod overlay;
 pub mod preserved_libs;
 pub mod profile;
 pub mod repository;

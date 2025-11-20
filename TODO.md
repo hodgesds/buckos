@@ -109,10 +109,11 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ### Lower Priority
 
-- [ ] **Overlay Support** - Additional package repositories
+- [x] **Overlay Support** - Additional package repositories
   - Local overlays
   - layman/eselect-repository equivalent
   - Repository priorities
+  - CLI: `buckos overlay` with list/add/remove/enable/disable/sync/info/priority/search subcommands
   - Location: `buckos/package/src/overlay/`
 
 - [x] **News System** - Important notifications
@@ -328,6 +329,8 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - `buckos audit` - check for vulnerabilities
 - [x] Package signing and verification
   - `buckos sign` - manage keys, sign/verify manifests and repositories
+- [x] Overlay management (layman/eselect-repository equivalent)
+  - `buckos overlay` - list/add/remove/enable/disable/sync overlays
 - [x] `emerge --depclean` - Remove unused packages
   - `buckos depclean`
 - [x] `emerge --resume` - Resume interrupted operations

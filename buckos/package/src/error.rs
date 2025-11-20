@@ -217,6 +217,21 @@ pub enum Error {
     #[error("Invalid license: {0}")]
     InvalidLicense(String),
 
+    #[error("Overlay not found: {0}")]
+    OverlayNotFound(String),
+
+    #[error("Overlay already exists: {0}")]
+    OverlayAlreadyExists(String),
+
+    #[error("Overlay sync failed for {name}: {reason}")]
+    OverlaySyncFailed {
+        name: String,
+        reason: String,
+    },
+
+    #[error("Invalid overlay configuration: {0}")]
+    InvalidOverlayConfig(String),
+
     #[error("{0}")]
     Other(String),
 }
