@@ -4,14 +4,14 @@
 //! It can run as PID 1 or as a service management tool.
 
 use clap::{Parser, Subcommand};
-use buckos_start::{create_test_init, Init, InitConfig, ServiceDefinition, ServiceStatus, ShutdownType, SystemdLoader};
+use buckos_boss::{create_test_init, Init, InitConfig, ServiceDefinition, ServiceStatus, ShutdownType, SystemdLoader};
 use std::path::PathBuf;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 #[command(
-    name = "start",
+    name = "boss",
     about = "Buckos init system - PID 1 service manager",
     version,
     author
@@ -490,9 +490,9 @@ async fn run_init(cli: &Cli) -> anyhow::Result<()> {
 /// Print service status.
 fn print_status(status: &ServiceStatus) {
     let state_symbol = match status.state {
-        buckos_start::ServiceState::Running => "●",
-        buckos_start::ServiceState::Failed => "×",
-        buckos_start::ServiceState::Inactive | buckos_start::ServiceState::Stopped => "○",
+        buckos_boss::ServiceState::Running => "●",
+        buckos_boss::ServiceState::Failed => "×",
+        buckos_boss::ServiceState::Inactive | buckos_boss::ServiceState::Stopped => "○",
         _ => "◌",
     };
 
@@ -523,7 +523,7 @@ fn print_status(status: &ServiceStatus) {
     }
 
     // Show health status if not "none"
-    if status.health_status != buckos_start::HealthStatus::None {
+    if status.health_status != buckos_boss::HealthStatus::None {
         println!("   Health: {}", status.health_status);
     }
 
