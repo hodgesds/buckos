@@ -3,7 +3,7 @@
 //! When packages are masked or have keyword restrictions, this module
 //! can automatically suggest or apply unmasking to satisfy dependencies.
 
-use crate::{Error, PackageId, PackageInfo, Result, VersionSpec};
+use crate::{PackageId, PackageInfo, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -310,8 +310,24 @@ impl AutounmaskResolver {
     }
 
     fn get_required_use_changes(&self, pkg: &PackageInfo) -> (Vec<String>, Vec<String>) {
-        // This would analyze REQUIRED_USE and compare with current flags
-        // For now, return empty changes
+        // TODO: Implement REQUIRED_USE validation when required_use field is added to PackageInfo
+        //
+        // REQUIRED_USE specifies constraints on USE flags that must be satisfied:
+        // - Simple flag: "foo" means foo must be enabled
+        // - Negation: "!foo" means foo must be disabled
+        // - Any-of group: "|| ( foo bar )" means at least one must be enabled
+        // - Exactly-one-of: "^^ ( foo bar )" means exactly one must be enabled
+        // - At-most-one-of: "?? ( foo bar )" means at most one can be enabled
+        // - Use-conditional: "foo? ( bar )" means if foo is enabled, bar must be enabled
+        //
+        // When REQUIRED_USE is not satisfied, this function should:
+        // 1. Parse the REQUIRED_USE string (similar to dependency syntax)
+        // 2. Evaluate constraints against current USE flag configuration
+        // 3. Return (flags_to_enable, flags_to_disable) to satisfy constraints
+        // 4. If multiple solutions exist, prefer minimal changes
+        // 5. If no solution exists, return empty (package will remain masked)
+        //
+        // For now, return empty changes as REQUIRED_USE field is not yet in PackageInfo
         (Vec::new(), Vec::new())
     }
 

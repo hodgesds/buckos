@@ -203,6 +203,10 @@ impl DependencyResolver {
         info!("Using SAT solver for dependency resolution");
 
         let mut solver = Solver::new();
+        let mut unsatisfiable_deps: Vec<String> = Vec::new();
+
+        // Convert enabled USE flags to a set for faster lookups
+        let enabled_use_flags: HashSet<String> = opts.use_flags.iter().cloned().collect();
 
         // Get all available package versions
         let all_packages = self.repos.get_all_packages().await?;
@@ -251,26 +255,100 @@ impl DependencyResolver {
             }
         }
 
-        // 3. Dependencies
+        // 3. Dependencies (compile-time, runtime, and optionally build-time)
         for pkg in &all_packages {
             let pkg_lit = var_map[&(pkg.id.clone(), pkg.version.clone())];
 
-            for dep in &pkg.dependencies {
-                // Find versions that satisfy the dependency
-                let satisfying: Vec<Lit> = all_packages
-                    .iter()
-                    .filter(|p| p.id == dep.package && dep.version.matches(&p.version))
-                    .map(|p| var_map[&(p.id.clone(), p.version.clone())])
-                    .collect();
+            // Helper function to add dependency constraints
+            let add_dep_constraints =
+                |solver: &mut Solver,
+                 dep: &crate::types::Dependency,
+                 pkg_lit: Lit,
+                 pkg: &PackageInfo,
+                 unsatisfiable: &mut Vec<String>,
+                 enabled_flags: &HashSet<String>| {
+                    // Check if dependency should be included based on USE conditions
+                    if !dep.use_flags.evaluate(enabled_flags) {
+                        return; // Skip this dependency as USE condition is not met
+                    }
 
-                if satisfying.is_empty() {
-                    // If package is selected, dependency cannot be satisfied
-                    solver.add_clause(&[!pkg_lit]);
-                } else {
-                    // pkg => (dep_v1 || dep_v2 || ...)
-                    let mut clause = vec![!pkg_lit];
-                    clause.extend(satisfying);
-                    solver.add_clause(&clause);
+                    // Find versions that satisfy the dependency
+                    let satisfying: Vec<Lit> = all_packages
+                        .iter()
+                        .filter(|p| {
+                            p.id == dep.package
+                                && dep.version.matches(&p.version)
+                                && dep.slot.as_ref().map_or(true, |s| &p.slot == s)
+                        })
+                        .map(|p| var_map[&(p.id.clone(), p.version.clone())])
+                        .collect();
+
+                    if satisfying.is_empty() {
+                        // Track unsatisfiable dependency for better error messages
+                        let slot_str = dep
+                            .slot
+                            .as_ref()
+                            .map_or(String::new(), |s| format!(":{}", s));
+                        let use_str = match &dep.use_flags {
+                            crate::types::UseCondition::Always => String::new(),
+                            _ => format!(" [USE: {:?}]", dep.use_flags),
+                        };
+                        unsatisfiable.push(format!(
+                            "{} v{} requires {}{} {:?}{}",
+                            pkg.id.name,
+                            pkg.version,
+                            dep.package.name,
+                            slot_str,
+                            dep.version,
+                            use_str
+                        ));
+                        // If package is selected, dependency cannot be satisfied
+                        solver.add_clause(&[!pkg_lit]);
+                    } else {
+                        // pkg => (dep_v1 || dep_v2 || ...)
+                        let mut clause = vec![!pkg_lit];
+                        clause.extend(satisfying);
+                        solver.add_clause(&clause);
+                    }
+                };
+
+            // Regular dependencies
+            for dep in &pkg.dependencies {
+                add_dep_constraints(
+                    &mut solver,
+                    dep,
+                    pkg_lit,
+                    pkg,
+                    &mut unsatisfiable_deps,
+                    &enabled_use_flags,
+                );
+            }
+
+            // Runtime dependencies
+            if !opts.no_deps {
+                for dep in &pkg.runtime_dependencies {
+                    add_dep_constraints(
+                        &mut solver,
+                        dep,
+                        pkg_lit,
+                        pkg,
+                        &mut unsatisfiable_deps,
+                        &enabled_use_flags,
+                    );
+                }
+            }
+
+            // Build dependencies (only if building)
+            if opts.build && !opts.no_deps {
+                for dep in &pkg.build_dependencies {
+                    add_dep_constraints(
+                        &mut solver,
+                        dep,
+                        pkg_lit,
+                        pkg,
+                        &mut unsatisfiable_deps,
+                        &enabled_use_flags,
+                    );
                 }
             }
         }
@@ -281,9 +359,23 @@ impl DependencyResolver {
             .map_err(|e| Error::ResolutionFailed(format!("SAT solver error: {:?}", e)))?;
 
         if !solution {
-            return Err(Error::ResolutionFailed(
-                "No solution found for dependencies".to_string(),
-            ));
+            let mut error_msg = String::from("No solution found for dependencies");
+            if !unsatisfiable_deps.is_empty() {
+                error_msg.push_str(":\n");
+                for (i, dep) in unsatisfiable_deps.iter().enumerate() {
+                    if i < 10 {
+                        // Limit to first 10 conflicts
+                        error_msg.push_str(&format!("  - {}\n", dep));
+                    }
+                }
+                if unsatisfiable_deps.len() > 10 {
+                    error_msg.push_str(&format!(
+                        "  ... and {} more conflicts\n",
+                        unsatisfiable_deps.len() - 10
+                    ));
+                }
+            }
+            return Err(Error::ResolutionFailed(error_msg));
         }
 
         // Extract solution
@@ -331,11 +423,26 @@ impl DependencyResolver {
             node_map.insert(pkg.id.clone(), node);
         }
 
-        // Add edges
+        // Add edges for all dependency types
         for (idx, pkg) in packages.iter().enumerate() {
             let pkg_node = node_map[&pkg.id];
 
+            // Regular dependencies
             for dep in &pkg.dependencies {
+                if let Some(&dep_node) = node_map.get(&dep.package) {
+                    graph.add_edge(dep_node, pkg_node, ());
+                }
+            }
+
+            // Runtime dependencies
+            for dep in &pkg.runtime_dependencies {
+                if let Some(&dep_node) = node_map.get(&dep.package) {
+                    graph.add_edge(dep_node, pkg_node, ());
+                }
+            }
+
+            // Build dependencies
+            for dep in &pkg.build_dependencies {
                 if let Some(&dep_node) = node_map.get(&dep.package) {
                     graph.add_edge(dep_node, pkg_node, ());
                 }
