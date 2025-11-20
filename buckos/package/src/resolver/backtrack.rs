@@ -189,7 +189,7 @@ impl BacktrackResolver {
             // Check if this version satisfies all constraints
             if let Err(reason) = self.check_constraints(&pkg_id, &pkg.version, state) {
                 if idx == versions.len() - 1 {
-                    return StepResult::Conflict(reason);
+                    return StepResult::Conflict(reason.to_string());
                 }
                 continue;
             }

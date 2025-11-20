@@ -716,11 +716,11 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "buckos-assist",
+ "buckos-boss",
  "buckos-config",
  "buckos-installer",
  "buckos-model",
  "buckos-package",
- "buckos-start",
  "buckos-tools",
  "buckos-web",
  "clap 3.2.25",
@@ -753,6 +753,26 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "buckos-boss"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap 4.5.53",
+ "libc",
+ "nix 0.27.1",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -849,26 +869,6 @@ dependencies = [
  "which",
  "xz2",
  "zstd",
-]
-
-[[package]]
-name = "buckos-start"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "clap 4.5.53",
- "libc",
- "nix 0.27.1",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]

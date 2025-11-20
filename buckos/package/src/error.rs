@@ -134,7 +134,7 @@ pub enum Error {
     },
 
     #[error("Download failed for {filename}: {reason}")]
-    DownloadFailed {
+    DistfileDownloadFailed {
         filename: String,
         reason: String,
     },

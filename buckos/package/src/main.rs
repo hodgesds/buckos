@@ -3450,7 +3450,7 @@ async fn cmd_export(args: ExportArgs) -> buckos_package::Result<()> {
             output
         }
         _ => {
-            return Err(buckos_package::Error::Configuration(format!(
+            return Err(buckos_package::Error::ConfigError(format!(
                 "Unknown format: {}. Use json, toml, shell, or buck",
                 args.format
             )));

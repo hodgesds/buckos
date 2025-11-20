@@ -87,3 +87,5 @@ petgraph = "0.6"
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3.9"
+pretty_assertions = "1.4"
+assert_matches = "1.5"

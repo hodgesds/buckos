@@ -212,7 +212,7 @@ impl DistfileManager {
             }
         }
 
-        Err(Error::DownloadFailed {
+        Err(Error::DistfileDownloadFailed {
             filename: source.filename.clone(),
             reason: last_error.unwrap_or_else(|| "All download attempts failed".to_string()),
         })
@@ -242,7 +242,7 @@ impl DistfileManager {
         let mut downloaded = 0u64;
 
         let mut stream = response.bytes_stream();
-        use futures_util::StreamExt;
+        use futures::StreamExt;
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| Error::NetworkError(e.to_string()))?;
@@ -324,7 +324,7 @@ impl DistfileManager {
 
     /// Fetch multiple files in parallel
     pub async fn fetch_all(&self, sources: &[SourceUri]) -> Result<Vec<PathBuf>> {
-        use futures_util::stream::{self, StreamExt};
+        use futures::stream::{self, StreamExt};
 
         let results: Vec<Result<PathBuf>> = stream::iter(sources)
             .map(|source| self.fetch(source))
