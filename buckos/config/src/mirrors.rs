@@ -29,7 +29,7 @@ impl Default for MirrorConfig {
     fn default() -> Self {
         Self {
             mirrors: vec![
-                Mirror::new("https://distfiles.buckos.dev", "Buckos Primary"),
+                Mirror::new("https://distfiles.buckos.org", "Buckos Primary"),
                 Mirror::new("https://mirror.rackspace.com/gentoo/distfiles", "Rackspace US"),
                 Mirror::new("https://gentoo.osuosl.org/distfiles", "OSU OSL"),
                 Mirror::new("https://mirrors.mit.edu/gentoo-distfiles", "MIT"),
