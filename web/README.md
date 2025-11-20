@@ -27,7 +27,7 @@ buckos-web = { path = "../web" }
 Or install the binary:
 
 ```bash
-cargo install --path buckos/web
+cargo install --path web
 ```
 
 ## Running
@@ -35,7 +35,7 @@ cargo install --path buckos/web
 ### Development
 
 ```bash
-cd buckos/web
+cd web
 cargo run
 ```
 
@@ -170,7 +170,7 @@ Static files are served from the `static/` directory:
 ### Configuration File
 
 ```toml
-# /etc/buckos/web.toml
+# /etc/web.toml
 
 [server]
 host = "0.0.0.0"
@@ -308,7 +308,7 @@ When contributing to the website:
 ```bash
 # Clone and build
 git clone https://github.com/hodgesds/buckos.git
-cd buckos/buckos/web
+cd buckos/web
 cargo run
 
 # Open browser

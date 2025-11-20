@@ -25,7 +25,7 @@ buckos-tools = { path = "../tools" }
 Or install the binary:
 
 ```bash
-cargo install --path buckos/tools
+cargo install --path tools
 ```
 
 ## Planned Tools

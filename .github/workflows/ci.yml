@@ -20,7 +20,7 @@ jobs:
         with:
           components: rustfmt
       - name: Check formatting
-        run: cargo fmt --all --manifest-path buckos/Cargo.toml -- --check
+        run: cargo fmt --all --manifest-path Cargo.toml -- --check
 
   clippy:
     name: Clippy
@@ -36,7 +36,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev libssl-dev pkg-config
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features --manifest-path buckos/Cargo.toml -- -D warnings
+        run: cargo clippy --all-targets --all-features --manifest-path Cargo.toml -- -D warnings
 
   test:
     name: Test Suite
@@ -60,12 +60,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            buckos/target
+            target
           key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ matrix.rust }}-
       - name: Run tests
-        run: cargo test --workspace --manifest-path buckos/Cargo.toml
+        run: cargo test --workspace --manifest-path Cargo.toml
 
   build-binaries:
     name: Build Binaries
@@ -89,27 +89,27 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            buckos/target
+            target
           key: ${{ runner.os }}-cargo-build-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-${{ matrix.rust }}-
       - name: Build all binaries (release)
-        run: cargo build --release --workspace --manifest-path buckos/Cargo.toml
+        run: cargo build --release --workspace --manifest-path Cargo.toml
       - name: Verify buckos binary
         run: |
-          ./buckos/target/release/buckos --help || echo "Binary help check completed"
+          ./target/release/buckos --help || echo "Binary help check completed"
       - name: Verify buckos-assist binary
         run: |
-          ./buckos/target/release/buckos-assist --help || echo "Binary help check completed"
+          ./target/release/buckos-assist --help || echo "Binary help check completed"
       - name: Verify boss binary
         run: |
-          ./buckos/target/release/boss --help || echo "Binary help check completed"
+          ./target/release/boss --help || echo "Binary help check completed"
       - name: Verify buckos-tools binary
         run: |
-          ./buckos/target/release/buckos-tools --help || echo "Binary help check completed"
+          ./target/release/buckos-tools --help || echo "Binary help check completed"
       - name: Verify buckos-installer binary
         run: |
-          ./buckos/target/release/buckos-installer --help || echo "Binary help check completed"
+          ./target/release/buckos-installer --help || echo "Binary help check completed"
 
   build-debug:
     name: Build Debug
@@ -128,12 +128,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            buckos/target
+            target
           key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-debug-
       - name: Build workspace (debug)
-        run: cargo build --workspace --manifest-path buckos/Cargo.toml
+        run: cargo build --workspace --manifest-path Cargo.toml
 
   doc:
     name: Documentation
@@ -147,6 +147,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev libssl-dev pkg-config libxkbcommon-dev libwayland-dev
       - name: Check documentation
-        run: cargo doc --no-deps --workspace --manifest-path buckos/Cargo.toml
+        run: cargo doc --no-deps --workspace --manifest-path Cargo.toml
         env:
           RUSTDOCFLAGS: -D warnings
