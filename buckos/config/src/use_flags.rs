@@ -63,7 +63,11 @@ impl UseConfig {
         // Add expanded flags
         for (prefix, values) in &self.expand {
             for value in values {
-                flags.insert(format!("{}_{}", prefix.to_lowercase(), value.to_lowercase()));
+                flags.insert(format!(
+                    "{}_{}",
+                    prefix.to_lowercase(),
+                    value.to_lowercase()
+                ));
             }
         }
 
@@ -140,12 +144,14 @@ impl UseConfig {
 
     /// Set video cards
     pub fn set_video_cards(&mut self, cards: Vec<String>) {
-        self.expand.insert("VIDEO_CARDS".to_string(), cards.into_iter().collect());
+        self.expand
+            .insert("VIDEO_CARDS".to_string(), cards.into_iter().collect());
     }
 
     /// Set input devices
     pub fn set_input_devices(&mut self, devices: Vec<String>) {
-        self.expand.insert("INPUT_DEVICES".to_string(), devices.into_iter().collect());
+        self.expand
+            .insert("INPUT_DEVICES".to_string(), devices.into_iter().collect());
     }
 }
 
@@ -242,8 +248,8 @@ pub fn default_use_expand() -> HashMap<String, UseExpandVariable> {
             name: "CPU_FLAGS_X86".to_string(),
             values: [
                 "aes", "avx", "avx2", "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl",
-                "mmx", "mmxext", "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3",
-                "sse4_1", "sse4_2", "sse4a", "f16c", "fma", "fma4", "xop",
+                "mmx", "mmxext", "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3", "sse4_1",
+                "sse4_2", "sse4a", "f16c", "fma", "fma4", "xop",
             ]
             .iter()
             .map(|s| s.to_string())
@@ -259,9 +265,24 @@ pub fn default_use_expand() -> HashMap<String, UseExpandVariable> {
         UseExpandVariable {
             name: "VIDEO_CARDS".to_string(),
             values: [
-                "amdgpu", "ast", "dummy", "fbdev", "i915", "i965", "intel",
-                "mga", "nouveau", "nvidia", "r128", "r600", "radeon", "radeonsi",
-                "vesa", "via", "virtualbox", "vmware",
+                "amdgpu",
+                "ast",
+                "dummy",
+                "fbdev",
+                "i915",
+                "i965",
+                "intel",
+                "mga",
+                "nouveau",
+                "nvidia",
+                "r128",
+                "r600",
+                "radeon",
+                "radeonsi",
+                "vesa",
+                "via",
+                "virtualbox",
+                "vmware",
             ]
             .iter()
             .map(|s| s.to_string())
@@ -277,8 +298,14 @@ pub fn default_use_expand() -> HashMap<String, UseExpandVariable> {
         UseExpandVariable {
             name: "INPUT_DEVICES".to_string(),
             values: [
-                "evdev", "joystick", "keyboard", "libinput", "mouse", "synaptics",
-                "vmmouse", "wacom",
+                "evdev",
+                "joystick",
+                "keyboard",
+                "libinput",
+                "mouse",
+                "synaptics",
+                "vmmouse",
+                "wacom",
             ]
             .iter()
             .map(|s| s.to_string())
@@ -304,12 +331,10 @@ pub fn default_use_expand() -> HashMap<String, UseExpandVariable> {
         "PYTHON_TARGETS".to_string(),
         UseExpandVariable {
             name: "PYTHON_TARGETS".to_string(),
-            values: [
-                "python3_10", "python3_11", "python3_12", "python3_13",
-            ]
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
+            values: ["python3_10", "python3_11", "python3_12", "python3_13"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             description: "Python implementations to build against".to_string(),
             unprefixed: false,
             implicit: false,

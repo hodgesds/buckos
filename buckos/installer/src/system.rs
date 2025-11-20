@@ -109,11 +109,17 @@ pub struct SystemInfo {
 /// Get list of available disks
 pub fn get_available_disks() -> Result<Vec<DiskInfo>> {
     let disks = Disks::new_with_refreshed_list();
-    let mut disk_map: std::collections::HashMap<String, DiskInfo> = std::collections::HashMap::new();
+    let mut disk_map: std::collections::HashMap<String, DiskInfo> =
+        std::collections::HashMap::new();
 
     // Use lsblk for more detailed disk information
     if let Ok(output) = Command::new("lsblk")
-        .args(["-b", "-o", "NAME,SIZE,TYPE,MODEL,RM,MOUNTPOINT,FSTYPE", "-J"])
+        .args([
+            "-b",
+            "-o",
+            "NAME,SIZE,TYPE,MODEL,RM,MOUNTPOINT,FSTYPE",
+            "-J",
+        ])
         .output()
     {
         if output.status.success() {
@@ -153,7 +159,9 @@ pub fn get_available_disks() -> Result<Vec<DiskInfo>> {
                                 let mut partitions = Vec::new();
 
                                 // Get child partitions
-                                if let Some(children) = device.get("children").and_then(|v| v.as_array()) {
+                                if let Some(children) =
+                                    device.get("children").and_then(|v| v.as_array())
+                                {
                                     for child in children {
                                         let part_name = child
                                             .get("name")
@@ -188,13 +196,16 @@ pub fn get_available_disks() -> Result<Vec<DiskInfo>> {
                                     }
                                 }
 
-                                disk_map.insert(device_path.clone(), DiskInfo {
-                                    device: device_path,
-                                    model,
-                                    size,
-                                    removable,
-                                    partitions,
-                                });
+                                disk_map.insert(
+                                    device_path.clone(),
+                                    DiskInfo {
+                                        device: device_path,
+                                        model,
+                                        size,
+                                        removable,
+                                        partitions,
+                                    },
+                                );
                             }
                         }
                     }
@@ -208,15 +219,21 @@ pub fn get_available_disks() -> Result<Vec<DiskInfo>> {
         for disk in disks.list() {
             let device = disk.name().to_string_lossy().to_string();
             // Only include actual disk devices, not partitions
-            if device.starts_with("/dev/sd") || device.starts_with("/dev/nvme") || device.starts_with("/dev/vd") {
+            if device.starts_with("/dev/sd")
+                || device.starts_with("/dev/nvme")
+                || device.starts_with("/dev/vd")
+            {
                 if !disk_map.contains_key(&device) {
-                    disk_map.insert(device.clone(), DiskInfo {
-                        device: device.clone(),
-                        model: "Unknown".to_string(),
-                        size: disk.total_space(),
-                        removable: disk.is_removable(),
-                        partitions: Vec::new(),
-                    });
+                    disk_map.insert(
+                        device.clone(),
+                        DiskInfo {
+                            device: device.clone(),
+                            model: "Unknown".to_string(),
+                            size: disk.total_space(),
+                            removable: disk.is_removable(),
+                            partitions: Vec::new(),
+                        },
+                    );
                 }
             }
         }
@@ -261,7 +278,12 @@ pub fn run_command(cmd: &str, args: &[&str]) -> Result<String> {
 }
 
 /// Mount a filesystem
-pub fn mount_filesystem(device: &str, target: &str, fstype: Option<&str>, options: Option<&str>) -> Result<()> {
+pub fn mount_filesystem(
+    device: &str,
+    target: &str,
+    fstype: Option<&str>,
+    options: Option<&str>,
+) -> Result<()> {
     let mut args = vec![device, target];
 
     if let Some(fs) = fstype {
@@ -310,7 +332,15 @@ pub fn get_timezones() -> Vec<String> {
     let mut timezones = Vec::new();
 
     // Common timezone regions
-    let regions = ["Africa", "America", "Asia", "Atlantic", "Australia", "Europe", "Pacific"];
+    let regions = [
+        "Africa",
+        "America",
+        "Asia",
+        "Atlantic",
+        "Australia",
+        "Europe",
+        "Pacific",
+    ];
 
     for region in regions {
         let region_path = tz_dir.join(region);
@@ -505,7 +535,10 @@ pub fn detect_network_interfaces() -> Vec<NetworkInterfaceInfo> {
                 NetworkInterfaceType::Ethernet
             } else if name.starts_with("br") || name.starts_with("docker") {
                 NetworkInterfaceType::Bridge
-            } else if name.starts_with("veth") || name.starts_with("virbr") || name.starts_with("vnet") {
+            } else if name.starts_with("veth")
+                || name.starts_with("virbr")
+                || name.starts_with("vnet")
+            {
                 NetworkInterfaceType::Virtual
             } else {
                 NetworkInterfaceType::Unknown
@@ -634,7 +667,8 @@ pub fn detect_is_virtual_machine() -> bool {
             || product.contains("qemu")
             || product.contains("kvm")
             || product.contains("hyper-v")
-            || product.contains("virtual machine") {
+            || product.contains("virtual machine")
+        {
             return true;
         }
     }
@@ -738,9 +772,9 @@ pub fn detect_hardware() -> HardwareInfo {
         PowerProfile::Desktop
     } else if is_laptop {
         // Check if it's a gaming laptop by looking for high-end GPU
-        let has_dedicated_gpu = gpus.iter().any(|g| {
-            matches!(g.vendor, GpuVendor::Nvidia | GpuVendor::Amd)
-        });
+        let has_dedicated_gpu = gpus
+            .iter()
+            .any(|g| matches!(g.vendor, GpuVendor::Nvidia | GpuVendor::Amd));
         if has_dedicated_gpu {
             PowerProfile::Gaming
         } else {
@@ -771,11 +805,17 @@ pub fn generate_hardware_suggestions(hardware: &HardwareInfo) -> Vec<HardwarePac
 
     // GPU drivers
     for gpu in &hardware.gpus {
-        let packages: Vec<String> = gpu.vendor.driver_packages().iter().map(|s| s.to_string()).collect();
+        let packages: Vec<String> = gpu
+            .vendor
+            .driver_packages()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         if !packages.is_empty() {
             suggestions.push(HardwarePackageSuggestion {
                 category: "Graphics".to_string(),
-                reason: format!("Detected {} GPU: {}",
+                reason: format!(
+                    "Detected {} GPU: {}",
                     match gpu.vendor {
                         GpuVendor::Nvidia => "NVIDIA",
                         GpuVendor::Amd => "AMD",
@@ -793,7 +833,9 @@ pub fn generate_hardware_suggestions(hardware: &HardwareInfo) -> Vec<HardwarePac
     }
 
     // WiFi support
-    let has_wifi = hardware.network_interfaces.iter()
+    let has_wifi = hardware
+        .network_interfaces
+        .iter()
         .any(|i| matches!(i.interface_type, NetworkInterfaceType::Wifi));
     if has_wifi {
         suggestions.push(HardwarePackageSuggestion {
@@ -813,10 +855,7 @@ pub fn generate_hardware_suggestions(hardware: &HardwareInfo) -> Vec<HardwarePac
         suggestions.push(HardwarePackageSuggestion {
             category: "Bluetooth".to_string(),
             reason: "Bluetooth adapter detected".to_string(),
-            packages: vec![
-                "bluez".to_string(),
-                "bluez-utils".to_string(),
-            ],
+            packages: vec!["bluez".to_string(), "bluez-utils".to_string()],
             selected: true,
         });
     }
@@ -826,17 +865,16 @@ pub fn generate_hardware_suggestions(hardware: &HardwareInfo) -> Vec<HardwarePac
         suggestions.push(HardwarePackageSuggestion {
             category: "Input".to_string(),
             reason: "Touchscreen detected".to_string(),
-            packages: vec![
-                "xf86-input-wacom".to_string(),
-                "libinput".to_string(),
-            ],
+            packages: vec!["xf86-input-wacom".to_string(), "libinput".to_string()],
             selected: true,
         });
     }
 
     // Power management for laptops
     if hardware.is_laptop && !hardware.is_virtual_machine {
-        let packages: Vec<String> = hardware.power_profile.packages()
+        let packages: Vec<String> = hardware
+            .power_profile
+            .packages()
             .iter()
             .map(|s| s.to_string())
             .collect();
@@ -852,9 +890,17 @@ pub fn generate_hardware_suggestions(hardware: &HardwareInfo) -> Vec<HardwarePac
 
     // Virtual machine tools
     if hardware.is_virtual_machine {
-        let vm_packages = if hardware.gpus.iter().any(|g| matches!(g.vendor, GpuVendor::VirtualBox)) {
+        let vm_packages = if hardware
+            .gpus
+            .iter()
+            .any(|g| matches!(g.vendor, GpuVendor::VirtualBox))
+        {
             vec!["virtualbox-guest-additions".to_string()]
-        } else if hardware.gpus.iter().any(|g| matches!(g.vendor, GpuVendor::VMware)) {
+        } else if hardware
+            .gpus
+            .iter()
+            .any(|g| matches!(g.vendor, GpuVendor::VMware))
+        {
             vec!["open-vm-tools".to_string()]
         } else {
             vec!["qemu-guest-agent".to_string()]

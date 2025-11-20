@@ -60,7 +60,11 @@ impl ParallelExecutor {
             return Ok(Vec::new());
         }
 
-        info!("Executing {} tasks with parallelism {}", tasks.len(), self.parallelism);
+        info!(
+            "Executing {} tasks with parallelism {}",
+            tasks.len(),
+            self.parallelism
+        );
 
         let total_tasks = tasks.len();
         let completed = Arc::new(AtomicUsize::new(0));
@@ -240,7 +244,8 @@ impl ParallelExecutor {
         R: Send + 'static,
         F: Fn(T) -> Result<R> + Send + Sync + Clone + 'static,
     {
-        let results: Arc<Mutex<Vec<(usize, Result<R>)>>> = Arc::new(Mutex::new(Vec::with_capacity(items.len())));
+        let results: Arc<Mutex<Vec<(usize, Result<R>)>>> =
+            Arc::new(Mutex::new(Vec::with_capacity(items.len())));
         let mut handles = Vec::new();
 
         for (idx, item) in items.into_iter().enumerate() {
@@ -267,10 +272,7 @@ impl ParallelExecutor {
         indexed_results.sort_by_key(|(idx, _)| *idx);
 
         // Extract results
-        indexed_results
-            .into_iter()
-            .map(|(_, r)| r)
-            .collect()
+        indexed_results.into_iter().map(|(_, r)| r).collect()
     }
 
     /// Get current parallelism level

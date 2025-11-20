@@ -127,7 +127,8 @@ impl NewsManager {
 
     /// Parse a news item directory
     fn parse_news_item(&self, dir: &Path) -> Result<NewsItem> {
-        let name = dir.file_name()
+        let name = dir
+            .file_name()
             .ok_or_else(|| Error::InvalidPath(dir.to_string_lossy().to_string()))?
             .to_string_lossy()
             .to_string();
@@ -275,13 +276,11 @@ impl NewsManager {
         profile: &str,
         keywords: &[String],
     ) -> bool {
-        item.display_if.iter().any(|condition| {
-            match condition {
-                DisplayCondition::Always => true,
-                DisplayCondition::Installed(pkg) => installed.contains(pkg),
-                DisplayCondition::Profile(p) => profile.contains(p),
-                DisplayCondition::Keyword(k) => keywords.contains(k),
-            }
+        item.display_if.iter().any(|condition| match condition {
+            DisplayCondition::Always => true,
+            DisplayCondition::Installed(pkg) => installed.contains(pkg),
+            DisplayCondition::Profile(p) => profile.contains(p),
+            DisplayCondition::Keyword(k) => keywords.contains(k),
         })
     }
 
@@ -353,10 +352,7 @@ pub fn format_news_list(items: &[&NewsItem], show_read: bool) -> String {
 
     for item in items {
         let date = item.posted.format("%Y-%m-%d");
-        output.push_str(&format!(
-            "{} [{}] {}\n",
-            item.name, date, item.title
-        ));
+        output.push_str(&format!("{} [{}] {}\n", item.name, date, item.title));
     }
 
     output
@@ -401,9 +397,7 @@ pub fn eselect_news_command(args: &[&str], manager: &mut NewsManager) -> Result<
             let items: Vec<_> = manager.get_all().iter().collect();
             Ok(format_news_list(&items, true))
         }
-        Some(&"count") => {
-            Ok(format!("{}\n", manager.unread_count()))
-        }
+        Some(&"count") => Ok(format!("{}\n", manager.unread_count())),
         Some(&"read") => {
             if args.len() > 1 {
                 // Read specific item
@@ -439,9 +433,7 @@ pub fn eselect_news_command(args: &[&str], manager: &mut NewsManager) -> Result<
             manager.mark_all_read()?;
             Ok("All news items marked as read.\n".to_string())
         }
-        _ => {
-            Ok("Usage: eselect news [list|count|read|unread|purge]\n".to_string())
-        }
+        _ => Ok("Usage: eselect news [list|count|read|unread|purge]\n".to_string()),
     }
 }
 
@@ -487,9 +479,9 @@ mod tests {
             content_type: "text/plain".to_string(),
             posted: chrono::Local::now().date_naive(),
             revision: None,
-            display_if: vec![
-                DisplayCondition::Installed(PackageId::new("sys-apps", "systemd")),
-            ],
+            display_if: vec![DisplayCondition::Installed(PackageId::new(
+                "sys-apps", "systemd",
+            ))],
             content: String::new(),
         };
 

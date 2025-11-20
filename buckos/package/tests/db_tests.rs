@@ -80,9 +80,12 @@ mod database_operations {
     fn test_get_all_installed_multiple() {
         let (mut db, _temp_dir) = create_test_db();
 
-        db.add_package(&create_test_package("sys-apps", "systemd")).unwrap();
-        db.add_package(&create_test_package("dev-libs", "openssl")).unwrap();
-        db.add_package(&create_test_package("app-shells", "bash")).unwrap();
+        db.add_package(&create_test_package("sys-apps", "systemd"))
+            .unwrap();
+        db.add_package(&create_test_package("dev-libs", "openssl"))
+            .unwrap();
+        db.add_package(&create_test_package("app-shells", "bash"))
+            .unwrap();
 
         let packages = db.get_all_installed().unwrap();
         assert_eq!(packages.len(), 3);
@@ -301,7 +304,6 @@ mod explicit_flag_tests {
         assert!(!retrieved.explicit);
     }
 }
-
 
 mod file_type_tests {
     use super::*;

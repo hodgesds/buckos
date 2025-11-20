@@ -43,9 +43,11 @@ impl RepositoryManager {
 
     /// Sync a single repository by name
     pub async fn sync_repo(&self, repo_name: &str) -> Result<()> {
-        let repo = self.repos.iter().find(|r| r.name == repo_name).ok_or_else(|| {
-            Error::RepositoryNotFound(repo_name.to_string())
-        })?;
+        let repo = self
+            .repos
+            .iter()
+            .find(|r| r.name == repo_name)
+            .ok_or_else(|| Error::RepositoryNotFound(repo_name.to_string()))?;
 
         self.sync_repo_config(repo).await
     }
@@ -149,9 +151,10 @@ impl RepositoryManager {
             )));
         }
 
-        let index_data = response.bytes().await.map_err(|e| {
-            Error::RepositoryError(format!("Failed to read index: {}", e))
-        })?;
+        let index_data = response
+            .bytes()
+            .await
+            .map_err(|e| Error::RepositoryError(format!("Failed to read index: {}", e)))?;
 
         // Save index
         let index_path = self.cache_dir.join(format!("{}.json", repo.name));
@@ -329,9 +332,8 @@ impl RepositoryManager {
         let mut result = Vec::new();
 
         for dep_str in deps {
-            let pkg_id = PackageId::parse(dep_str).ok_or_else(|| {
-                Error::InvalidPackageSpec(dep_str.clone())
-            })?;
+            let pkg_id = PackageId::parse(dep_str)
+                .ok_or_else(|| Error::InvalidPackageSpec(dep_str.clone()))?;
 
             result.push(Dependency {
                 package: pkg_id,

@@ -125,27 +125,20 @@ impl Init {
     }
 
     /// Mount a filesystem.
-    fn mount_fs(
-        &self,
-        source: &str,
-        target: &str,
-        fstype: &str,
-        flags: MsFlags,
-    ) -> Result<()> {
+    fn mount_fs(&self, source: &str, target: &str, fstype: &str, flags: MsFlags) -> Result<()> {
         let target_path = std::path::Path::new(target);
         if !target_path.exists() {
             std::fs::create_dir_all(target_path)?;
         }
 
-        mount(
-            Some(source),
-            target,
-            Some(fstype),
-            flags,
-            None::<&str>,
-        )?;
+        mount(Some(source), target, Some(fstype), flags, None::<&str>)?;
 
-        info!(source = source, target = target, fstype = fstype, "Mounted filesystem");
+        info!(
+            source = source,
+            target = target,
+            fstype = fstype,
+            "Mounted filesystem"
+        );
         Ok(())
     }
 

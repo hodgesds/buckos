@@ -362,7 +362,11 @@ fn parse_repos_conf_content(content: &str, config: &mut ReposConfig) -> Result<(
     Ok(())
 }
 
-fn save_section(section: &str, values: &HashMap<String, String>, config: &mut ReposConfig) -> Result<()> {
+fn save_section(
+    section: &str,
+    values: &HashMap<String, String>,
+    config: &mut ReposConfig,
+) -> Result<()> {
     if section == "DEFAULT" {
         // Default settings
         if let Some(v) = values.get("main-repo") {

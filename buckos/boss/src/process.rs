@@ -87,7 +87,10 @@ impl ProcessSupervisor {
         cmd.envs(&service.environment);
 
         // Clear environment and set basic vars
-        cmd.env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+        cmd.env(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        );
 
         // Set user/group if specified
         if let Some(ref user) = service.user {
@@ -124,31 +127,32 @@ impl ProcessSupervisor {
         }
 
         // Set up output handling based on configuration
-        let (stdout_pipe, stderr_pipe) = if service.standard_output == "journal" || service.standard_error == "journal" {
-            // Create pipes for capturing output
-            let (stdout_read, stdout_write) = create_pipe()?;
-            let (stderr_read, stderr_write) = create_pipe()?;
+        let (stdout_pipe, stderr_pipe) =
+            if service.standard_output == "journal" || service.standard_error == "journal" {
+                // Create pipes for capturing output
+                let (stdout_read, stdout_write) = create_pipe()?;
+                let (stderr_read, stderr_write) = create_pipe()?;
 
-            cmd.stdout(unsafe { Stdio::from_raw_fd(stdout_write.as_raw_fd()) });
-            cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_write.as_raw_fd()) });
+                cmd.stdout(unsafe { Stdio::from_raw_fd(stdout_write.as_raw_fd()) });
+                cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_write.as_raw_fd()) });
 
-            // Prevent the write ends from being closed when dropped
-            std::mem::forget(stdout_write);
-            std::mem::forget(stderr_write);
+                // Prevent the write ends from being closed when dropped
+                std::mem::forget(stdout_write);
+                std::mem::forget(stderr_write);
 
-            (Some(stdout_read), Some(stderr_read))
-        } else {
-            cmd.stdout(Stdio::inherit());
-            cmd.stderr(Stdio::inherit());
-            (None, None)
-        };
+                (Some(stdout_read), Some(stderr_read))
+            } else {
+                cmd.stdout(Stdio::inherit());
+                cmd.stderr(Stdio::inherit());
+                (None, None)
+            };
 
         cmd.stdin(Stdio::null());
 
         // Spawn the process
-        let child = cmd.spawn().map_err(|e| {
-            Error::ProcessSpawnFailed(format!("{}: {}", service.exec_start, e))
-        })?;
+        let child = cmd
+            .spawn()
+            .map_err(|e| Error::ProcessSpawnFailed(format!("{}: {}", service.exec_start, e)))?;
 
         let pid = child.id();
         info!(service = %service.name, pid = pid, "Spawned process");
@@ -171,8 +175,7 @@ impl ProcessSupervisor {
                 let reader = BufReader::new(stdout_read);
                 for line in reader.lines() {
                     if let Ok(line) = line {
-                        let entry = JournalEntry::new(&service_name, &line, "stdout")
-                            .with_pid(pid);
+                        let entry = JournalEntry::new(&service_name, &line, "stdout").with_pid(pid);
                         journal.log(entry).await;
                     }
                 }
@@ -186,8 +189,7 @@ impl ProcessSupervisor {
                 let reader = BufReader::new(stderr_read);
                 for line in reader.lines() {
                     if let Ok(line) = line {
-                        let entry = JournalEntry::new(&service_name, &line, "stderr")
-                            .with_pid(pid);
+                        let entry = JournalEntry::new(&service_name, &line, "stderr").with_pid(pid);
                         journal.log(entry).await;
                     }
                 }
@@ -320,7 +322,11 @@ impl ProcessSupervisor {
 
     /// Get the service name for a PID.
     pub async fn get_service_name(&self, pid: u32) -> Option<String> {
-        self.processes.read().await.get(&pid).map(|p| p.service_name.clone())
+        self.processes
+            .read()
+            .await
+            .get(&pid)
+            .map(|p| p.service_name.clone())
     }
 
     /// Check if a process is running.
@@ -374,8 +380,12 @@ fn create_pipe() -> Result<(std::fs::File, std::fs::File)> {
 fn set_resource_limits(limits: &ResourceLimits) -> std::result::Result<(), String> {
     // Set memory limits
     if let Some(limit) = limits.memory_soft {
-        setrlimit(Resource::RLIMIT_AS, limit, limits.memory_hard.unwrap_or(limit))
-            .map_err(|e| format!("Failed to set memory limit: {}", e))?;
+        setrlimit(
+            Resource::RLIMIT_AS,
+            limit,
+            limits.memory_hard.unwrap_or(limit),
+        )
+        .map_err(|e| format!("Failed to set memory limit: {}", e))?;
     }
 
     // Set file descriptor limit

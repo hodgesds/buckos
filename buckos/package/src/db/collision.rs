@@ -96,11 +96,7 @@ impl CollisionDetector {
     }
 
     /// Check for collisions when installing files
-    pub fn check_collisions(
-        &self,
-        pkg_id: &PackageId,
-        files: &[PathBuf],
-    ) -> CollisionResult {
+    pub fn check_collisions(&self, pkg_id: &PackageId, files: &[PathBuf]) -> CollisionResult {
         let mut collisions = Vec::new();
         let mut safe_files = Vec::new();
 
@@ -145,8 +141,8 @@ impl CollisionDetector {
             safe_files.push(file.clone());
         }
 
-        let can_proceed = collisions.is_empty() ||
-            collisions.iter().all(|c| self.is_acceptable_collision(c));
+        let can_proceed =
+            collisions.is_empty() || collisions.iter().all(|c| self.is_acceptable_collision(c));
 
         CollisionResult {
             collisions,
@@ -365,10 +361,7 @@ mod tests {
         detector.register_files(&pkg_a, &[PathBuf::from("/usr/bin/shared")]);
 
         // Try to install same file for pkg_b
-        let result = detector.check_collisions(
-            &pkg_b,
-            &[PathBuf::from("/usr/bin/shared")],
-        );
+        let result = detector.check_collisions(&pkg_b, &[PathBuf::from("/usr/bin/shared")]);
 
         assert_eq!(result.collisions.len(), 1);
         assert!(!result.can_proceed);

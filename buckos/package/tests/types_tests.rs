@@ -475,7 +475,9 @@ mod world_set {
         world.packages.insert(PackageId::new("dev-libs", "openssl"));
 
         assert_eq!(world.packages.len(), 2);
-        assert!(world.packages.contains(&PackageId::new("sys-apps", "systemd")));
+        assert!(world
+            .packages
+            .contains(&PackageId::new("sys-apps", "systemd")));
     }
 }
 
@@ -568,7 +570,10 @@ mod buck_config {
         let config = BuckConfig::default();
         assert_eq!(config.buck_path, PathBuf::from("/usr/bin/buck2"));
         assert_eq!(config.repo_path, PathBuf::from("/var/db/repos/buckos"));
-        assert_eq!(config.output_dir, PathBuf::from("/var/cache/buckos/buck-out"));
+        assert_eq!(
+            config.output_dir,
+            PathBuf::from("/var/cache/buckos/buck-out")
+        );
         assert!(config.jobs > 0);
         assert!(matches!(config.mode, BuckBuildMode::Release));
         assert!(config.extra_args.is_empty());

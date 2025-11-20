@@ -106,10 +106,7 @@ impl JournalEntry {
 
     /// Format the entry for display.
     pub fn format(&self) -> String {
-        let pid_str = self
-            .pid
-            .map(|p| format!("[{}]", p))
-            .unwrap_or_default();
+        let pid_str = self.pid.map(|p| format!("[{}]", p)).unwrap_or_default();
         format!(
             "{} {} {}{}: {}",
             self.timestamp.format("%b %d %H:%M:%S"),
@@ -175,9 +172,7 @@ impl Journal {
         // Add to memory
         {
             let mut logs = self.logs.write().await;
-            logs.entry(service.clone())
-                .or_default()
-                .add(entry.clone());
+            logs.entry(service.clone()).or_default().add(entry.clone());
         }
 
         // Write to file

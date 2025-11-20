@@ -3,13 +3,13 @@
 //! Command-line interface for the Buckos package manager.
 //! Designed to be compatible with Gentoo's emerge command.
 
-use clap::{Args, Parser, Subcommand};
-use console::style;
-use dialoguer::Confirm;
 use buckos_package::{
     BuildOptions, CleanOptions, Config, DepcleanOptions, EmergeOptions, InstallOptions,
     PackageManager, RemoveOptions, Resolution, SyncOptions, UpdateOptions,
 };
+use clap::{Args, Parser, Subcommand};
+use console::style;
+use dialoguer::Confirm;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -730,15 +730,13 @@ async fn main() -> ExitCode {
 
     // Load configuration
     let config = match cli.config {
-        Some(path) => {
-            match Config::load_from(std::path::Path::new(&path)) {
-                Ok(c) => c,
-                Err(e) => {
-                    error!("Failed to load config: {}", e);
-                    return ExitCode::FAILURE;
-                }
+        Some(path) => match Config::load_from(std::path::Path::new(&path)) {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to load config: {}", e);
+                return ExitCode::FAILURE;
             }
-        }
+        },
         None => Config::default(),
     };
 
@@ -888,10 +886,7 @@ async fn cmd_remove(
     let to_remove = pm.get_removal_list(&packages, &opts).await?;
 
     if to_remove.is_empty() {
-        println!(
-            "{} No packages to unmerge",
-            style(">>>").yellow().bold()
-        );
+        println!("{} No packages to unmerge", style(">>>").yellow().bold());
         return Ok(());
     }
 
@@ -986,10 +981,7 @@ async fn cmd_update(
 
     if resolution.packages.is_empty() {
         if !emerge_opts.quiet {
-            println!(
-                "\n{} @world set is up-to-date",
-                style(">>>").green().bold()
-            );
+            println!("\n{} @world set is up-to-date", style(">>>").green().bold());
         }
         return Ok(());
     }
@@ -1448,11 +1440,11 @@ fn print_emerge_list(
     for (idx, pkg) in resolution.packages.iter().enumerate() {
         // Determine status marker
         let marker = if pkg.is_rebuild {
-            style("R").yellow().bold()  // Rebuild
+            style("R").yellow().bold() // Rebuild
         } else if pkg.is_upgrade {
-            style("U").blue().bold()  // Update
+            style("U").blue().bold() // Update
         } else {
-            style("N").green().bold()  // New
+            style("N").green().bold() // New
         };
 
         // Build slot string
@@ -1540,10 +1532,7 @@ async fn cmd_depclean(
     args: DepcleanArgs,
     emerge_opts: &EmergeOptions,
 ) -> buckos_package::Result<()> {
-    println!(
-        "{} Calculating dependencies...",
-        style(">>>").blue().bold()
-    );
+    println!("{} Calculating dependencies...", style(">>>").blue().bold());
 
     let opts = DepcleanOptions {
         packages: args.packages.clone(),
@@ -1553,10 +1542,7 @@ async fn cmd_depclean(
     let to_remove = pm.calculate_depclean(&opts).await?;
 
     if to_remove.is_empty() {
-        println!(
-            "{} No packages to depclean",
-            style(">>>").green().bold()
-        );
+        println!("{} No packages to depclean", style(">>>").green().bold());
         return Ok(());
     }
 
@@ -1581,10 +1567,7 @@ async fn cmd_depclean(
         "\n>>> {} package(s) selected for depclean",
         style(to_remove.len()).bold()
     );
-    println!(
-        ">>> Space freed: {}",
-        style(format_size(total_size)).cyan()
-    );
+    println!(">>> Space freed: {}", style(format_size(total_size)).cyan());
 
     // Pretend mode
     if opts.pretend || emerge_opts.pretend {
@@ -1714,10 +1697,7 @@ async fn cmd_newuse(
     }
 
     // Rebuild packages
-    let pkg_names: Vec<String> = to_rebuild
-        .iter()
-        .map(|p| p.id.full_name())
-        .collect();
+    let pkg_names: Vec<String> = to_rebuild.iter().map(|p| p.id.full_name()).collect();
 
     let opts = InstallOptions {
         force: true,
@@ -1785,20 +1765,17 @@ async fn cmd_audit(pm: &PackageManager) -> buckos_package::Result<()> {
 }
 
 /// USE flags management command
-async fn cmd_useflags(
-    _pm: &PackageManager,
-    args: UseflagsArgs,
-) -> buckos_package::Result<()> {
+async fn cmd_useflags(_pm: &PackageManager, args: UseflagsArgs) -> buckos_package::Result<()> {
     match args.subcommand {
-        UseflagsCommand::List { category, global, verbose } => {
-            cmd_useflags_list(category, global, verbose).await
-        }
+        UseflagsCommand::List {
+            category,
+            global,
+            verbose,
+        } => cmd_useflags_list(category, global, verbose).await,
         UseflagsCommand::Info { flag } => cmd_useflags_info(&flag).await,
         UseflagsCommand::Set { flags } => cmd_useflags_set(&flags).await,
         UseflagsCommand::Get { format } => cmd_useflags_get(&format).await,
-        UseflagsCommand::Package { package, flags } => {
-            cmd_useflags_package(&package, &flags).await
-        }
+        UseflagsCommand::Package { package, flags } => cmd_useflags_package(&package, &flags).await,
         UseflagsCommand::Expand { variable } => cmd_useflags_expand(variable).await,
         UseflagsCommand::Validate => cmd_useflags_validate().await,
     }
@@ -1816,7 +1793,10 @@ async fn cmd_useflags_list(
     if let Some(cat) = category {
         // Show only requested category
         if let Some(flags) = flags_by_category.get(&cat) {
-            println!("{}", style(format!("USE Flags: {}", cat)).bold().underlined());
+            println!(
+                "{}",
+                style(format!("USE Flags: {}", cat)).bold().underlined()
+            );
             println!();
             for (flag, description) in flags {
                 if verbose {
@@ -1837,7 +1817,10 @@ async fn cmd_useflags_list(
         }
     } else {
         // Show all categories
-        println!("{}", style("Available USE Flags by Category").bold().underlined());
+        println!(
+            "{}",
+            style("Available USE Flags by Category").bold().underlined()
+        );
         println!();
 
         for (cat, flags) in &flags_by_category {
@@ -1863,71 +1846,95 @@ async fn cmd_useflags_list(
 fn get_use_flags_by_category() -> HashMap<String, Vec<(&'static str, &'static str)>> {
     let mut categories = HashMap::new();
 
-    categories.insert("build".to_string(), vec![
-        ("debug", "Enable debugging symbols and assertions"),
-        ("doc", "Build and install documentation"),
-        ("examples", "Install example files"),
-        ("static", "Build static libraries"),
-        ("test", "Enable test suite during build"),
-        ("lto", "Enable Link Time Optimization"),
-    ]);
+    categories.insert(
+        "build".to_string(),
+        vec![
+            ("debug", "Enable debugging symbols and assertions"),
+            ("doc", "Build and install documentation"),
+            ("examples", "Install example files"),
+            ("static", "Build static libraries"),
+            ("test", "Enable test suite during build"),
+            ("lto", "Enable Link Time Optimization"),
+        ],
+    );
 
-    categories.insert("security".to_string(), vec![
-        ("hardened", "Enable security hardening features"),
-        ("pie", "Build position independent executables"),
-        ("ssp", "Enable stack smashing protection"),
-        ("caps", "Use Linux capabilities library"),
-        ("seccomp", "Enable seccomp sandboxing"),
-        ("selinux", "Enable SELinux support"),
-    ]);
+    categories.insert(
+        "security".to_string(),
+        vec![
+            ("hardened", "Enable security hardening features"),
+            ("pie", "Build position independent executables"),
+            ("ssp", "Enable stack smashing protection"),
+            ("caps", "Use Linux capabilities library"),
+            ("seccomp", "Enable seccomp sandboxing"),
+            ("selinux", "Enable SELinux support"),
+        ],
+    );
 
-    categories.insert("network".to_string(), vec![
-        ("ipv6", "Enable IPv6 support"),
-        ("ssl", "Enable SSL/TLS support (OpenSSL)"),
-        ("gnutls", "Enable GnuTLS support"),
-        ("http2", "Enable HTTP/2 support"),
-        ("curl", "Use libcurl for HTTP operations"),
-    ]);
+    categories.insert(
+        "network".to_string(),
+        vec![
+            ("ipv6", "Enable IPv6 support"),
+            ("ssl", "Enable SSL/TLS support (OpenSSL)"),
+            ("gnutls", "Enable GnuTLS support"),
+            ("http2", "Enable HTTP/2 support"),
+            ("curl", "Use libcurl for HTTP operations"),
+        ],
+    );
 
-    categories.insert("compression".to_string(), vec![
-        ("zlib", "Enable zlib compression"),
-        ("bzip2", "Enable bzip2 compression"),
-        ("zstd", "Enable Zstandard compression"),
-        ("lz4", "Enable LZ4 compression"),
-        ("brotli", "Enable Brotli compression"),
-    ]);
+    categories.insert(
+        "compression".to_string(),
+        vec![
+            ("zlib", "Enable zlib compression"),
+            ("bzip2", "Enable bzip2 compression"),
+            ("zstd", "Enable Zstandard compression"),
+            ("lz4", "Enable LZ4 compression"),
+            ("brotli", "Enable Brotli compression"),
+        ],
+    );
 
-    categories.insert("graphics".to_string(), vec![
-        ("X", "Enable X11 support"),
-        ("wayland", "Enable Wayland support"),
-        ("opengl", "Enable OpenGL support"),
-        ("vulkan", "Enable Vulkan support"),
-        ("gtk", "Enable GTK+ toolkit"),
-        ("qt5", "Enable Qt5 toolkit"),
-        ("qt6", "Enable Qt6 toolkit"),
-    ]);
+    categories.insert(
+        "graphics".to_string(),
+        vec![
+            ("X", "Enable X11 support"),
+            ("wayland", "Enable Wayland support"),
+            ("opengl", "Enable OpenGL support"),
+            ("vulkan", "Enable Vulkan support"),
+            ("gtk", "Enable GTK+ toolkit"),
+            ("qt5", "Enable Qt5 toolkit"),
+            ("qt6", "Enable Qt6 toolkit"),
+        ],
+    );
 
-    categories.insert("audio".to_string(), vec![
-        ("alsa", "Enable ALSA audio support"),
-        ("pulseaudio", "Enable PulseAudio support"),
-        ("pipewire", "Enable PipeWire support"),
-        ("ffmpeg", "Enable FFmpeg support"),
-    ]);
+    categories.insert(
+        "audio".to_string(),
+        vec![
+            ("alsa", "Enable ALSA audio support"),
+            ("pulseaudio", "Enable PulseAudio support"),
+            ("pipewire", "Enable PipeWire support"),
+            ("ffmpeg", "Enable FFmpeg support"),
+        ],
+    );
 
-    categories.insert("language".to_string(), vec![
-        ("python", "Build Python bindings"),
-        ("perl", "Build Perl bindings"),
-        ("ruby", "Build Ruby bindings"),
-        ("lua", "Build Lua bindings"),
-    ]);
+    categories.insert(
+        "language".to_string(),
+        vec![
+            ("python", "Build Python bindings"),
+            ("perl", "Build Perl bindings"),
+            ("ruby", "Build Ruby bindings"),
+            ("lua", "Build Lua bindings"),
+        ],
+    );
 
-    categories.insert("system".to_string(), vec![
-        ("dbus", "Enable D-Bus support"),
-        ("systemd", "Enable systemd integration"),
-        ("pam", "Enable PAM authentication"),
-        ("acl", "Enable Access Control Lists"),
-        ("udev", "Enable udev device management"),
-    ]);
+    categories.insert(
+        "system".to_string(),
+        vec![
+            ("dbus", "Enable D-Bus support"),
+            ("systemd", "Enable systemd integration"),
+            ("pam", "Enable PAM authentication"),
+            ("acl", "Enable Access Control Lists"),
+            ("udev", "Enable udev device management"),
+        ],
+    );
 
     categories
 }
@@ -1961,7 +1968,11 @@ async fn cmd_useflags_info(flag: &str) -> buckos_package::Result<()> {
         }
     }
 
-    println!("{} USE flag '{}' not found", style(">>>").yellow().bold(), flag);
+    println!(
+        "{} USE flag '{}' not found",
+        style(">>>").yellow().bold(),
+        flag
+    );
     Ok(())
 }
 
@@ -2003,19 +2014,27 @@ async fn cmd_useflags_set(flags: &[String]) -> buckos_package::Result<()> {
     let use_string = flags.join(" ");
 
     // Write to config file
-    let content = format!("# BuckOs USE flags configuration\n# Generated by buckos useflags set\n\nUSE=\"{}\"\n", use_string);
+    let content = format!(
+        "# BuckOs USE flags configuration\n# Generated by buckos useflags set\n\nUSE=\"{}\"\n",
+        use_string
+    );
 
     match fs::write(&config_path, content) {
         Ok(_) => {
             println!();
-            println!("{} Configuration saved to: {}",
+            println!(
+                "{} Configuration saved to: {}",
                 style(">>>").green().bold(),
-                config_path.display());
+                config_path.display()
+            );
         }
         Err(e) => {
             println!();
-            println!("{} Failed to save configuration: {}",
-                style(">>>").red().bold(), e);
+            println!(
+                "{} Failed to save configuration: {}",
+                style(">>>").red().bold(),
+                e
+            );
             println!("You may need to run with elevated privileges or set USE flags manually.");
             println!();
             println!("Add this to your make.conf or buckos config:");
@@ -2045,7 +2064,10 @@ async fn cmd_useflags_get(format: &str) -> buckos_package::Result<()> {
                 "arch": config.arch,
                 "chost": config.chost,
             });
-            println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
         }
         "toml" => {
             println!("[use]");
@@ -2083,7 +2105,10 @@ async fn cmd_useflags_package(package: &str, flags: &[String]) -> buckos_package
     // Format the package.use entry
     let entry = format!("{} {}\n", package, flags.join(" "));
 
-    println!("{}", style("Setting per-package USE flags").bold().underlined());
+    println!(
+        "{}",
+        style("Setting per-package USE flags").bold().underlined()
+    );
     println!();
     println!("  {}: {}", style("Package").bold(), package);
     println!("  {}: {}", style("Flags").bold(), flags.join(" "));
@@ -2097,19 +2122,27 @@ async fn cmd_useflags_package(package: &str, flags: &[String]) -> buckos_package
         Ok(mut file) => {
             if let Err(e) = file.write_all(entry.as_bytes()) {
                 println!();
-                println!("{} Failed to write configuration: {}",
-                    style(">>>").red().bold(), e);
+                println!(
+                    "{} Failed to write configuration: {}",
+                    style(">>>").red().bold(),
+                    e
+                );
             } else {
                 println!();
-                println!("{} Configuration saved to: {}",
+                println!(
+                    "{} Configuration saved to: {}",
                     style(">>>").green().bold(),
-                    config_path.display());
+                    config_path.display()
+                );
             }
         }
         Err(e) => {
             println!();
-            println!("{} Failed to open configuration file: {}",
-                style(">>>").red().bold(), e);
+            println!(
+                "{} Failed to open configuration file: {}",
+                style(">>>").red().bold(),
+                e
+            );
             println!("\nAdd this to your package.use:");
             println!("  {}", entry.trim());
         }
@@ -2124,13 +2157,20 @@ async fn cmd_useflags_expand(variable: Option<String>) -> buckos_package::Result
 
     if let Some(var) = variable {
         if let Some(values) = expand_vars.get(&var.to_uppercase()) {
-            println!("{}", style(format!("{}", var.to_uppercase())).bold().underlined());
+            println!(
+                "{}",
+                style(format!("{}", var.to_uppercase())).bold().underlined()
+            );
             println!();
             for value in values {
                 println!("  {}", style(value).green());
             }
         } else {
-            println!("{} Unknown USE_EXPAND variable: {}", style(">>>").yellow().bold(), var);
+            println!(
+                "{} Unknown USE_EXPAND variable: {}",
+                style(">>>").yellow().bold(),
+                var
+            );
             println!("\nAvailable variables:");
             for var_name in expand_vars.keys() {
                 println!("  - {}", var_name);
@@ -2154,37 +2194,89 @@ async fn cmd_useflags_expand(variable: Option<String>) -> buckos_package::Result
 fn get_use_expand_variables() -> HashMap<String, Vec<String>> {
     let mut vars = HashMap::new();
 
-    vars.insert("CPU_FLAGS_X86".to_string(), vec![
-        "aes", "avx", "avx2", "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl",
-        "mmx", "mmxext", "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3",
-        "sse4_1", "sse4_2", "sse4a", "f16c", "fma", "fma4", "xop",
-    ].into_iter().map(String::from).collect());
+    vars.insert(
+        "CPU_FLAGS_X86".to_string(),
+        vec![
+            "aes", "avx", "avx2", "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl", "mmx",
+            "mmxext", "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3", "sse4_1", "sse4_2",
+            "sse4a", "f16c", "fma", "fma4", "xop",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect(),
+    );
 
-    vars.insert("VIDEO_CARDS".to_string(), vec![
-        "amdgpu", "ast", "dummy", "fbdev", "i915", "i965", "intel",
-        "mga", "nouveau", "nvidia", "r128", "r600", "radeon", "radeonsi",
-        "vesa", "via", "virtualbox", "vmware",
-    ].into_iter().map(String::from).collect());
+    vars.insert(
+        "VIDEO_CARDS".to_string(),
+        vec![
+            "amdgpu",
+            "ast",
+            "dummy",
+            "fbdev",
+            "i915",
+            "i965",
+            "intel",
+            "mga",
+            "nouveau",
+            "nvidia",
+            "r128",
+            "r600",
+            "radeon",
+            "radeonsi",
+            "vesa",
+            "via",
+            "virtualbox",
+            "vmware",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect(),
+    );
 
-    vars.insert("INPUT_DEVICES".to_string(), vec![
-        "evdev", "joystick", "keyboard", "libinput", "mouse", "synaptics",
-        "vmmouse", "wacom",
-    ].into_iter().map(String::from).collect());
+    vars.insert(
+        "INPUT_DEVICES".to_string(),
+        vec![
+            "evdev",
+            "joystick",
+            "keyboard",
+            "libinput",
+            "mouse",
+            "synaptics",
+            "vmmouse",
+            "wacom",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect(),
+    );
 
-    vars.insert("PYTHON_TARGETS".to_string(), vec![
-        "python3_10", "python3_11", "python3_12", "python3_13",
-    ].into_iter().map(String::from).collect());
+    vars.insert(
+        "PYTHON_TARGETS".to_string(),
+        vec!["python3_10", "python3_11", "python3_12", "python3_13"]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+    );
 
-    vars.insert("RUBY_TARGETS".to_string(), vec![
-        "ruby31", "ruby32", "ruby33",
-    ].into_iter().map(String::from).collect());
+    vars.insert(
+        "RUBY_TARGETS".to_string(),
+        vec!["ruby31", "ruby32", "ruby33"]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+    );
 
     vars
 }
 
 /// Validate USE flag configuration
 async fn cmd_useflags_validate() -> buckos_package::Result<()> {
-    println!("{}", style("Validating USE flag configuration").bold().underlined());
+    println!(
+        "{}",
+        style("Validating USE flag configuration")
+            .bold()
+            .underlined()
+    );
     println!();
 
     let mut issues = Vec::new();
@@ -2212,7 +2304,11 @@ async fn cmd_useflags_validate() -> buckos_package::Result<()> {
     if issues.is_empty() {
         println!("{} No issues found", style(">>>").green().bold());
     } else {
-        println!("{} Found {} issue(s):", style(">>>").yellow().bold(), issues.len());
+        println!(
+            "{} Found {} issue(s):",
+            style(">>>").yellow().bold(),
+            issues.len()
+        );
         for issue in issues {
             println!("  - {}", issue);
         }
@@ -2273,8 +2369,11 @@ async fn cmd_detect(args: DetectArgs) -> buckos_package::Result<()> {
     // Write to file or stdout
     if let Some(path) = args.output {
         fs::write(&path, &output)?;
-        println!("{} Detection results saved to: {}",
-            style(">>>").green().bold(), path);
+        println!(
+            "{} Detection results saved to: {}",
+            style(">>>").green().bold(),
+            path
+        );
     } else {
         println!("{}", output);
     }
@@ -2289,9 +2388,8 @@ fn detect_cpu_features() -> Vec<String> {
     // Read /proc/cpuinfo on Linux
     if let Ok(cpuinfo) = fs::read_to_string("/proc/cpuinfo") {
         let cpu_flags = [
-            "aes", "avx", "avx2", "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl",
-            "mmx", "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3",
-            "sse4_1", "sse4_2", "f16c", "fma",
+            "aes", "avx", "avx2", "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl", "mmx",
+            "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3", "sse4_1", "sse4_2", "f16c", "fma",
         ];
 
         for flag in cpu_flags {
@@ -2303,11 +2401,7 @@ fn detect_cpu_features() -> Vec<String> {
 
     if features.is_empty() {
         // Default to basic x86_64 features
-        features = vec![
-            "sse".to_string(),
-            "sse2".to_string(),
-            "mmx".to_string(),
-        ];
+        features = vec!["sse".to_string(), "sse2".to_string(), "mmx".to_string()];
     }
 
     features
@@ -2350,7 +2444,8 @@ fn detect_audio() -> Vec<String> {
     }
 
     if std::path::Path::new("/run/user/1000/pulse").exists()
-        || std::path::Path::new("/var/run/pulse").exists() {
+        || std::path::Path::new("/var/run/pulse").exists()
+    {
         systems.push("pulseaudio".to_string());
     }
 
@@ -2391,7 +2486,11 @@ fn generate_recommended_flags(detection: &SystemDetection) -> Vec<String> {
     }
 
     // Add GPU-related flags
-    if detection.gpu_drivers.iter().any(|d| d == "nvidia" || d == "amdgpu" || d == "i915") {
+    if detection
+        .gpu_drivers
+        .iter()
+        .any(|d| d == "nvidia" || d == "amdgpu" || d == "i915")
+    {
         flags.push("vulkan".to_string());
         flags.push("opengl".to_string());
     }
@@ -2417,7 +2516,10 @@ fn generate_recommended_flags(detection: &SystemDetection) -> Vec<String> {
 fn format_detection_text(detection: &SystemDetection) -> String {
     let mut output = String::new();
 
-    output.push_str(&format!("{}\n\n", style("System Detection Results").bold().underlined()));
+    output.push_str(&format!(
+        "{}\n\n",
+        style("System Detection Results").bold().underlined()
+    ));
 
     if !detection.cpu_features.is_empty() {
         output.push_str(&format!("{}:\n", style("CPU Features").cyan().bold()));
@@ -2439,8 +2541,14 @@ fn format_detection_text(detection: &SystemDetection) -> String {
         output.push_str(&format!("  {}\n\n", detection.network_features.join(" ")));
     }
 
-    output.push_str(&format!("{}:\n", style("Recommended USE Flags").green().bold()));
-    output.push_str(&format!("  {}\n", detection.recommended_use_flags.join(" ")));
+    output.push_str(&format!(
+        "{}:\n",
+        style("Recommended USE Flags").green().bold()
+    ));
+    output.push_str(&format!(
+        "  {}\n",
+        detection.recommended_use_flags.join(" ")
+    ));
 
     output
 }
@@ -2541,8 +2649,11 @@ async fn cmd_configure(args: ConfigureArgs) -> buckos_package::Result<()> {
     // Write to file or stdout
     if let Some(path) = args.output {
         fs::write(&path, &output)?;
-        println!("{} Configuration saved to: {}",
-            style(">>>").green().bold(), path);
+        println!(
+            "{} Configuration saved to: {}",
+            style(">>>").green().bold(),
+            path
+        );
 
         if args.format == "bzl" {
             println!();
@@ -2666,7 +2777,11 @@ BUCKOS_CONFIG = package_config(
 GLOBAL_USE = set_use_flags(BUCKOS_CONFIG.use_flags)
 "#,
         profile,
-        flags.iter().map(|f| format!("\"{}\"", f)).collect::<Vec<_>>().join(", "),
+        flags
+            .iter()
+            .map(|f| format!("\"{}\"", f))
+            .collect::<Vec<_>>()
+            .join(", "),
         profile,
         arch
     )
@@ -2678,7 +2793,8 @@ fn generate_config_json(profile: &str, flags: &[String], arch: &str) -> String {
         "profile": profile,
         "use_flags": flags,
         "arch": arch
-    })).unwrap_or_default()
+    }))
+    .unwrap_or_default()
 }
 
 /// Generate TOML configuration
@@ -2698,7 +2814,11 @@ flags = [
 "#,
         profile,
         arch,
-        flags.iter().map(|f| format!("    \"{}\",", f)).collect::<Vec<_>>().join("\n")
+        flags
+            .iter()
+            .map(|f| format!("    \"{}\",", f))
+            .collect::<Vec<_>>()
+            .join("\n")
     )
 }
 
@@ -2777,28 +2897,37 @@ async fn cmd_set_list(set_type: Option<String>) -> buckos_package::Result<()> {
 fn get_package_sets() -> HashMap<String, Vec<(&'static str, &'static str)>> {
     let mut sets = HashMap::new();
 
-    sets.insert("system".to_string(), vec![
-        ("minimal", "Minimal bootable system"),
-        ("server", "Server base system"),
-        ("desktop", "Desktop base system"),
-        ("developer", "Development environment"),
-        ("hardened", "Security-hardened system"),
-    ]);
+    sets.insert(
+        "system".to_string(),
+        vec![
+            ("minimal", "Minimal bootable system"),
+            ("server", "Server base system"),
+            ("desktop", "Desktop base system"),
+            ("developer", "Development environment"),
+            ("hardened", "Security-hardened system"),
+        ],
+    );
 
-    sets.insert("task".to_string(), vec![
-        ("web-server", "Web server packages"),
-        ("database", "Database packages"),
-        ("container", "Container runtime packages"),
-        ("virtualization", "Virtualization packages"),
-        ("monitoring", "System monitoring packages"),
-    ]);
+    sets.insert(
+        "task".to_string(),
+        vec![
+            ("web-server", "Web server packages"),
+            ("database", "Database packages"),
+            ("container", "Container runtime packages"),
+            ("virtualization", "Virtualization packages"),
+            ("monitoring", "System monitoring packages"),
+        ],
+    );
 
-    sets.insert("desktop".to_string(), vec![
-        ("gnome", "GNOME desktop environment"),
-        ("kde", "KDE Plasma desktop environment"),
-        ("xfce", "Xfce desktop environment"),
-        ("sway", "Sway Wayland compositor"),
-    ]);
+    sets.insert(
+        "desktop".to_string(),
+        vec![
+            ("gnome", "GNOME desktop environment"),
+            ("kde", "KDE Plasma desktop environment"),
+            ("xfce", "Xfce desktop environment"),
+            ("sway", "Sway Wayland compositor"),
+        ],
+    );
 
     sets
 }
@@ -2812,7 +2941,12 @@ async fn cmd_set_show(set_name: &str) -> buckos_package::Result<()> {
         return Ok(());
     }
 
-    println!("{}", style(format!("Package Set: {}", set_name)).bold().underlined());
+    println!(
+        "{}",
+        style(format!("Package Set: {}", set_name))
+            .bold()
+            .underlined()
+    );
     println!();
 
     for pkg in &packages {
@@ -3020,10 +3154,7 @@ async fn cmd_set_compare(set1: &str, set2: &str) -> buckos_package::Result<()> {
         println!();
     }
 
-    println!(
-        "Common packages: {}",
-        style(common.len()).bold()
-    );
+    println!("Common packages: {}", style(common.len()).bold());
 
     Ok(())
 }
@@ -3032,9 +3163,18 @@ async fn cmd_set_compare(set1: &str, set2: &str) -> buckos_package::Result<()> {
 async fn cmd_patch(args: PatchArgs) -> buckos_package::Result<()> {
     match args.subcommand {
         PatchCommand::List { package } => cmd_patch_list(&package).await,
-        PatchCommand::Info { package, patch_name } => cmd_patch_info(&package, &patch_name).await,
-        PatchCommand::Add { package, patch_file } => cmd_patch_add(&package, &patch_file).await,
-        PatchCommand::Remove { package, patch_name } => cmd_patch_remove(&package, &patch_name).await,
+        PatchCommand::Info {
+            package,
+            patch_name,
+        } => cmd_patch_info(&package, &patch_name).await,
+        PatchCommand::Add {
+            package,
+            patch_file,
+        } => cmd_patch_add(&package, &patch_file).await,
+        PatchCommand::Remove {
+            package,
+            patch_name,
+        } => cmd_patch_remove(&package, &patch_name).await,
         PatchCommand::Check { package } => cmd_patch_check(&package).await,
         PatchCommand::Order { package } => cmd_patch_order(&package).await,
     }
@@ -3042,7 +3182,12 @@ async fn cmd_patch(args: PatchArgs) -> buckos_package::Result<()> {
 
 /// List patches for a package
 async fn cmd_patch_list(package: &str) -> buckos_package::Result<()> {
-    println!("{}", style(format!("Patches for {}", package)).bold().underlined());
+    println!(
+        "{}",
+        style(format!("Patches for {}", package))
+            .bold()
+            .underlined()
+    );
     println!();
 
     // Check for patches in standard locations
@@ -3090,7 +3235,11 @@ async fn cmd_patch_info(package: &str, patch_name: &str) -> buckos_package::Resu
     let patch_path = format!("/etc/portage/patches/{}/{}", package, patch_name);
 
     if !std::path::Path::new(&patch_path).exists() {
-        println!("{} Patch not found: {}", style(">>>").yellow().bold(), patch_path);
+        println!(
+            "{} Patch not found: {}",
+            style(">>>").yellow().bold(),
+            patch_path
+        );
         return Ok(());
     }
 
@@ -3138,7 +3287,10 @@ async fn cmd_patch_add(package: &str, patch_file: &str) -> buckos_package::Resul
         dest.display()
     );
     println!();
-    println!("The patch will be applied during the next build of {}", package);
+    println!(
+        "The patch will be applied during the next build of {}",
+        package
+    );
 
     Ok(())
 }
@@ -3148,7 +3300,11 @@ async fn cmd_patch_remove(package: &str, patch_name: &str) -> buckos_package::Re
     let patch_path = format!("/etc/portage/patches/{}/{}", package, patch_name);
 
     if !std::path::Path::new(&patch_path).exists() {
-        println!("{} Patch not found: {}", style(">>>").yellow().bold(), patch_path);
+        println!(
+            "{} Patch not found: {}",
+            style(">>>").yellow().bold(),
+            patch_path
+        );
         return Ok(());
     }
 
@@ -3196,7 +3352,9 @@ async fn cmd_patch_check(package: &str) -> buckos_package::Result<()> {
 async fn cmd_patch_order(package: &str) -> buckos_package::Result<()> {
     println!(
         "{}",
-        style(format!("Patch Order for {}", package)).bold().underlined()
+        style(format!("Patch Order for {}", package))
+            .bold()
+            .underlined()
     );
     println!();
 
@@ -3250,9 +3408,17 @@ async fn cmd_deps(pm: &PackageManager, args: DepsArgs) -> buckos_package::Result
                 "dependencies": pkg.dependencies.iter().map(|d| &d.package).collect::<Vec<_>>(),
                 "runtime_dependencies": pkg.runtime_dependencies.iter().map(|d| &d.package).collect::<Vec<_>>(),
             });
-            println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
         } else {
-            println!("{}", style(format!("Dependencies of {}", args.package)).bold().underlined());
+            println!(
+                "{}",
+                style(format!("Dependencies of {}", args.package))
+                    .bold()
+                    .underlined()
+            );
             println!();
 
             if !pkg.dependencies.is_empty() {
@@ -3275,7 +3441,11 @@ async fn cmd_deps(pm: &PackageManager, args: DepsArgs) -> buckos_package::Result
             }
         }
     } else {
-        println!("{} Package '{}' not found", style(">>>").yellow().bold(), args.package);
+        println!(
+            "{} Package '{}' not found",
+            style(">>>").yellow().bold(),
+            args.package
+        );
     }
 
     Ok(())
@@ -3290,11 +3460,16 @@ async fn cmd_rdeps(pm: &PackageManager, args: RdepsArgs) -> buckos_package::Resu
             "package": args.package,
             "reverse_dependencies": rdeps,
         });
-        println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
     } else {
         println!(
             "{}",
-            style(format!("Reverse Dependencies of {}", args.package)).bold().underlined()
+            style(format!("Reverse Dependencies of {}", args.package))
+                .bold()
+                .underlined()
         );
         println!();
 
@@ -3329,12 +3504,32 @@ async fn cmd_profile_list() -> buckos_package::Result<()> {
 
     let profiles = vec![
         ("minimal", "Absolute minimum system", vec!["ipv6"]),
-        ("server", "Server systems", vec!["ssl", "ipv6", "threads", "caps"]),
-        ("desktop", "Desktop systems", vec!["X", "dbus", "pulseaudio", "gtk", "ssl", "ipv6"]),
-        ("developer", "Development environment", vec!["debug", "doc", "test", "ssl", "ipv6"]),
-        ("hardened", "Security-focused systems", vec!["hardened", "pie", "ssp", "caps"]),
+        (
+            "server",
+            "Server systems",
+            vec!["ssl", "ipv6", "threads", "caps"],
+        ),
+        (
+            "desktop",
+            "Desktop systems",
+            vec!["X", "dbus", "pulseaudio", "gtk", "ssl", "ipv6"],
+        ),
+        (
+            "developer",
+            "Development environment",
+            vec!["debug", "doc", "test", "ssl", "ipv6"],
+        ),
+        (
+            "hardened",
+            "Security-focused systems",
+            vec!["hardened", "pie", "ssp", "caps"],
+        ),
         ("embedded", "Embedded systems", vec!["static", "-ipv6"]),
-        ("container", "Container environments", vec!["static", "-pam", "-systemd"]),
+        (
+            "container",
+            "Container environments",
+            vec!["static", "-pam", "-systemd"],
+        ),
     ];
 
     for (name, description, flags) in &profiles {
@@ -3350,16 +3545,45 @@ async fn cmd_profile_list() -> buckos_package::Result<()> {
 async fn cmd_profile_show(profile: &str) -> buckos_package::Result<()> {
     let profiles: HashMap<&str, (&str, Vec<&str>)> = vec![
         ("minimal", ("Absolute minimum system", vec!["ipv6"])),
-        ("server", ("Server systems", vec!["ssl", "ipv6", "threads", "caps"])),
-        ("desktop", ("Desktop systems", vec!["X", "dbus", "pulseaudio", "gtk", "ssl", "ipv6"])),
-        ("developer", ("Development environment", vec!["debug", "doc", "test", "ssl", "ipv6"])),
-        ("hardened", ("Security-focused systems", vec!["hardened", "pie", "ssp", "caps"])),
+        (
+            "server",
+            ("Server systems", vec!["ssl", "ipv6", "threads", "caps"]),
+        ),
+        (
+            "desktop",
+            (
+                "Desktop systems",
+                vec!["X", "dbus", "pulseaudio", "gtk", "ssl", "ipv6"],
+            ),
+        ),
+        (
+            "developer",
+            (
+                "Development environment",
+                vec!["debug", "doc", "test", "ssl", "ipv6"],
+            ),
+        ),
+        (
+            "hardened",
+            (
+                "Security-focused systems",
+                vec!["hardened", "pie", "ssp", "caps"],
+            ),
+        ),
         ("embedded", ("Embedded systems", vec!["static", "-ipv6"])),
-        ("container", ("Container environments", vec!["static", "-pam", "-systemd"])),
-    ].into_iter().collect();
+        (
+            "container",
+            ("Container environments", vec!["static", "-pam", "-systemd"]),
+        ),
+    ]
+    .into_iter()
+    .collect();
 
     if let Some((description, flags)) = profiles.get(profile) {
-        println!("{}", style(format!("Profile: {}", profile)).bold().underlined());
+        println!(
+            "{}",
+            style(format!("Profile: {}", profile)).bold().underlined()
+        );
         println!();
         println!("  {}: {}", style("Description").bold(), description);
         println!("  {}: {}", style("USE flags").bold(), flags.join(" "));
@@ -3382,7 +3606,11 @@ async fn cmd_profile_show(profile: &str) -> buckos_package::Result<()> {
             println!("    ... and {} more", packages.len() - 5);
         }
     } else {
-        println!("{} Unknown profile: {}", style(">>>").yellow().bold(), profile);
+        println!(
+            "{} Unknown profile: {}",
+            style(">>>").yellow().bold(),
+            profile
+        );
     }
 
     Ok(())
@@ -3390,10 +3618,22 @@ async fn cmd_profile_show(profile: &str) -> buckos_package::Result<()> {
 
 /// Set the active profile
 async fn cmd_profile_set(profile: &str) -> buckos_package::Result<()> {
-    let valid_profiles = ["minimal", "server", "desktop", "developer", "hardened", "embedded", "container"];
+    let valid_profiles = [
+        "minimal",
+        "server",
+        "desktop",
+        "developer",
+        "hardened",
+        "embedded",
+        "container",
+    ];
 
     if !valid_profiles.contains(&profile) {
-        println!("{} Unknown profile: {}", style(">>>").yellow().bold(), profile);
+        println!(
+            "{} Unknown profile: {}",
+            style(">>>").yellow().bold(),
+            profile
+        );
         println!("Valid profiles: {}", valid_profiles.join(", "));
         return Ok(());
     }
@@ -3435,7 +3675,11 @@ async fn cmd_profile_current() -> buckos_package::Result<()> {
         "default".to_string()
     };
 
-    println!("{}: {}", style("Current profile").bold(), style(profile.trim()).green());
+    println!(
+        "{}: {}",
+        style("Current profile").bold(),
+        style(profile.trim()).green()
+    );
 
     Ok(())
 }
@@ -3574,12 +3818,16 @@ async fn cmd_revdep(
     );
 
     // Find packages with broken dependencies
-    let broken = pm.find_broken_deps(args.library.as_deref(), &args.packages).await?;
+    let broken = pm
+        .find_broken_deps(args.library.as_deref(), &args.packages)
+        .await?;
 
     // Filter out ignored packages
     let to_rebuild: Vec<_> = broken
         .into_iter()
-        .filter(|pkg| !args.ignore.contains(&pkg.name) && !args.ignore.contains(&pkg.id.full_name()))
+        .filter(|pkg| {
+            !args.ignore.contains(&pkg.name) && !args.ignore.contains(&pkg.id.full_name())
+        })
         .collect();
 
     if to_rebuild.is_empty() {
@@ -3655,7 +3903,7 @@ async fn cmd_revdep(
 /// Package signing management
 async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
     use buckos_package::security::signing::{
-        SigningManager, TrustLevel, format_key, format_verification,
+        format_key, format_verification, SigningManager, TrustLevel,
     };
 
     let mut manager = SigningManager::new()?;
@@ -3663,7 +3911,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
     // Check if GPG is available
     if !manager.is_gpg_available() {
         return Err(buckos_package::Error::Signing(
-            "GPG is not available. Please install gnupg.".to_string()
+            "GPG is not available. Please install gnupg.".to_string(),
         ));
     }
 
@@ -3710,13 +3958,14 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
             let result = manager.import_key(&source)?;
             println!("{}", result);
 
-            println!(
-                "{} Key imported successfully",
-                style(">>>").green().bold()
-            );
+            println!("{} Key imported successfully", style(">>>").green().bold());
         }
 
-        SignCommand::ExportKey { key_id, output, armor } => {
+        SignCommand::ExportKey {
+            key_id,
+            output,
+            armor,
+        } => {
             println!(
                 "{} Exporting key {} to {}...",
                 style(">>>").blue().bold(),
@@ -3726,10 +3975,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
 
             manager.export_key(&key_id, std::path::Path::new(&output), armor)?;
 
-            println!(
-                "{} Key exported successfully",
-                style(">>>").green().bold()
-            );
+            println!("{} Key exported successfully", style(">>>").green().bold());
         }
 
         SignCommand::SignManifest { package_dir, key } => {
@@ -3741,16 +3987,19 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
 
             let path = std::path::Path::new(&package_dir);
             if !path.exists() {
-                return Err(buckos_package::Error::Signing(
-                    format!("Directory not found: {}", package_dir)
-                ));
+                return Err(buckos_package::Error::Signing(format!(
+                    "Directory not found: {}",
+                    package_dir
+                )));
             }
 
             // Extract package ID from directory name
-            let pkg_name = path.file_name()
+            let pkg_name = path
+                .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown");
-            let category = path.parent()
+            let category = path
+                .parent()
                 .and_then(|p| p.file_name())
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown");
@@ -3791,8 +4040,11 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
                 // Also verify files
                 if let Some(parent) = path.parent() {
                     let file_results = manager.verify_manifest_files(&pkg_manifest, parent)?;
-                    let failed: Vec<_> = file_results.iter()
-                        .filter(|r| r.status != buckos_package::security::signing::ManifestVerifyStatus::Ok)
+                    let failed: Vec<_> = file_results
+                        .iter()
+                        .filter(|r| {
+                            r.status != buckos_package::security::signing::ManifestVerifyStatus::Ok
+                        })
                         .collect();
 
                     if failed.is_empty() {
@@ -3808,11 +4060,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
                             failed.len()
                         );
                         for result in failed {
-                            println!("  {} {}: {}",
-                                style("!").red(),
-                                result.path,
-                                result.message
-                            );
+                            println!("  {} {}: {}", style("!").red(), result.path, result.message);
                         }
                     }
                 }
@@ -3866,11 +4114,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
         }
 
         SignCommand::SignFile { file, key } => {
-            println!(
-                "{} Signing file {}...",
-                style(">>>").blue().bold(),
-                file
-            );
+            println!("{} Signing file {}...", style(">>>").blue().bold(), file);
 
             let path = std::path::Path::new(&file);
             let sig_path = manager.sign_file(path, key.as_deref())?;
@@ -3883,11 +4127,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
         }
 
         SignCommand::VerifyFile { file, signature } => {
-            println!(
-                "{} Verifying file {}...",
-                style(">>>").blue().bold(),
-                file
-            );
+            println!("{} Verifying file {}...", style(">>>").blue().bold(), file);
 
             let path = std::path::Path::new(&file);
             let sig_path = signature.map(|s| std::path::PathBuf::from(s));
@@ -3896,10 +4136,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
             println!("\n{}", format_verification(&verification));
 
             if verification.valid {
-                println!(
-                    "{} Signature verified",
-                    style(">>>").green().bold()
-                );
+                println!("{} Signature verified", style(">>>").green().bold());
             } else {
                 println!(
                     "{} Signature verification failed",
@@ -3908,22 +4145,16 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
             }
         }
 
-        SignCommand::KeyInfo { key_id } => {
-            match manager.get_key(&key_id)? {
-                Some(key) => {
-                    println!("{}", style("Key Information").bold().underlined());
-                    println!();
-                    print!("{}", format_key(&key));
-                }
-                None => {
-                    println!(
-                        "{} Key not found: {}",
-                        style(">>>").yellow().bold(),
-                        key_id
-                    );
-                }
+        SignCommand::KeyInfo { key_id } => match manager.get_key(&key_id)? {
+            Some(key) => {
+                println!("{}", style("Key Information").bold().underlined());
+                println!();
+                print!("{}", format_key(&key));
             }
-        }
+            None => {
+                println!("{} Key not found: {}", style(">>>").yellow().bold(), key_id);
+            }
+        },
 
         SignCommand::SetTrust { key_id, trust } => {
             let trust_level = match trust.to_lowercase().as_str() {
@@ -3933,9 +4164,10 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
                 "full" => TrustLevel::Full,
                 "ultimate" => TrustLevel::Ultimate,
                 _ => {
-                    return Err(buckos_package::Error::Signing(
-                        format!("Invalid trust level: {}. Use: unknown, never, marginal, full, ultimate", trust)
-                    ));
+                    return Err(buckos_package::Error::Signing(format!(
+                        "Invalid trust level: {}. Use: unknown, never, marginal, full, ultimate",
+                        trust
+                    )));
                 }
             };
 
@@ -3948,10 +4180,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
 
             manager.set_key_trust(&key_id, trust_level)?;
 
-            println!(
-                "{} Trust level updated",
-                style(">>>").green().bold()
-            );
+            println!("{} Trust level updated", style(">>>").green().bold());
         }
     }
 

@@ -162,9 +162,8 @@ impl DependencyResolver {
         }
 
         // Topological sort for build order
-        let sorted = toposort(&graph, None).map_err(|_| {
-            Error::CircularDependency("Circular dependency detected".to_string())
-        })?;
+        let sorted = toposort(&graph, None)
+            .map_err(|_| Error::CircularDependency("Circular dependency detected".to_string()))?;
 
         // Build resolution
         let mut packages = Vec::new();
@@ -241,9 +240,8 @@ impl DependencyResolver {
 
         // 2. Requested packages must be installed
         for pkg_name in packages {
-            let pkg_id = PackageId::parse(pkg_name).ok_or_else(|| {
-                Error::InvalidPackageSpec(pkg_name.clone())
-            })?;
+            let pkg_id = PackageId::parse(pkg_name)
+                .ok_or_else(|| Error::InvalidPackageSpec(pkg_name.clone()))?;
 
             if let Some(versions) = versions_by_pkg.get(&pkg_id) {
                 // At least one version must be selected
@@ -278,9 +276,9 @@ impl DependencyResolver {
         }
 
         // Solve
-        let solution = solver.solve().map_err(|e| {
-            Error::ResolutionFailed(format!("SAT solver error: {:?}", e))
-        })?;
+        let solution = solver
+            .solve()
+            .map_err(|e| Error::ResolutionFailed(format!("SAT solver error: {:?}", e)))?;
 
         if !solution {
             return Err(Error::ResolutionFailed(
@@ -289,9 +287,9 @@ impl DependencyResolver {
         }
 
         // Extract solution
-        let model = solver.model().ok_or_else(|| {
-            Error::ResolutionFailed("No model available".to_string())
-        })?;
+        let model = solver
+            .model()
+            .ok_or_else(|| Error::ResolutionFailed("No model available".to_string()))?;
 
         let mut selected: Vec<PackageInfo> = Vec::new();
         for lit in model {
@@ -299,9 +297,10 @@ impl DependencyResolver {
                 // Get the positive literal to look up in our map
                 let pos_lit = if lit.is_positive() { lit } else { !lit };
                 if let Some((pkg_id, version)) = reverse_map.get(&pos_lit) {
-                    if let Some(pkg) = all_packages.iter().find(|p| {
-                        p.id == *pkg_id && p.version == *version
-                    }) {
+                    if let Some(pkg) = all_packages
+                        .iter()
+                        .find(|p| p.id == *pkg_id && p.version == *version)
+                    {
                         selected.push(pkg.clone());
                     }
                 }
@@ -348,7 +347,10 @@ impl DependencyResolver {
             Error::CircularDependency("Circular dependency in packages".to_string())
         })?;
 
-        Ok(sorted.into_iter().map(|n| packages[graph[n]].clone()).collect())
+        Ok(sorted
+            .into_iter()
+            .map(|n| packages[graph[n]].clone())
+            .collect())
     }
 }
 

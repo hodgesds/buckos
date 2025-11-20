@@ -79,9 +79,9 @@ impl ProfileConfig {
                         current.join(line)
                     };
 
-                    current = parent_path.canonicalize().map_err(|_| {
-                        ConfigError::ProfileNotFound(line.to_string())
-                    })?;
+                    current = parent_path
+                        .canonicalize()
+                        .map_err(|_| ConfigError::ProfileNotFound(line.to_string()))?;
                     break;
                 }
             } else {
@@ -139,7 +139,9 @@ impl ProfileConfig {
 
     /// Check if a package is provided by the profile
     pub fn is_provided(&self, category: &str, name: &str) -> bool {
-        self.provided.iter().any(|atom| atom.matches_cpn(category, name))
+        self.provided
+            .iter()
+            .any(|atom| atom.matches_cpn(category, name))
     }
 
     /// Get a profile variable

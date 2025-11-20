@@ -126,7 +126,9 @@ impl LicenseConfig {
                     "@OSI-APPROVED" => osi_approved_licenses().into_iter().collect(),
                     "@FSF-APPROVED" => fsf_approved_licenses().into_iter().collect(),
                     "@GPL-COMPATIBLE" => gpl_compatible_licenses().into_iter().collect(),
-                    "@BINARY-REDISTRIBUTABLE" => binary_redistributable_licenses().into_iter().collect(),
+                    "@BINARY-REDISTRIBUTABLE" => {
+                        binary_redistributable_licenses().into_iter().collect()
+                    }
                     "@EULA" => eula_licenses().into_iter().collect(),
                     _ => HashSet::new(),
                 }

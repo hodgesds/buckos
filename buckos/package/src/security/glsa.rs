@@ -154,7 +154,8 @@ impl GlsaChecker {
         }
 
         // Sort by date (newest first)
-        self.advisories.sort_by(|a, b| b.announced.cmp(&a.announced));
+        self.advisories
+            .sort_by(|a, b| b.announced.cmp(&a.announced));
 
         Ok(())
     }
@@ -165,7 +166,8 @@ impl GlsaChecker {
         let content = std::fs::read_to_string(path)?;
 
         // Extract GLSA ID from filename
-        let id = path.file_stem()
+        let id = path
+            .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
 
@@ -194,18 +196,14 @@ impl GlsaChecker {
     }
 
     /// Check installed packages for vulnerabilities
-    pub fn check(
-        &self,
-        installed: &[(PackageId, semver::Version)],
-    ) -> VulnCheckResult {
+    pub fn check(&self, installed: &[(PackageId, semver::Version)]) -> VulnCheckResult {
         let mut vulnerable = Vec::new();
         let mut matching_advisories = Vec::new();
 
         for advisory in &self.advisories {
             for affected in &advisory.affected {
                 // Check if package is installed
-                if let Some((_, version)) = installed.iter()
-                    .find(|(id, _)| id == &affected.package)
+                if let Some((_, version)) = installed.iter().find(|(id, _)| id == &affected.package)
                 {
                     // Check if version is affected
                     if self.is_version_affected(version, &affected.affected_versions) {
@@ -217,7 +215,10 @@ impl GlsaChecker {
                             fixed_version: affected.fixed_version.clone(),
                         });
 
-                        if !matching_advisories.iter().any(|a: &SecurityAdvisory| a.id == advisory.id) {
+                        if !matching_advisories
+                            .iter()
+                            .any(|a: &SecurityAdvisory| a.id == advisory.id)
+                        {
                             matching_advisories.push(advisory.clone());
                         }
                     }
@@ -236,11 +237,7 @@ impl GlsaChecker {
     }
 
     /// Check if a version is affected
-    fn is_version_affected(
-        &self,
-        version: &semver::Version,
-        ranges: &[VersionRange],
-    ) -> bool {
+    fn is_version_affected(&self, version: &semver::Version, ranges: &[VersionRange]) -> bool {
         for range in ranges {
             let range_version = match self.parse_version(&range.version) {
                 Some(v) => v,
@@ -291,25 +288,28 @@ impl GlsaChecker {
 
     /// Get advisories by severity
     pub fn by_severity(&self, severity: Severity) -> Vec<&SecurityAdvisory> {
-        self.advisories.iter()
+        self.advisories
+            .iter()
             .filter(|a| a.severity == severity)
             .collect()
     }
 
     /// Get advisories affecting a package
     pub fn for_package(&self, package: &PackageId) -> Vec<&SecurityAdvisory> {
-        self.advisories.iter()
+        self.advisories
+            .iter()
             .filter(|a| a.affected.iter().any(|af| &af.package == package))
             .collect()
     }
 
     /// Search advisories by CVE
     pub fn by_cve(&self, cve: &str) -> Vec<&SecurityAdvisory> {
-        self.advisories.iter()
+        self.advisories
+            .iter()
             .filter(|a| {
-                a.references.iter().any(|r| {
-                    r.ref_type == "CVE" && r.id == cve
-                })
+                a.references
+                    .iter()
+                    .any(|r| r.ref_type == "CVE" && r.id == cve)
             })
             .collect()
     }
@@ -347,11 +347,7 @@ pub fn format_vuln_report(result: &VulnCheckResult) -> String {
 
         report.push_str(&format!(
             "  {} ({}-{})\n    Severity: {}\n    Advisory: {}\n",
-            vuln.package,
-            vuln.package.name,
-            vuln.version,
-            severity_str,
-            vuln.advisory
+            vuln.package, vuln.package.name, vuln.version, severity_str, vuln.advisory
         ));
 
         if let Some(ref fixed) = vuln.fixed_version {
@@ -375,10 +371,7 @@ pub fn glsa_check_command(args: &[&str]) -> Result<String> {
         let mut output = String::new();
         for advisory in checker.list_advisories() {
             let date = advisory.announced.format("%Y-%m-%d");
-            output.push_str(&format!(
-                "{} [{}] {}\n",
-                advisory.id, date, advisory.title
-            ));
+            output.push_str(&format!("{} [{}] {}\n", advisory.id, date, advisory.title));
         }
         return Ok(output);
     }
@@ -408,12 +401,10 @@ mod tests {
     fn test_version_affected() {
         let checker = GlsaChecker::default();
 
-        let ranges = vec![
-            VersionRange {
-                range_type: RangeType::Lt,
-                version: "2.0.0".to_string(),
-            },
-        ];
+        let ranges = vec![VersionRange {
+            range_type: RangeType::Lt,
+            version: "2.0.0".to_string(),
+        }];
 
         let v1 = semver::Version::new(1, 0, 0);
         let v2 = semver::Version::new(2, 0, 0);

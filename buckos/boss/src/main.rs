@@ -3,8 +3,11 @@
 //! This is the main entry point for the buckos init system.
 //! It can run as PID 1 or as a service management tool.
 
+use buckos_boss::{
+    create_test_init, Init, InitConfig, ServiceDefinition, ServiceStatus, ShutdownType,
+    SystemdLoader,
+};
 use clap::{Parser, Subcommand};
-use buckos_boss::{create_test_init, Init, InitConfig, ServiceDefinition, ServiceStatus, ShutdownType, SystemdLoader};
 use std::path::PathBuf;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -168,8 +171,7 @@ enum Commands {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize logging
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::fmt()
         .with_env_filter(filter)
@@ -285,7 +287,11 @@ async fn main() -> anyhow::Result<()> {
             println!("Unmasked {}", name);
         }
 
-        Some(Commands::Logs { name, lines, follow: _ }) => {
+        Some(Commands::Logs {
+            name,
+            lines,
+            follow: _,
+        }) => {
             // Show service logs
             let init = create_test_init(cli.services_dir)?;
             init.manager().load_services().await?;
@@ -348,7 +354,10 @@ async fn main() -> anyhow::Result<()> {
                     if blame.is_empty() {
                         println!("No boot timing data available");
                     } else {
-                        println!("Startup finished in {}ms", init.manager().get_total_boot_time());
+                        println!(
+                            "Startup finished in {}ms",
+                            init.manager().get_total_boot_time()
+                        );
                         println!();
                         for timing in blame {
                             println!("{:>8}ms {}", timing.duration_ms, timing.name);
@@ -368,7 +377,10 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
                 "time" => {
-                    println!("Total boot time: {}ms", init.manager().get_total_boot_time());
+                    println!(
+                        "Total boot time: {}ms",
+                        init.manager().get_total_boot_time()
+                    );
                 }
                 _ => {
                     error!("Unknown analysis type: {}", analysis_type);
@@ -381,7 +393,9 @@ async fn main() -> anyhow::Result<()> {
             // Instantiate a template service
             let init = create_test_init(cli.services_dir)?;
             init.manager().load_services().await?;
-            init.manager().instantiate_template(&template, &instance).await?;
+            init.manager()
+                .instantiate_template(&template, &instance)
+                .await?;
             println!("Instantiated {}@{}", template, instance);
         }
 
@@ -389,9 +403,7 @@ async fn main() -> anyhow::Result<()> {
             // Create a new service definition
             let def = ServiceDefinition::new(&name, &exec);
 
-            let path = output.unwrap_or_else(|| {
-                cli.services_dir.join(format!("{}.toml", name))
-            });
+            let path = output.unwrap_or_else(|| cli.services_dir.join(format!("{}.toml", name)));
 
             // Ensure parent directory exists
             if let Some(parent) = path.parent() {
@@ -420,7 +432,11 @@ async fn main() -> anyhow::Result<()> {
             println!("Note: Direct shutdown communication not yet implemented");
         }
 
-        Some(Commands::Migrate { source, output, stdout }) => {
+        Some(Commands::Migrate {
+            source,
+            output,
+            stdout,
+        }) => {
             // Migrate systemd unit files to TOML format
             if source.is_file() {
                 // Single file migration
@@ -431,7 +447,10 @@ async fn main() -> anyhow::Result<()> {
                 } else {
                     // Write to file
                     let dest = output.unwrap_or_else(|| {
-                        let stem = source.file_stem().and_then(|s| s.to_str()).unwrap_or("service");
+                        let stem = source
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("service");
                         cli.services_dir.join(format!("{}.toml", stem))
                     });
 
@@ -452,7 +471,11 @@ async fn main() -> anyhow::Result<()> {
                 if migrated.is_empty() {
                     println!("No .service files found in {}", source.display());
                 } else {
-                    println!("Migrated {} service files to {}", migrated.len(), dest_dir.display());
+                    println!(
+                        "Migrated {} service files to {}",
+                        migrated.len(),
+                        dest_dir.display()
+                    );
                     for path in migrated {
                         println!("  {}", path.display());
                     }

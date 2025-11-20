@@ -1,7 +1,7 @@
 //! Tests for the dependency resolver module
 
 use buckos_package::resolver::InternalResolution;
-use buckos_package::{Dependency, PackageId, PackageInfo, VersionSpec, UseCondition};
+use buckos_package::{Dependency, PackageId, PackageInfo, UseCondition, VersionSpec};
 
 mod version_constraint_tests {
     use super::*;

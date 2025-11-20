@@ -168,7 +168,8 @@ impl FromStr for PackageAtom {
         let mut use_deps = Vec::new();
         let use_start = remaining.find('[');
         if let Some(start) = use_start {
-            let end = remaining.find(']')
+            let end = remaining
+                .find(']')
                 .ok_or_else(|| ConfigError::InvalidAtom(format!("unclosed USE deps: {}", s)))?;
             let use_str = &remaining[start + 1..end];
             for dep in use_str.split(',') {
@@ -204,7 +205,8 @@ impl FromStr for PackageAtom {
         }
 
         // Parse category/name-version
-        let slash_idx = remaining.find('/')
+        let slash_idx = remaining
+            .find('/')
             .ok_or_else(|| ConfigError::InvalidAtom(format!("missing category: {}", s)))?;
 
         let category = remaining[..slash_idx].to_string();
@@ -216,14 +218,22 @@ impl FromStr for PackageAtom {
             let mut version_start = None;
             let chars: Vec<char> = name_version.chars().collect();
             for i in (0..chars.len().saturating_sub(1)).rev() {
-                if chars[i] == '-' && chars.get(i + 1).map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                if chars[i] == '-'
+                    && chars
+                        .get(i + 1)
+                        .map(|c| c.is_ascii_digit())
+                        .unwrap_or(false)
+                {
                     version_start = Some(i);
                     break;
                 }
             }
 
             if let Some(idx) = version_start {
-                (name_version[..idx].to_string(), Some(name_version[idx + 1..].to_string()))
+                (
+                    name_version[..idx].to_string(),
+                    Some(name_version[idx + 1..].to_string()),
+                )
             } else {
                 (name_version.to_string(), None)
             }

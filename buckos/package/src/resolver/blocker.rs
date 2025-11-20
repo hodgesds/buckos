@@ -75,10 +75,7 @@ pub enum BlockerAction {
         to_version: semver::Version,
     },
     /// Install packages in a specific order to avoid conflict
-    OrderedInstall {
-        first: PackageId,
-        second: PackageId,
-    },
+    OrderedInstall { first: PackageId, second: PackageId },
 }
 
 /// Blocker resolver
@@ -101,7 +98,11 @@ impl BlockerResolver {
     }
 
     /// Parse a blocker string (e.g., "!!sys-apps/systemd" or "!<sys-apps/openrc-0.45")
-    pub fn parse_blocker(s: &str, source_pkg: &PackageId, source_version: &semver::Version) -> Result<Blocker> {
+    pub fn parse_blocker(
+        s: &str,
+        source_pkg: &PackageId,
+        source_version: &semver::Version,
+    ) -> Result<Blocker> {
         let s = s.trim();
 
         let (blocker_type, rest) = if s.starts_with("!!") {
@@ -133,8 +134,15 @@ impl BlockerResolver {
         };
 
         // Parse package ID
-        let blocked = PackageId::parse(pkg_str.split('-').take(2).collect::<Vec<_>>().join("/").as_str())
-            .ok_or_else(|| Error::InvalidBlocker(s.to_string()))?;
+        let blocked = PackageId::parse(
+            pkg_str
+                .split('-')
+                .take(2)
+                .collect::<Vec<_>>()
+                .join("/")
+                .as_str(),
+        )
+        .ok_or_else(|| Error::InvalidBlocker(s.to_string()))?;
 
         Ok(Blocker {
             package: source_pkg.clone(),
@@ -151,7 +159,12 @@ impl BlockerResolver {
         let mut last_dash = None;
         for (i, c) in s.char_indices() {
             if c == '-' {
-                if s[i + 1..].chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                if s[i + 1..]
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+                {
                     last_dash = Some(i);
                 }
             }
@@ -183,7 +196,9 @@ impl BlockerResolver {
                 2 => format!("{}.{}.0", parts[0], parts[1]),
                 _ => s.to_string(),
             };
-            version_str.parse().map_err(|_| Error::InvalidVersion(s.to_string()))
+            version_str
+                .parse()
+                .map_err(|_| Error::InvalidVersion(s.to_string()))
         })
     }
 
@@ -199,19 +214,23 @@ impl BlockerResolver {
 
         for blocker in &self.blockers {
             // Check if the blocking package is being installed or is installed
-            let blocker_active = install_ids.contains(&blocker.package)
-                || installed_ids.contains(&blocker.package);
+            let blocker_active =
+                install_ids.contains(&blocker.package) || installed_ids.contains(&blocker.package);
 
             if !blocker_active {
                 continue;
             }
 
             // Check if the blocked package is being installed or is installed
-            let blocked_present = to_install.iter()
+            let blocked_present = to_install
+                .iter()
                 .find(|p| p.id == blocker.blocked && blocker.blocked_version.matches(&p.version))
                 .is_some()
-                || installed.iter()
-                    .find(|p| p.id == blocker.blocked && blocker.blocked_version.matches(&p.version))
+                || installed
+                    .iter()
+                    .find(|p| {
+                        p.id == blocker.blocked && blocker.blocked_version.matches(&p.version)
+                    })
                     .is_some();
 
             if blocked_present {
@@ -264,7 +283,10 @@ impl BlockerResolver {
             }
         }
 
-        BlockerResolution { resolved, unresolved }
+        BlockerResolution {
+            resolved,
+            unresolved,
+        }
     }
 
     fn try_resolve_blocker(
@@ -289,12 +311,14 @@ impl BlockerResolver {
         }
 
         // Try to find a non-conflicting version
-        let non_conflicting = available.iter()
+        let non_conflicting = available
+            .iter()
             .filter(|p| p.id == blocker.blocked)
             .find(|p| !blocker.blocked_version.matches(&p.version));
 
         if let Some(pkg) = non_conflicting {
-            let current = installed.iter()
+            let current = installed
+                .iter()
                 .find(|p| p.id == blocker.blocked)
                 .or_else(|| to_install.iter().find(|p| p.id == blocker.blocked));
 
@@ -315,9 +339,9 @@ impl BlockerResolver {
 
         // For hard blockers where blocked package is installed, suggest removal
         if blocker.blocker_type == BlockerType::Hard {
-            let is_installed = installed.iter().any(|p| {
-                p.id == blocker.blocked && blocker.blocked_version.matches(&p.version)
-            });
+            let is_installed = installed
+                .iter()
+                .any(|p| p.id == blocker.blocked && blocker.blocked_version.matches(&p.version));
 
             if is_installed {
                 return Some(BlockerAction::Remove(blocker.blocked.clone()));
@@ -362,11 +386,8 @@ mod tests {
         let pkg_id = PackageId::new("sys-apps", "systemd");
         let version = semver::Version::new(250, 0, 0);
 
-        let blocker = BlockerResolver::parse_blocker(
-            "!sys-apps/openrc",
-            &pkg_id,
-            &version,
-        ).unwrap();
+        let blocker =
+            BlockerResolver::parse_blocker("!sys-apps/openrc", &pkg_id, &version).unwrap();
 
         assert_eq!(blocker.blocker_type, BlockerType::Soft);
         assert_eq!(blocker.blocked.category, "sys-apps");
@@ -377,11 +398,8 @@ mod tests {
         let pkg_id = PackageId::new("sys-apps", "systemd");
         let version = semver::Version::new(250, 0, 0);
 
-        let blocker = BlockerResolver::parse_blocker(
-            "!!sys-apps/sysvinit",
-            &pkg_id,
-            &version,
-        ).unwrap();
+        let blocker =
+            BlockerResolver::parse_blocker("!!sys-apps/sysvinit", &pkg_id, &version).unwrap();
 
         assert_eq!(blocker.blocker_type, BlockerType::Hard);
     }

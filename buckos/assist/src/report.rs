@@ -166,10 +166,7 @@ impl DiagnosticReport {
                 output.push_str(&format!("  {}:\n", disk.name));
                 output.push_str(&format!("    Mount: {}\n", disk.mount_point));
                 output.push_str(&format!("    Filesystem: {}\n", disk.file_system));
-                output.push_str(&format!(
-                    "    Total: {}\n",
-                    format_bytes(disk.total_space)
-                ));
+                output.push_str(&format!("    Total: {}\n", format_bytes(disk.total_space)));
                 output.push_str(&format!(
                     "    Available: {}\n",
                     format_bytes(disk.available_space)
@@ -183,10 +180,7 @@ impl DiagnosticReport {
                 for net in networks {
                     output.push_str(&format!("  {}:\n", net.name));
                     output.push_str(&format!("    MAC: {}\n", net.mac_address));
-                    output.push_str(&format!(
-                        "    Received: {}\n",
-                        format_bytes(net.received)
-                    ));
+                    output.push_str(&format!("    Received: {}\n", format_bytes(net.received)));
                     output.push_str(&format!(
                         "    Transmitted: {}\n",
                         format_bytes(net.transmitted)
@@ -199,10 +193,7 @@ impl DiagnosticReport {
             if let Some(sensors) = &hw.sensors {
                 output.push_str("Temperature Sensors:\n");
                 for sensor in sensors {
-                    output.push_str(&format!(
-                        "  {}: {:.1}°C",
-                        sensor.label, sensor.temperature
-                    ));
+                    output.push_str(&format!("  {}: {:.1}°C", sensor.label, sensor.temperature));
                     if let Some(max) = sensor.max {
                         output.push_str(&format!(" (max: {:.1}°C)", max));
                     }

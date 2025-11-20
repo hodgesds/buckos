@@ -36,9 +36,7 @@ impl Default for SandboxConfig {
             filesystem: true,
             network: false,
             userns: true,
-            read_paths: vec![
-                PathBuf::from("/"),
-            ],
+            read_paths: vec![PathBuf::from("/")],
             write_paths: vec![
                 PathBuf::from("/var/tmp/portage"),
                 PathBuf::from("/var/cache/distfiles"),
@@ -162,7 +160,8 @@ impl Sandbox {
         let mut cmd = self.build_sandboxed_command(command, args)?;
 
         // Execute
-        let output = cmd.output()
+        let output = cmd
+            .output()
             .map_err(|e| Error::SandboxError(format!("Failed to execute command: {}", e)))?;
 
         let duration = start_time.elapsed();
@@ -285,11 +284,15 @@ impl Sandbox {
         let mut cmd = Command::new("sandbox");
 
         // Set sandbox variables
-        let write_paths: Vec<_> = self.config.write_paths
+        let write_paths: Vec<_> = self
+            .config
+            .write_paths
             .iter()
             .filter_map(|p| p.to_str())
             .collect();
-        let deny_paths: Vec<_> = self.config.deny_paths
+        let deny_paths: Vec<_> = self
+            .config
+            .deny_paths
             .iter()
             .filter_map(|p| p.to_str())
             .collect();

@@ -603,7 +603,8 @@ impl ServiceInstance {
         let max_restarts = 5;
 
         // Clean up old timestamps outside the window
-        self.restart_timestamps.retain(|ts| now.signed_duration_since(*ts) < window);
+        self.restart_timestamps
+            .retain(|ts| now.signed_duration_since(*ts) < window);
 
         // Check if we're within the limit
         if self.restart_timestamps.len() >= max_restarts {

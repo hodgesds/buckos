@@ -222,7 +222,8 @@ impl DistfileManager {
     async fn download(&self, url: &str, dest: &Path, expected_size: Option<u64>) -> Result<()> {
         tracing::info!("Downloading {} -> {}", url, dest.display());
 
-        let response = self.client
+        let response = self
+            .client
             .get(url)
             .send()
             .await
@@ -303,7 +304,7 @@ impl DistfileManager {
 
     /// Compute SHA512 hash of a file
     fn compute_sha512(&self, path: &Path) -> Result<String> {
-        use sha2::{Sha512, Digest};
+        use sha2::{Digest, Sha512};
 
         let data = std::fs::read(path)?;
         let mut hasher = Sha512::new();
@@ -314,10 +315,7 @@ impl DistfileManager {
 
     /// Get mirrors sorted by priority
     fn get_sorted_mirrors(&self) -> Vec<&Mirror> {
-        let mut mirrors: Vec<_> = self.config.mirrors
-            .iter()
-            .filter(|m| m.enabled)
-            .collect();
+        let mut mirrors: Vec<_> = self.config.mirrors.iter().filter(|m| m.enabled).collect();
         mirrors.sort_by(|a, b| b.priority.cmp(&a.priority));
         mirrors
     }
@@ -342,8 +340,8 @@ impl DistfileManager {
 
     /// Clean old distfiles
     pub fn clean(&self, keep_days: u64) -> Result<CleanResult> {
-        let cutoff = std::time::SystemTime::now()
-            - std::time::Duration::from_secs(keep_days * 24 * 60 * 60);
+        let cutoff =
+            std::time::SystemTime::now() - std::time::Duration::from_secs(keep_days * 24 * 60 * 60);
 
         let mut removed = Vec::new();
         let mut freed = 0u64;
@@ -436,7 +434,10 @@ pub fn parse_src_uri(src_uri: &str) -> Vec<SourceUri> {
         if part == "->" {
             // Next token is filename
             continue;
-        } else if part.starts_with("http") || part.starts_with("ftp") || part.starts_with("mirror://") {
+        } else if part.starts_with("http")
+            || part.starts_with("ftp")
+            || part.starts_with("mirror://")
+        {
             if let Some(filename) = current_filename.take() {
                 // Previous URI group complete
                 if !current_uris.is_empty() {

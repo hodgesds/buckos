@@ -84,7 +84,7 @@ impl EnvConfig {
             result = result.replace(&pattern, val);
 
             let pattern = format!("${}", key);
-            if !result.contains(&format!("${{{}}}",  key)) {
+            if !result.contains(&format!("${{{}}}", key)) {
                 result = result.replace(&pattern, val);
             }
         }
@@ -200,10 +200,8 @@ pub fn preset_envs() -> HashMap<String, EnvFile> {
     // No optimization (for debugging)
     presets.insert(
         "no-optimization".to_string(),
-        EnvFile::from_pairs(vec![
-            ("CFLAGS", "-O0 -g"),
-            ("CXXFLAGS", "${CFLAGS}"),
-        ]).with_description("Disable optimization for debugging".to_string()),
+        EnvFile::from_pairs(vec![("CFLAGS", "-O0 -g"), ("CXXFLAGS", "${CFLAGS}")])
+            .with_description("Disable optimization for debugging".to_string()),
     );
 
     // Maximum optimization
@@ -213,24 +211,22 @@ pub fn preset_envs() -> HashMap<String, EnvFile> {
             ("CFLAGS", "-O3 -march=native -flto"),
             ("CXXFLAGS", "${CFLAGS}"),
             ("LDFLAGS", "-Wl,-O3 -flto"),
-        ]).with_description("Maximum optimization with LTO".to_string()),
+        ])
+        .with_description("Maximum optimization with LTO".to_string()),
     );
 
     // Disable parallel make
     presets.insert(
         "single-job".to_string(),
-        EnvFile::from_pairs(vec![
-            ("MAKEOPTS", "-j1"),
-        ]).with_description("Build with single job (for problematic packages)".to_string()),
+        EnvFile::from_pairs(vec![("MAKEOPTS", "-j1")])
+            .with_description("Build with single job (for problematic packages)".to_string()),
     );
 
     // Disable tests
     presets.insert(
         "no-test".to_string(),
-        EnvFile::from_pairs(vec![
-            ("FEATURES", "-test"),
-            ("RESTRICT", "test"),
-        ]).with_description("Skip tests during build".to_string()),
+        EnvFile::from_pairs(vec![("FEATURES", "-test"), ("RESTRICT", "test")])
+            .with_description("Skip tests during build".to_string()),
     );
 
     // Enable ccache
@@ -239,23 +235,22 @@ pub fn preset_envs() -> HashMap<String, EnvFile> {
         EnvFile::from_pairs(vec![
             ("FEATURES", "ccache"),
             ("CCACHE_DIR", "/var/cache/ccache"),
-        ]).with_description("Enable ccache for faster rebuilds".to_string()),
+        ])
+        .with_description("Enable ccache for faster rebuilds".to_string()),
     );
 
     // Disable sandboxing (for problematic builds)
     presets.insert(
         "no-sandbox".to_string(),
-        EnvFile::from_pairs(vec![
-            ("FEATURES", "-sandbox -usersandbox -network-sandbox"),
-        ]).with_description("Disable sandboxing (use with caution)".to_string()),
+        EnvFile::from_pairs(vec![("FEATURES", "-sandbox -usersandbox -network-sandbox")])
+            .with_description("Disable sandboxing (use with caution)".to_string()),
     );
 
     // Keep work directory
     presets.insert(
         "keep-work".to_string(),
-        EnvFile::from_pairs(vec![
-            ("FEATURES", "keepwork"),
-        ]).with_description("Keep work directory after build".to_string()),
+        EnvFile::from_pairs(vec![("FEATURES", "keepwork")])
+            .with_description("Keep work directory after build".to_string()),
     );
 
     // Clang compiler
@@ -267,7 +262,8 @@ pub fn preset_envs() -> HashMap<String, EnvFile> {
             ("AR", "llvm-ar"),
             ("NM", "llvm-nm"),
             ("RANLIB", "llvm-ranlib"),
-        ]).with_description("Use Clang instead of GCC".to_string()),
+        ])
+        .with_description("Use Clang instead of GCC".to_string()),
     );
 
     presets

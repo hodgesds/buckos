@@ -67,9 +67,7 @@ pub struct ServiceManager {
 impl ServiceManager {
     /// Create a new service manager.
     pub fn new(services_dir: PathBuf) -> Self {
-        let log_dir = services_dir.parent()
-            .unwrap_or(&services_dir)
-            .join("logs");
+        let log_dir = services_dir.parent().unwrap_or(&services_dir).join("logs");
 
         Self {
             definitions: Arc::new(RwLock::new(HashMap::new())),
@@ -112,7 +110,8 @@ impl ServiceManager {
             if self.loader_registry.find_loader(ext).is_some() {
                 match self.loader_registry.load(&path) {
                     Ok(def) => {
-                        let loader_name = self.loader_registry
+                        let loader_name = self
+                            .loader_registry
                             .find_loader(ext)
                             .map(|l| l.name())
                             .unwrap_or("unknown");
@@ -192,11 +191,13 @@ impl ServiceManager {
 
         // Start dependencies first
         for dep in &def.requires {
-            Box::pin(self.start_service(dep)).await.map_err(|e| Error::DependencyError {
-                service: name.to_string(),
-                dependency: dep.clone(),
-                reason: e.to_string(),
-            })?;
+            Box::pin(self.start_service(dep))
+                .await
+                .map_err(|e| Error::DependencyError {
+                    service: name.to_string(),
+                    dependency: dep.clone(),
+                    reason: e.to_string(),
+                })?;
         }
 
         // Start wanted services (ignore failures)
@@ -722,7 +723,11 @@ impl ServiceManager {
     }
 
     /// Instantiate a template service.
-    pub async fn instantiate_template(&self, template_name: &str, instance_name: &str) -> Result<()> {
+    pub async fn instantiate_template(
+        &self,
+        template_name: &str,
+        instance_name: &str,
+    ) -> Result<()> {
         let def = self
             .definitions
             .read()
@@ -747,7 +752,11 @@ impl ServiceManager {
     }
 
     /// Get logs for a service.
-    pub async fn get_logs(&self, name: &str, limit: Option<usize>) -> Vec<crate::journal::JournalEntry> {
+    pub async fn get_logs(
+        &self,
+        name: &str,
+        limit: Option<usize>,
+    ) -> Vec<crate::journal::JournalEntry> {
         self.journal.get_logs(name, limit, false).await
     }
 
@@ -894,7 +903,8 @@ impl ServiceManager {
                     if let Some(instance) = instances.get_mut(&service_name) {
                         instance.state = ServiceState::Failed;
                         instance.failure_reason = Some(
-                            "Service restart rate limit exceeded (5 restarts in 10 seconds)".to_string()
+                            "Service restart rate limit exceeded (5 restarts in 10 seconds)"
+                                .to_string(),
                         );
                     }
                 }

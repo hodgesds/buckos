@@ -105,9 +105,8 @@ impl Redactor {
             r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
         ).expect("Invalid IP regex");
 
-        let mac_regex = Regex::new(
-            r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b"
-        ).expect("Invalid MAC regex");
+        let mac_regex =
+            Regex::new(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b").expect("Invalid MAC regex");
 
         Self {
             settings,
@@ -134,12 +133,18 @@ impl Redactor {
 
         // Redact IP addresses
         if self.settings.redact_ips {
-            result = self.ip_regex.replace_all(&result, "[REDACTED_IP]").to_string();
+            result = self
+                .ip_regex
+                .replace_all(&result, "[REDACTED_IP]")
+                .to_string();
         }
 
         // Redact MAC addresses
         if self.settings.redact_macs {
-            result = self.mac_regex.replace_all(&result, "[REDACTED_MAC]").to_string();
+            result = self
+                .mac_regex
+                .replace_all(&result, "[REDACTED_MAC]")
+                .to_string();
         }
 
         // Redact home directory paths

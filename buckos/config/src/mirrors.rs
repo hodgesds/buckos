@@ -30,15 +30,17 @@ impl Default for MirrorConfig {
         Self {
             mirrors: vec![
                 Mirror::new("https://distfiles.buckos.org", "Buckos Primary"),
-                Mirror::new("https://mirror.rackspace.com/gentoo/distfiles", "Rackspace US"),
+                Mirror::new(
+                    "https://mirror.rackspace.com/gentoo/distfiles",
+                    "Rackspace US",
+                ),
                 Mirror::new("https://gentoo.osuosl.org/distfiles", "OSU OSL"),
                 Mirror::new("https://mirrors.mit.edu/gentoo-distfiles", "MIT"),
             ],
             fetch_command: "wget -t 3 -T 60 --passive-ftp -O \"${DISTDIR}/${FILE}\" \"${URI}\""
                 .to_string(),
-            resume_command:
-                "wget -c -t 3 -T 60 --passive-ftp -O \"${DISTDIR}/${FILE}\" \"${URI}\""
-                    .to_string(),
+            resume_command: "wget -c -t 3 -T 60 --passive-ftp -O \"${DISTDIR}/${FILE}\" \"${URI}\""
+                .to_string(),
             fetch_retries: 3,
             fetch_timeout: 60,
             resume_min_size: "350K".to_string(),
@@ -110,7 +112,9 @@ impl MirrorConfig {
 
     /// Construct a fetch URL for a distfile
     pub fn fetch_url(&self, filename: &str) -> Option<String> {
-        self.mirrors.first().map(|m| format!("{}/{}", m.url, filename))
+        self.mirrors
+            .first()
+            .map(|m| format!("{}/{}", m.url, filename))
     }
 
     /// Get all fetch URLs for a distfile (for fallback)
@@ -205,49 +209,76 @@ pub fn public_mirrors() -> Vec<Mirror> {
             .with_region("North America")
             .with_country("US")
             .with_priority(100),
-        Mirror::new("https://mirror.rackspace.com/gentoo/distfiles", "Rackspace US")
-            .with_region("North America")
-            .with_country("US")
-            .with_priority(90),
-        Mirror::new("https://gentoo.ussg.indiana.edu/distfiles", "Indiana University")
-            .with_region("North America")
-            .with_country("US")
-            .with_priority(80),
+        Mirror::new(
+            "https://mirror.rackspace.com/gentoo/distfiles",
+            "Rackspace US",
+        )
+        .with_region("North America")
+        .with_country("US")
+        .with_priority(90),
+        Mirror::new(
+            "https://gentoo.ussg.indiana.edu/distfiles",
+            "Indiana University",
+        )
+        .with_region("North America")
+        .with_country("US")
+        .with_priority(80),
         // Europe
         Mirror::new("https://ftp.fau.de/gentoo/distfiles", "FAU Germany")
             .with_region("Europe")
             .with_country("DE")
             .with_priority(100),
-        Mirror::new("https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo/distfiles", "1&1")
-            .with_region("Europe")
-            .with_country("DE")
-            .with_priority(90),
-        Mirror::new("https://ftp.snt.utwente.nl/pub/os/linux/gentoo/distfiles", "SNT Netherlands")
-            .with_region("Europe")
-            .with_country("NL")
-            .with_priority(90),
-        Mirror::new("https://mirror.bytemark.co.uk/gentoo/distfiles", "Bytemark UK")
-            .with_region("Europe")
-            .with_country("GB")
-            .with_priority(90),
+        Mirror::new(
+            "https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo/distfiles",
+            "1&1",
+        )
+        .with_region("Europe")
+        .with_country("DE")
+        .with_priority(90),
+        Mirror::new(
+            "https://ftp.snt.utwente.nl/pub/os/linux/gentoo/distfiles",
+            "SNT Netherlands",
+        )
+        .with_region("Europe")
+        .with_country("NL")
+        .with_priority(90),
+        Mirror::new(
+            "https://mirror.bytemark.co.uk/gentoo/distfiles",
+            "Bytemark UK",
+        )
+        .with_region("Europe")
+        .with_country("GB")
+        .with_priority(90),
         // Asia
-        Mirror::new("https://ftp.iij.ad.jp/pub/linux/gentoo/distfiles", "IIJ Japan")
-            .with_region("Asia")
-            .with_country("JP")
-            .with_priority(100),
-        Mirror::new("https://ftp.kaist.ac.kr/pub/gentoo/distfiles", "KAIST Korea")
-            .with_region("Asia")
-            .with_country("KR")
-            .with_priority(90),
-        Mirror::new("https://mirrors.tuna.tsinghua.edu.cn/gentoo/distfiles", "Tsinghua China")
-            .with_region("Asia")
-            .with_country("CN")
-            .with_priority(90),
+        Mirror::new(
+            "https://ftp.iij.ad.jp/pub/linux/gentoo/distfiles",
+            "IIJ Japan",
+        )
+        .with_region("Asia")
+        .with_country("JP")
+        .with_priority(100),
+        Mirror::new(
+            "https://ftp.kaist.ac.kr/pub/gentoo/distfiles",
+            "KAIST Korea",
+        )
+        .with_region("Asia")
+        .with_country("KR")
+        .with_priority(90),
+        Mirror::new(
+            "https://mirrors.tuna.tsinghua.edu.cn/gentoo/distfiles",
+            "Tsinghua China",
+        )
+        .with_region("Asia")
+        .with_country("CN")
+        .with_priority(90),
         // Oceania
-        Mirror::new("https://mirror.aarnet.edu.au/pub/gentoo/distfiles", "AARNet Australia")
-            .with_region("Oceania")
-            .with_country("AU")
-            .with_priority(100),
+        Mirror::new(
+            "https://mirror.aarnet.edu.au/pub/gentoo/distfiles",
+            "AARNet Australia",
+        )
+        .with_region("Oceania")
+        .with_country("AU")
+        .with_priority(100),
     ]
 }
 
@@ -299,35 +330,40 @@ impl ThirdpartyMirrors {
     pub fn with_defaults() -> Self {
         let mut mirrors = Self::new();
 
-        mirrors.add("gnu", vec![
-            "https://ftp.gnu.org/gnu/".to_string(),
-            "https://mirrors.kernel.org/gnu/".to_string(),
-        ]);
+        mirrors.add(
+            "gnu",
+            vec![
+                "https://ftp.gnu.org/gnu/".to_string(),
+                "https://mirrors.kernel.org/gnu/".to_string(),
+            ],
+        );
 
-        mirrors.add("kernel", vec![
-            "https://www.kernel.org/pub/".to_string(),
-            "https://mirrors.edge.kernel.org/pub/".to_string(),
-        ]);
+        mirrors.add(
+            "kernel",
+            vec![
+                "https://www.kernel.org/pub/".to_string(),
+                "https://mirrors.edge.kernel.org/pub/".to_string(),
+            ],
+        );
 
-        mirrors.add("sourceforge", vec![
-            "https://downloads.sourceforge.net/".to_string(),
-        ]);
+        mirrors.add(
+            "sourceforge",
+            vec!["https://downloads.sourceforge.net/".to_string()],
+        );
 
-        mirrors.add("github", vec![
-            "https://github.com/".to_string(),
-        ]);
+        mirrors.add("github", vec!["https://github.com/".to_string()]);
 
-        mirrors.add("gitlab", vec![
-            "https://gitlab.com/".to_string(),
-        ]);
+        mirrors.add("gitlab", vec!["https://gitlab.com/".to_string()]);
 
-        mirrors.add("pypi", vec![
-            "https://files.pythonhosted.org/packages/".to_string(),
-        ]);
+        mirrors.add(
+            "pypi",
+            vec!["https://files.pythonhosted.org/packages/".to_string()],
+        );
 
-        mirrors.add("crates", vec![
-            "https://static.crates.io/crates/".to_string(),
-        ]);
+        mirrors.add(
+            "crates",
+            vec!["https://static.crates.io/crates/".to_string()],
+        );
 
         mirrors
     }
@@ -349,7 +385,7 @@ mod tests {
     #[test]
     fn test_from_mirrors_string() {
         let config = MirrorConfig::from_mirrors_string(
-            "https://mirror1.com https://mirror2.com https://mirror3.com"
+            "https://mirror1.com https://mirror2.com https://mirror3.com",
         );
         assert_eq!(config.mirrors.len(), 3);
     }

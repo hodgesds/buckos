@@ -102,10 +102,7 @@ impl PackageManager {
         info!("Installing packages: {:?}", packages);
 
         // Resolve dependencies
-        let resolver = resolver::DependencyResolver::new(
-            self.db.clone(),
-            self.repos.clone(),
-        );
+        let resolver = resolver::DependencyResolver::new(self.db.clone(), self.repos.clone());
 
         let resolution = resolver.resolve(packages, &opts).await?;
 
@@ -116,22 +113,24 @@ impl PackageManager {
 
         // Handle fetch-only mode
         if opts.fetch_only {
-            info!("Fetch-only mode: downloading {} packages", resolution.packages.len());
+            info!(
+                "Fetch-only mode: downloading {} packages",
+                resolution.packages.len()
+            );
             for pkg in &resolution.packages {
                 if let Some(ref url) = pkg.source_url {
                     let filename = format!("{}-{}.tar.gz", pkg.id.name, pkg.version);
-                    self.cache.download(url, &filename, pkg.source_hash.as_deref()).await?;
+                    self.cache
+                        .download(url, &filename, pkg.source_hash.as_deref())
+                        .await?;
                 }
             }
             return Ok(());
         }
 
         // Create transaction
-        let mut transaction = transaction::Transaction::new(
-            self.db.clone(),
-            self.cache.clone(),
-            self.buck.clone(),
-        );
+        let mut transaction =
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
 
         // Add install operations
         for pkg in &resolution.packages {
@@ -150,7 +149,10 @@ impl PackageManager {
             }
         }
 
-        info!("Successfully installed {} packages", resolution.packages.len());
+        info!(
+            "Successfully installed {} packages",
+            resolution.packages.len()
+        );
         Ok(())
     }
 
@@ -186,11 +188,8 @@ impl PackageManager {
         }
 
         // Create transaction
-        let mut transaction = transaction::Transaction::new(
-            self.db.clone(),
-            self.cache.clone(),
-            self.buck.clone(),
-        );
+        let mut transaction =
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
 
         // Add remove operations
         for pkg in to_remove {
@@ -246,11 +245,8 @@ impl PackageManager {
         info!("Found {} updates", updates.len());
 
         // Create transaction
-        let mut transaction = transaction::Transaction::new(
-            self.db.clone(),
-            self.cache.clone(),
-            self.buck.clone(),
-        );
+        let mut transaction =
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
 
         // Add upgrade operations
         for (old, new) in updates {
@@ -350,13 +346,14 @@ impl PackageManager {
     }
 
     /// Resolve packages without installing (for pretend mode)
-    pub async fn resolve_packages(&self, packages: &[String], opts: &InstallOptions) -> Result<Resolution> {
+    pub async fn resolve_packages(
+        &self,
+        packages: &[String],
+        opts: &InstallOptions,
+    ) -> Result<Resolution> {
         info!("Resolving packages: {:?}", packages);
 
-        let resolver = resolver::DependencyResolver::new(
-            self.db.clone(),
-            self.repos.clone(),
-        );
+        let resolver = resolver::DependencyResolver::new(self.db.clone(), self.repos.clone());
 
         let resolution = resolver.resolve(packages, opts).await?;
 
@@ -372,15 +369,24 @@ impl PackageManager {
                 None
             };
 
-            let is_upgrade = old_version.as_ref().map(|v| v < &pkg.version).unwrap_or(false);
-            let is_rebuild = old_version.as_ref().map(|v| v == &pkg.version).unwrap_or(false) && opts.force;
+            let is_upgrade = old_version
+                .as_ref()
+                .map(|v| v < &pkg.version)
+                .unwrap_or(false);
+            let is_rebuild = old_version
+                .as_ref()
+                .map(|v| v == &pkg.version)
+                .unwrap_or(false)
+                && opts.force;
 
-            let use_flags: Vec<UseFlagStatus> = pkg.use_flags.iter().map(|flag| {
-                UseFlagStatus {
+            let use_flags: Vec<UseFlagStatus> = pkg
+                .use_flags
+                .iter()
+                .map(|flag| UseFlagStatus {
                     name: flag.name.clone(),
                     enabled: flag.default || opts.use_flags.contains(&flag.name),
-                }
-            }).collect();
+                })
+                .collect();
 
             resolved_packages.push(ResolvedPackage {
                 id: pkg.id.clone(),
@@ -451,7 +457,11 @@ impl PackageManager {
     }
 
     /// Get list of packages that would be removed
-    pub async fn get_removal_list(&self, packages: &[String], _opts: &RemoveOptions) -> Result<Vec<InstalledPackage>> {
+    pub async fn get_removal_list(
+        &self,
+        packages: &[String],
+        _opts: &RemoveOptions,
+    ) -> Result<Vec<InstalledPackage>> {
         let db = self.db.read().await;
         let mut to_remove = Vec::new();
 
@@ -465,7 +475,11 @@ impl PackageManager {
     }
 
     /// Get update resolution
-    pub async fn get_update_resolution(&self, packages: Option<&[String]>, opts: &UpdateOptions) -> Result<Resolution> {
+    pub async fn get_update_resolution(
+        &self,
+        packages: Option<&[String]>,
+        opts: &UpdateOptions,
+    ) -> Result<Resolution> {
         let db = self.db.read().await;
 
         // Get packages to check
@@ -494,12 +508,14 @@ impl PackageManager {
                 let needs_rebuild = opts.newuse && self.has_use_changes(&pkg, &available).await;
 
                 if needs_update || needs_rebuild {
-                    let use_flags: Vec<UseFlagStatus> = available.use_flags.iter().map(|f| {
-                        UseFlagStatus {
+                    let use_flags: Vec<UseFlagStatus> = available
+                        .use_flags
+                        .iter()
+                        .map(|f| UseFlagStatus {
                             name: f.name.clone(),
                             enabled: f.default || pkg.use_flags.contains(&f.name),
-                        }
-                    }).collect();
+                        })
+                        .collect();
 
                     resolved_packages.push(ResolvedPackage {
                         id: available.id.clone(),
@@ -548,7 +564,10 @@ impl PackageManager {
     }
 
     /// Calculate packages to depclean
-    pub async fn calculate_depclean(&self, opts: &DepcleanOptions) -> Result<Vec<InstalledPackage>> {
+    pub async fn calculate_depclean(
+        &self,
+        opts: &DepcleanOptions,
+    ) -> Result<Vec<InstalledPackage>> {
         info!("Calculating depclean candidates");
 
         let db = self.db.read().await;
@@ -571,9 +590,9 @@ impl PackageManager {
             // Skip if it has reverse dependencies from non-candidates
             let rdeps = db.get_reverse_dependencies(&pkg.name)?;
             let has_needed_rdeps = rdeps.iter().any(|rdep| {
-                all_installed.iter().any(|p| {
-                    p.name == *rdep && (p.explicit || selected.packages.contains(&p.id))
-                })
+                all_installed
+                    .iter()
+                    .any(|p| p.name == *rdep && (p.explicit || selected.packages.contains(&p.id)))
             });
 
             if !has_needed_rdeps {
@@ -596,11 +615,8 @@ impl PackageManager {
         }
 
         // Create transaction for removal
-        let mut transaction = transaction::Transaction::new(
-            self.db.clone(),
-            self.cache.clone(),
-            self.buck.clone(),
-        );
+        let mut transaction =
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
 
         for pkg in to_remove {
             transaction.add_remove(pkg);
@@ -633,7 +649,11 @@ impl PackageManager {
     }
 
     /// Find packages that need rebuilding due to USE flag changes
-    pub async fn find_newuse_packages(&self, packages: Option<&[String]>, deep: bool) -> Result<Vec<NewusePackage>> {
+    pub async fn find_newuse_packages(
+        &self,
+        packages: Option<&[String]>,
+        deep: bool,
+    ) -> Result<Vec<NewusePackage>> {
         let db = self.db.read().await;
 
         // Get packages to check
@@ -741,7 +761,9 @@ impl PackageManager {
                     let is_affected = match &vuln.version_check {
                         VersionCheck::LessThan(v) => pkg.version < *v,
                         VersionCheck::LessThanOrEqual(v) => pkg.version <= *v,
-                        VersionCheck::Range { min, max } => pkg.version >= *min && pkg.version < *max,
+                        VersionCheck::Range { min, max } => {
+                            pkg.version >= *min && pkg.version < *max
+                        }
                         VersionCheck::Exact(v) => pkg.version == *v,
                     };
 
@@ -1033,10 +1055,7 @@ impl PackageManager {
         info!("Rebuilding {} packages", packages.len());
 
         // Convert to package names and install with force
-        let package_names: Vec<String> = packages
-            .iter()
-            .map(|p| p.id.full_name())
-            .collect();
+        let package_names: Vec<String> = packages.iter().map(|p| p.id.full_name()).collect();
 
         let opts = InstallOptions {
             force: true, // Force rebuild
@@ -1198,7 +1217,10 @@ pub enum VersionCheck {
     /// Versions less than or equal to the specified version
     LessThanOrEqual(semver::Version),
     /// Versions within a range [min, max)
-    Range { min: semver::Version, max: semver::Version },
+    Range {
+        min: semver::Version,
+        max: semver::Version,
+    },
     /// Exact version match
     Exact(semver::Version),
 }

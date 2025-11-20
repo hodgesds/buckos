@@ -140,7 +140,10 @@ impl HardwareInfo {
 
     fn collect_cpu(sys: &System) -> CpuInfo {
         let cpus = sys.cpus();
-        let brand = cpus.first().map(|c| c.brand().to_string()).unwrap_or_default();
+        let brand = cpus
+            .first()
+            .map(|c| c.brand().to_string())
+            .unwrap_or_default();
         let usage_per_core: Vec<f32> = cpus.iter().map(|c| c.cpu_usage()).collect();
         let global_usage = sys.global_cpu_info().cpu_usage();
 

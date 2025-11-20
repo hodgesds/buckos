@@ -6,8 +6,8 @@
 //! - D-Bus
 //! - udev
 
-use crate::types::{PackageId, PackageInfo, Dependency, UseFlag, VersionSpec};
 use super::{dep, dep_build, dep_runtime, dep_use, use_flag};
+use crate::types::{Dependency, PackageId, PackageInfo, UseFlag, VersionSpec};
 use semver::Version;
 
 /// Get all service packages
@@ -16,22 +16,16 @@ pub fn get_packages() -> Vec<PackageInfo> {
         // systemd
         systemd_255(),
         systemd_256(),
-
         // OpenRC
         openrc_0_54(),
-
         // D-Bus
         dbus_1_14_10(),
-
         // Udev (standalone)
         eudev_3_2_14(),
-
         // Polkit
         polkit_124(),
-
         // Elogind
         elogind_252_9(),
-
         // Cron
         cronie_1_7_2(),
     ]
@@ -109,7 +103,9 @@ fn systemd_255() -> PackageInfo {
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://github.com/systemd/systemd/archive/v255.tar.gz".to_string()),
-        source_hash: Some("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2".to_string()),
+        source_hash: Some(
+            "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2".to_string(),
+        ),
         buck_target: "//sys-apps/systemd:systemd-255".to_string(),
         size: 15_000_000,
         installed_size: 45_000_000,
@@ -179,7 +175,9 @@ fn systemd_256() -> PackageInfo {
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://github.com/systemd/systemd/archive/v256.tar.gz".to_string()),
-        source_hash: Some("b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3".to_string()),
+        source_hash: Some(
+            "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3".to_string(),
+        ),
         buck_target: "//sys-apps/systemd:systemd-256".to_string(),
         size: 16_000_000,
         installed_size: 48_000_000,
@@ -207,19 +205,19 @@ fn openrc_0_54() -> PackageInfo {
             use_flag("sysv-utils", "Enable SysV compatibility", true),
             use_flag("unicode", "Enable Unicode support", true),
         ],
-        dependencies: vec![
-            dep("sys-libs", "pam"),
-        ],
+        dependencies: vec![dep("sys-libs", "pam")],
         build_dependencies: vec![
             dep_build("dev-util", "meson"),
             dep_build("dev-util", "ninja"),
             dep_build("dev-util", "pkgconf"),
         ],
-        runtime_dependencies: vec![
-            dep_runtime("sys-apps", "sysvinit"),
-        ],
-        source_url: Some("https://github.com/OpenRC/openrc/archive/refs/tags/0.54.tar.gz".to_string()),
-        source_hash: Some("c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4".to_string()),
+        runtime_dependencies: vec![dep_runtime("sys-apps", "sysvinit")],
+        source_url: Some(
+            "https://github.com/OpenRC/openrc/archive/refs/tags/0.54.tar.gz".to_string(),
+        ),
+        source_hash: Some(
+            "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4".to_string(),
+        ),
         buck_target: "//sys-apps/openrc:openrc-0.54".to_string(),
         size: 700_000,
         installed_size: 2_500_000,
@@ -245,17 +243,19 @@ fn dbus_1_14_10() -> PackageInfo {
             use_flag("user-session", "Enable user session bus", true),
             use_flag("X", "Enable X11 support", false),
         ],
-        dependencies: vec![
-            dep("dev-libs", "expat"),
-        ],
+        dependencies: vec![dep("dev-libs", "expat")],
         build_dependencies: vec![
             dep_build("dev-util", "meson"),
             dep_build("dev-util", "ninja"),
             dep_build("dev-util", "pkgconf"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://dbus.freedesktop.org/releases/dbus/dbus-1.14.10.tar.xz".to_string()),
-        source_hash: Some("d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5".to_string()),
+        source_url: Some(
+            "https://dbus.freedesktop.org/releases/dbus/dbus-1.14.10.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5".to_string(),
+        ),
         buck_target: "//sys-apps/dbus:dbus-1.14.10".to_string(),
         size: 2_000_000,
         installed_size: 6_000_000,
@@ -279,9 +279,7 @@ fn eudev_3_2_14() -> PackageInfo {
             use_flag("static-libs", "Build static libraries", false),
             use_flag("test", "Build tests", false),
         ],
-        dependencies: vec![
-            dep("sys-apps", "kmod"),
-        ],
+        dependencies: vec![dep("sys-apps", "kmod")],
         build_dependencies: vec![
             dep_build("sys-devel", "autoconf"),
             dep_build("sys-devel", "automake"),
@@ -289,8 +287,12 @@ fn eudev_3_2_14() -> PackageInfo {
             dep_build("dev-util", "pkgconf"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://github.com/eudev-project/eudev/archive/v3.2.14.tar.gz".to_string()),
-        source_hash: Some("e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6".to_string()),
+        source_url: Some(
+            "https://github.com/eudev-project/eudev/archive/v3.2.14.tar.gz".to_string(),
+        ),
+        source_hash: Some(
+            "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6".to_string(),
+        ),
         buck_target: "//sys-fs/eudev:eudev-3.2.14".to_string(),
         size: 600_000,
         installed_size: 3_000_000,
@@ -328,8 +330,12 @@ fn polkit_124() -> PackageInfo {
             dep_build("sys-devel", "gettext"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://github.com/polkit-org/polkit/archive/refs/tags/124.tar.gz".to_string()),
-        source_hash: Some("f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7".to_string()),
+        source_url: Some(
+            "https://github.com/polkit-org/polkit/archive/refs/tags/124.tar.gz".to_string(),
+        ),
+        source_hash: Some(
+            "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7".to_string(),
+        ),
         buck_target: "//sys-auth/polkit:polkit-124".to_string(),
         size: 700_000,
         installed_size: 3_000_000,
@@ -366,8 +372,12 @@ fn elogind_252_9() -> PackageInfo {
             dep_build("sys-devel", "gettext"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://github.com/elogind/elogind/archive/refs/tags/v252.9.tar.gz".to_string()),
-        source_hash: Some("a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8".to_string()),
+        source_url: Some(
+            "https://github.com/elogind/elogind/archive/refs/tags/v252.9.tar.gz".to_string(),
+        ),
+        source_hash: Some(
+            "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8".to_string(),
+        ),
         buck_target: "//sys-auth/elogind:elogind-252.9".to_string(),
         size: 1_500_000,
         installed_size: 5_000_000,

@@ -108,18 +108,18 @@ impl SetsConfig {
 
     /// Add a package to a set
     pub fn add_to_set(&mut self, set_name: &str, atom: PackageAtom) -> Result<()> {
-        let set = self.get_mut(set_name).ok_or_else(|| {
-            ConfigError::Invalid(format!("set not found: {}", set_name))
-        })?;
+        let set = self
+            .get_mut(set_name)
+            .ok_or_else(|| ConfigError::Invalid(format!("set not found: {}", set_name)))?;
         set.atoms.insert(atom);
         Ok(())
     }
 
     /// Remove a package from a set
     pub fn remove_from_set(&mut self, set_name: &str, category: &str, name: &str) -> Result<bool> {
-        let set = self.get_mut(set_name).ok_or_else(|| {
-            ConfigError::Invalid(format!("set not found: {}", set_name))
-        })?;
+        let set = self
+            .get_mut(set_name)
+            .ok_or_else(|| ConfigError::Invalid(format!("set not found: {}", set_name)))?;
 
         let before = set.atoms.len();
         set.atoms.retain(|atom| !atom.matches_cpn(category, name));
@@ -239,7 +239,9 @@ impl PackageSet {
 
     /// Check if the set contains a package
     pub fn contains(&self, category: &str, name: &str) -> bool {
-        self.atoms.iter().any(|atom| atom.matches_cpn(category, name))
+        self.atoms
+            .iter()
+            .any(|atom| atom.matches_cpn(category, name))
     }
 
     /// Get all atoms

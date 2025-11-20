@@ -38,9 +38,8 @@ pub struct SystemdLoader;
 
 impl super::ServiceLoader for SystemdLoader {
     fn load(&self, path: &Path) -> Result<ServiceDefinition> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            Error::ConfigError(format!("Failed to read {}: {}", path.display(), e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| Error::ConfigError(format!("Failed to read {}: {}", path.display(), e)))?;
 
         parse_unit_file(&content, path)
     }
@@ -64,15 +63,13 @@ impl SystemdLoader {
     ///
     /// This is useful for migrating systemd services to buckos.
     pub fn convert_to_toml(path: &Path) -> Result<String> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            Error::ConfigError(format!("Failed to read {}: {}", path.display(), e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| Error::ConfigError(format!("Failed to read {}: {}", path.display(), e)))?;
 
         let def = parse_unit_file(&content, path)?;
 
-        toml::to_string_pretty(&def).map_err(|e| {
-            Error::ConfigError(format!("Failed to serialize to TOML: {}", e))
-        })
+        toml::to_string_pretty(&def)
+            .map_err(|e| Error::ConfigError(format!("Failed to serialize to TOML: {}", e)))
     }
 
     /// Migrate a systemd unit file to buckos TOML format.
@@ -306,8 +303,8 @@ fn parse_unit_file(content: &str, path: &Path) -> Result<ServiceDefinition> {
         .unwrap_or(Duration::from_secs(30));
 
     // Check if enabled (based on WantedBy/RequiredBy)
-    let enabled = sections.install.get("WantedBy").is_some()
-        || sections.install.get("RequiredBy").is_some();
+    let enabled =
+        sections.install.get("WantedBy").is_some() || sections.install.get("RequiredBy").is_some();
 
     // Standard output/error
     let standard_output = sections
@@ -430,10 +427,7 @@ fn parse_duration(s: &str) -> Option<Duration> {
             return Some(Duration::from_secs(secs));
         }
     }
-    if let Some(num_str) = s
-        .strip_suffix("min")
-        .or_else(|| s.strip_suffix('m'))
-    {
+    if let Some(num_str) = s.strip_suffix("min").or_else(|| s.strip_suffix('m')) {
         if let Ok(mins) = num_str.trim().parse::<u64>() {
             return Some(Duration::from_secs(mins * 60));
         }
@@ -598,12 +592,8 @@ fn parse_health_check(_service: &HashMap<String, String>) -> Option<HealthCheck>
 /// Parse timer configuration from [Timer] section.
 fn parse_timer_config(timer: &HashMap<String, String>) -> TimerConfig {
     let on_calendar = timer.get("OnCalendar").cloned();
-    let on_boot = timer
-        .get("OnBootSec")
-        .and_then(|s| parse_duration(s));
-    let on_unit_active = timer
-        .get("OnUnitActiveSec")
-        .and_then(|s| parse_duration(s));
+    let on_boot = timer.get("OnBootSec").and_then(|s| parse_duration(s));
+    let on_unit_active = timer.get("OnUnitActiveSec").and_then(|s| parse_duration(s));
     let on_unit_inactive = timer
         .get("OnUnitInactiveSec")
         .and_then(|s| parse_duration(s));
@@ -763,7 +753,10 @@ WantedBy=multi-user.target
 
         assert_eq!(def.name, "complex");
         assert_eq!(def.service_type, ServiceType::Notify);
-        assert_eq!(def.working_directory.as_deref(), Some(Path::new("/var/lib/complex")));
+        assert_eq!(
+            def.working_directory.as_deref(),
+            Some(Path::new("/var/lib/complex"))
+        );
         assert_eq!(def.user.as_deref(), Some("complex"));
         assert_eq!(def.restart, RestartPolicy::Always);
         assert_eq!(def.restart_sec, Duration::from_secs(5));

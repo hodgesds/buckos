@@ -225,9 +225,9 @@ impl SigningManager {
             cmd.arg("--list-secret-keys");
         }
 
-        let output = cmd.output().map_err(|e| {
-            Error::Signing(format!("Failed to run gpg: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| Error::Signing(format!("Failed to run gpg: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -264,10 +264,9 @@ impl SigningManager {
                     }
 
                     // Parse key info
-                    let key_size = fields.get(2)
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(0);
-                    let algorithm = fields.get(3)
+                    let key_size = fields.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+                    let algorithm = fields
+                        .get(3)
                         .map(|s| match *s {
                             "1" => "RSA",
                             "16" => "ElGamal",
@@ -280,13 +279,15 @@ impl SigningManager {
                         .unwrap_or("Unknown")
                         .to_string();
 
-                    let created = fields.get(5)
+                    let created = fields
+                        .get(5)
                         .and_then(|s| s.parse::<i64>().ok())
                         .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
                         .map(|dt| dt.date_naive())
                         .unwrap_or_else(|| chrono::Local::now().date_naive());
 
-                    let expires = fields.get(6)
+                    let expires = fields
+                        .get(6)
                         .filter(|s| !s.is_empty())
                         .and_then(|s| s.parse::<i64>().ok())
                         .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
@@ -321,7 +322,7 @@ impl SigningManager {
                             key.fingerprint = fpr.to_string();
                             // Key ID is last 16 characters of fingerprint
                             if fpr.len() >= 16 {
-                                key.key_id = fpr[fpr.len()-16..].to_string();
+                                key.key_id = fpr[fpr.len() - 16..].to_string();
                             }
                         }
                     }
@@ -351,10 +352,7 @@ impl SigningManager {
     /// Import a key from a file or keyserver
     pub fn import_key(&self, source: &str) -> Result<String> {
         let mut cmd = Command::new("gpg");
-        cmd.args([
-            "--homedir",
-            self.gpg_home.to_str().unwrap_or("~/.gnupg"),
-        ]);
+        cmd.args(["--homedir", self.gpg_home.to_str().unwrap_or("~/.gnupg")]);
 
         // Check if source is a file or key ID
         let path = Path::new(source);
@@ -373,9 +371,9 @@ impl SigningManager {
             ]);
         }
 
-        let output = cmd.output().map_err(|e| {
-            Error::Signing(format!("Failed to import key: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| Error::Signing(format!("Failed to import key: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -402,9 +400,9 @@ impl SigningManager {
         cmd.arg(key_id);
         cmd.args(["-o", output_path.to_str().unwrap_or("")]);
 
-        let output = cmd.output().map_err(|e| {
-            Error::Signing(format!("Failed to export key: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| Error::Signing(format!("Failed to export key: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -432,9 +430,9 @@ impl SigningManager {
             file_path.to_str().unwrap_or(""),
         ]);
 
-        let output = cmd.output().map_err(|e| {
-            Error::Signing(format!("Failed to sign file: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| Error::Signing(format!("Failed to sign file: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -442,9 +440,14 @@ impl SigningManager {
         }
 
         // Return path to signature file
-        let sig_path = file_path.with_extension(
-            format!("{}.asc", file_path.extension().unwrap_or_default().to_str().unwrap_or(""))
-        );
+        let sig_path = file_path.with_extension(format!(
+            "{}.asc",
+            file_path
+                .extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or("")
+        ));
 
         Ok(sig_path)
     }
@@ -476,14 +479,14 @@ impl SigningManager {
         // Write data to stdin
         if let Some(mut stdin) = child.stdin.take() {
             use std::io::Write;
-            stdin.write_all(data).map_err(|e| {
-                Error::Signing(format!("Failed to write to gpg: {}", e))
-            })?;
+            stdin
+                .write_all(data)
+                .map_err(|e| Error::Signing(format!("Failed to write to gpg: {}", e)))?;
         }
 
-        let output = child.wait_with_output().map_err(|e| {
-            Error::Signing(format!("Failed to wait for gpg: {}", e))
-        })?;
+        let output = child
+            .wait_with_output()
+            .map_err(|e| Error::Signing(format!("Failed to wait for gpg: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -494,10 +497,19 @@ impl SigningManager {
     }
 
     /// Verify a file signature
-    pub fn verify_file(&self, file_path: &Path, sig_path: Option<&Path>) -> Result<SignatureVerification> {
-        let default_sig = file_path.with_extension(
-            format!("{}.asc", file_path.extension().unwrap_or_default().to_str().unwrap_or(""))
-        );
+    pub fn verify_file(
+        &self,
+        file_path: &Path,
+        sig_path: Option<&Path>,
+    ) -> Result<SignatureVerification> {
+        let default_sig = file_path.with_extension(format!(
+            "{}.asc",
+            file_path
+                .extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or("")
+        ));
         let sig = sig_path.unwrap_or(&default_sig);
 
         let mut cmd = Command::new("gpg");
@@ -511,9 +523,9 @@ impl SigningManager {
             file_path.to_str().unwrap_or(""),
         ]);
 
-        let output = cmd.output().map_err(|e| {
-            Error::Signing(format!("Failed to verify signature: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| Error::Signing(format!("Failed to verify signature: {}", e)))?;
 
         self.parse_verification_output(&output)
     }
@@ -521,25 +533,25 @@ impl SigningManager {
     /// Verify a signature on data
     pub fn verify_data(&self, data: &[u8], signature: &str) -> Result<SignatureVerification> {
         // Write signature to temp file
-        let temp_dir = tempfile::tempdir().map_err(|e| {
-            Error::Signing(format!("Failed to create temp dir: {}", e))
-        })?;
+        let temp_dir = tempfile::tempdir()
+            .map_err(|e| Error::Signing(format!("Failed to create temp dir: {}", e)))?;
 
         let sig_path = temp_dir.path().join("signature.asc");
         let data_path = temp_dir.path().join("data");
 
-        std::fs::write(&sig_path, signature).map_err(|e| {
-            Error::Signing(format!("Failed to write signature: {}", e))
-        })?;
-        std::fs::write(&data_path, data).map_err(|e| {
-            Error::Signing(format!("Failed to write data: {}", e))
-        })?;
+        std::fs::write(&sig_path, signature)
+            .map_err(|e| Error::Signing(format!("Failed to write signature: {}", e)))?;
+        std::fs::write(&data_path, data)
+            .map_err(|e| Error::Signing(format!("Failed to write data: {}", e)))?;
 
         self.verify_file(&data_path, Some(&sig_path))
     }
 
     /// Parse GPG verification output
-    fn parse_verification_output(&self, output: &std::process::Output) -> Result<SignatureVerification> {
+    fn parse_verification_output(
+        &self,
+        output: &std::process::Output,
+    ) -> Result<SignatureVerification> {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -593,12 +605,14 @@ impl SigningManager {
 
         // Check trusted keys
         if verification.valid && !self.trusted_keys.is_empty() {
-            if !self.trusted_keys.iter().any(|k| {
-                verification.key_id.ends_with(k) || k.ends_with(&verification.key_id)
-            }) {
-                verification.warnings.push(
-                    "Signature is valid but key is not in trusted keys list".to_string()
-                );
+            if !self
+                .trusted_keys
+                .iter()
+                .any(|k| verification.key_id.ends_with(k) || k.ends_with(&verification.key_id))
+            {
+                verification
+                    .warnings
+                    .push("Signature is valid but key is not in trusted keys list".to_string());
             }
         }
 
@@ -606,7 +620,11 @@ impl SigningManager {
     }
 
     /// Generate a manifest for a package directory
-    pub fn generate_manifest(&self, package_dir: &Path, package: &PackageId) -> Result<PackageManifest> {
+    pub fn generate_manifest(
+        &self,
+        package_dir: &Path,
+        package: &PackageId,
+    ) -> Result<PackageManifest> {
         let mut entries = Vec::new();
 
         // Find all files in the package directory
@@ -616,12 +634,12 @@ impl SigningManager {
             .filter(|e| e.file_type().is_file())
         {
             let path = entry.path();
-            let relative = path.strip_prefix(package_dir)
+            let relative = path
+                .strip_prefix(package_dir)
                 .map_err(|_| Error::Signing("Invalid path".to_string()))?;
 
-            let metadata = std::fs::metadata(path).map_err(|e| {
-                Error::Signing(format!("Failed to read file metadata: {}", e))
-            })?;
+            let metadata = std::fs::metadata(path)
+                .map_err(|e| Error::Signing(format!("Failed to read file metadata: {}", e)))?;
 
             // Determine file type
             let file_type = match relative.to_str() {
@@ -632,9 +650,8 @@ impl SigningManager {
             };
 
             // Calculate hashes
-            let content = std::fs::read(path).map_err(|e| {
-                Error::Signing(format!("Failed to read file: {}", e))
-            })?;
+            let content = std::fs::read(path)
+                .map_err(|e| Error::Signing(format!("Failed to read file: {}", e)))?;
 
             let blake2b = {
                 use blake3::Hasher;
@@ -644,7 +661,7 @@ impl SigningManager {
             };
 
             let sha512 = {
-                use sha2::{Sha512, Digest};
+                use sha2::{Digest, Sha512};
                 let mut hasher = Sha512::new();
                 hasher.update(&content);
                 hex::encode(hasher.finalize())
@@ -667,7 +684,11 @@ impl SigningManager {
     }
 
     /// Sign a manifest
-    pub fn sign_manifest(&self, manifest: &mut PackageManifest, key_id: Option<&str>) -> Result<()> {
+    pub fn sign_manifest(
+        &self,
+        manifest: &mut PackageManifest,
+        key_id: Option<&str>,
+    ) -> Result<()> {
         let manifest_text = self.format_manifest(manifest);
         let signature = self.sign_data(manifest_text.as_bytes(), key_id)?;
         manifest.signature = Some(signature);
@@ -681,9 +702,7 @@ impl SigningManager {
         for entry in &manifest.entries {
             output.push_str(&format!(
                 "{} {} {}",
-                entry.file_type,
-                entry.path,
-                entry.size
+                entry.file_type, entry.path, entry.size
             ));
 
             if let Some(ref hash) = entry.blake2b {
@@ -701,7 +720,9 @@ impl SigningManager {
 
     /// Verify a manifest signature
     pub fn verify_manifest(&self, manifest: &PackageManifest) -> Result<SignatureVerification> {
-        let signature = manifest.signature.as_ref()
+        let signature = manifest
+            .signature
+            .as_ref()
             .ok_or_else(|| Error::Signing("Manifest is not signed".to_string()))?;
 
         let manifest_text = self.format_manifest(manifest);
@@ -709,7 +730,11 @@ impl SigningManager {
     }
 
     /// Verify manifest entries against actual files
-    pub fn verify_manifest_files(&self, manifest: &PackageManifest, base_dir: &Path) -> Result<Vec<ManifestVerifyResult>> {
+    pub fn verify_manifest_files(
+        &self,
+        manifest: &PackageManifest,
+        base_dir: &Path,
+    ) -> Result<Vec<ManifestVerifyResult>> {
         let mut results = Vec::new();
 
         for entry in &manifest.entries {
@@ -722,7 +747,11 @@ impl SigningManager {
     }
 
     /// Verify a single manifest entry
-    fn verify_manifest_entry(&self, entry: &ManifestEntry, file_path: &Path) -> ManifestVerifyResult {
+    fn verify_manifest_entry(
+        &self,
+        entry: &ManifestEntry,
+        file_path: &Path,
+    ) -> ManifestVerifyResult {
         if !file_path.exists() {
             return ManifestVerifyResult {
                 path: entry.path.clone(),
@@ -781,7 +810,7 @@ impl SigningManager {
 
         // Verify SHA512 hash
         if let Some(ref expected) = entry.sha512 {
-            use sha2::{Sha512, Digest};
+            use sha2::{Digest, Sha512};
             let mut hasher = Sha512::new();
             hasher.update(&content);
             let actual = hex::encode(hasher.finalize());
@@ -812,13 +841,11 @@ impl SigningManager {
                 "-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA512\n\n{}\n{}",
                 content, sig
             );
-            std::fs::write(path, signed).map_err(|e| {
-                Error::Signing(format!("Failed to write manifest: {}", e))
-            })?;
+            std::fs::write(path, signed)
+                .map_err(|e| Error::Signing(format!("Failed to write manifest: {}", e)))?;
         } else {
-            std::fs::write(path, content).map_err(|e| {
-                Error::Signing(format!("Failed to write manifest: {}", e))
-            })?;
+            std::fs::write(path, content)
+                .map_err(|e| Error::Signing(format!("Failed to write manifest: {}", e)))?;
         }
 
         Ok(())
@@ -826,16 +853,16 @@ impl SigningManager {
 
     /// Read and parse a manifest file
     pub fn read_manifest(&self, path: &Path) -> Result<PackageManifest> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            Error::Signing(format!("Failed to read manifest: {}", e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| Error::Signing(format!("Failed to read manifest: {}", e)))?;
 
         // Check if it's a signed manifest
-        let (manifest_content, signature) = if content.contains("-----BEGIN PGP SIGNED MESSAGE-----") {
-            self.parse_signed_manifest(&content)?
-        } else {
-            (content, None)
-        };
+        let (manifest_content, signature) =
+            if content.contains("-----BEGIN PGP SIGNED MESSAGE-----") {
+                self.parse_signed_manifest(&content)?
+            } else {
+                (content, None)
+            };
 
         let entries = self.parse_manifest_content(&manifest_content)?;
 
@@ -895,7 +922,11 @@ impl SigningManager {
 
         Ok((
             manifest_content,
-            if signature.is_empty() { None } else { Some(signature) }
+            if signature.is_empty() {
+                None
+            } else {
+                Some(signature)
+            },
         ))
     }
 
@@ -1001,9 +1032,9 @@ impl SigningManager {
 
         cmd.arg(key_id);
 
-        let output = cmd.output().map_err(|e| {
-            Error::Signing(format!("Failed to delete key: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| Error::Signing(format!("Failed to delete key: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1045,14 +1076,13 @@ impl SigningManager {
         // Send trust level and save
         if let Some(mut stdin) = child.stdin.take() {
             use std::io::Write;
-            writeln!(stdin, "{}\ny\nquit", trust_value).map_err(|e| {
-                Error::Signing(format!("Failed to write to gpg: {}", e))
-            })?;
+            writeln!(stdin, "{}\ny\nquit", trust_value)
+                .map_err(|e| Error::Signing(format!("Failed to write to gpg: {}", e)))?;
         }
 
-        let output = child.wait_with_output().map_err(|e| {
-            Error::Signing(format!("Failed to wait for gpg: {}", e))
-        })?;
+        let output = child
+            .wait_with_output()
+            .map_err(|e| Error::Signing(format!("Failed to wait for gpg: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1076,16 +1106,15 @@ impl SigningManager {
             .filter(|e| e.file_name() == "Manifest" && e.path() != manifest_path)
         {
             let path = entry.path();
-            let relative = path.strip_prefix(repo_dir)
+            let relative = path
+                .strip_prefix(repo_dir)
                 .map_err(|_| Error::Signing("Invalid path".to_string()))?;
 
-            let metadata = std::fs::metadata(path).map_err(|e| {
-                Error::Signing(format!("Failed to read metadata: {}", e))
-            })?;
+            let metadata = std::fs::metadata(path)
+                .map_err(|e| Error::Signing(format!("Failed to read metadata: {}", e)))?;
 
-            let content = std::fs::read(path).map_err(|e| {
-                Error::Signing(format!("Failed to read file: {}", e))
-            })?;
+            let content = std::fs::read(path)
+                .map_err(|e| Error::Signing(format!("Failed to read file: {}", e)))?;
 
             let blake2b = {
                 use blake3::Hasher;
@@ -1095,7 +1124,7 @@ impl SigningManager {
             };
 
             let sha512 = {
-                use sha2::{Sha512, Digest};
+                use sha2::{Digest, Sha512};
                 let mut hasher = Sha512::new();
                 hasher.update(&content);
                 hex::encode(hasher.finalize())
@@ -1204,7 +1233,10 @@ pub fn format_key(key: &SigningKey) -> String {
     output.push_str(&format!("Key ID: {}\n", key.key_id));
     output.push_str(&format!("Fingerprint: {}\n", key.fingerprint));
     output.push_str(&format!("User ID: {}\n", key.user_id));
-    output.push_str(&format!("Algorithm: {} ({} bits)\n", key.algorithm, key.key_size));
+    output.push_str(&format!(
+        "Algorithm: {} ({} bits)\n",
+        key.algorithm, key.key_size
+    ));
     output.push_str(&format!("Created: {}\n", key.created));
 
     if let Some(ref expires) = key.expires {
@@ -1230,7 +1262,10 @@ pub fn format_verification(verification: &SignatureVerification) -> String {
         output.push_str("BAD signature from ");
     }
 
-    output.push_str(&format!("{} ({})\n", verification.signer, verification.key_id));
+    output.push_str(&format!(
+        "{} ({})\n",
+        verification.signer, verification.key_id
+    ));
 
     if let Some(ref ts) = verification.timestamp {
         output.push_str(&format!("Signed: {}\n", ts));
@@ -1281,15 +1316,13 @@ mod tests {
         let manager = SigningManager::default();
         let manifest = PackageManifest {
             package: PackageId::new("dev-libs", "openssl"),
-            entries: vec![
-                ManifestEntry {
-                    file_type: ManifestFileType::Dist,
-                    path: "openssl-3.0.0.tar.gz".to_string(),
-                    size: 12345,
-                    blake2b: Some("abc123".to_string()),
-                    sha512: Some("def456".to_string()),
-                },
-            ],
+            entries: vec![ManifestEntry {
+                file_type: ManifestFileType::Dist,
+                path: "openssl-3.0.0.tar.gz".to_string(),
+                size: 12345,
+                blake2b: Some("abc123".to_string()),
+                sha512: Some("def456".to_string()),
+            }],
             signature: None,
         };
 

@@ -49,8 +49,7 @@ impl PreservedLibsManager {
         }
 
         let content = std::fs::read_to_string(&self.db_path)?;
-        self.libs = serde_json::from_str(&content)
-            .map_err(|e| Error::ParseError(e.to_string()))?;
+        self.libs = serde_json::from_str(&content).map_err(|e| Error::ParseError(e.to_string()))?;
 
         Ok(())
     }
@@ -113,8 +112,7 @@ impl PreservedLibsManager {
     /// Get the preserved location for a library
     fn get_preserved_path(&self, original: &Path) -> PathBuf {
         let filename = original.file_name().unwrap_or_default();
-        PathBuf::from("/var/cache/preserved-libs")
-            .join(filename)
+        PathBuf::from("/var/cache/preserved-libs").join(filename)
     }
 
     /// Find packages that use a library
@@ -122,9 +120,7 @@ impl PreservedLibsManager {
         let mut consumers = HashSet::new();
 
         // Use lsof or /proc to find processes using this library
-        let output = std::process::Command::new("lsof")
-            .arg(lib_path)
-            .output();
+        let output = std::process::Command::new("lsof").arg(lib_path).output();
 
         if let Ok(output) = output {
             // Parse lsof output to find package names
@@ -167,7 +163,8 @@ impl PreservedLibsManager {
     pub fn cleanup(&mut self) -> Result<Vec<PathBuf>> {
         let mut cleaned = Vec::new();
 
-        let paths_to_remove: Vec<_> = self.libs
+        let paths_to_remove: Vec<_> = self
+            .libs
             .iter()
             .filter(|(_, lib)| lib.consumers.is_empty())
             .map(|(path, _)| path.clone())
@@ -239,7 +236,8 @@ pub fn find_shared_libs(files: &[PathBuf]) -> Vec<PathBuf> {
     files
         .iter()
         .filter(|p| {
-            let name = p.file_name()
+            let name = p
+                .file_name()
                 .map(|n| n.to_string_lossy())
                 .unwrap_or_default();
             name.contains(".so") || p.extension().map(|e| e == "so").unwrap_or(false)
@@ -263,7 +261,9 @@ pub fn get_soname(lib_path: &Path) -> Option<String> {
     }
 
     // Fall back to filename
-    lib_path.file_name().map(|n| n.to_string_lossy().to_string())
+    lib_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
 }
 
 /// Format preserved libs report
@@ -295,8 +295,7 @@ pub fn format_preserved_libs_report(libs: &[&PreservedLib]) -> String {
 
 /// Check if revdep-rebuild is needed
 pub fn needs_revdep_rebuild(manager: &PreservedLibsManager) -> bool {
-    manager.has_preserved_libs() &&
-        manager.list().iter().any(|lib| !lib.consumers.is_empty())
+    manager.has_preserved_libs() && manager.list().iter().any(|lib| !lib.consumers.is_empty())
 }
 
 #[cfg(test)]

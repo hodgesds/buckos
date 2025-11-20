@@ -7,9 +7,7 @@
 //! - System paths
 //! - Architecture settings
 
-use crate::{
-    FeaturesConfig, KeywordConfig, LicenseConfig, MirrorConfig, Result, UseConfig,
-};
+use crate::{FeaturesConfig, KeywordConfig, LicenseConfig, MirrorConfig, Result, UseConfig};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -277,10 +275,12 @@ impl MakeConf {
     /// Set CPU flags for an architecture
     pub fn set_cpu_flags(&mut self, arch: &str, flags: Vec<String>) {
         let key = format!("CPU_FLAGS_{}", arch.to_uppercase());
-        self.cpu_flags.insert(key.clone(), flags.into_iter().collect());
+        self.cpu_flags
+            .insert(key.clone(), flags.into_iter().collect());
         // Also update USE expand
-        self.use_config.set_cpu_flags(arch,
-            self.cpu_flags.get(&key).unwrap().iter().cloned().collect()
+        self.use_config.set_cpu_flags(
+            arch,
+            self.cpu_flags.get(&key).unwrap().iter().cloned().collect(),
         );
     }
 
@@ -329,14 +329,26 @@ impl MakeConf {
         env.insert("USE".to_string(), self.use_string());
         env.insert("FEATURES".to_string(), self.features_string());
         env.insert("ACCEPT_KEYWORDS".to_string(), self.accept_keywords_string());
-        env.insert("ACCEPT_LICENSE".to_string(), self.license.accept_license.clone());
+        env.insert(
+            "ACCEPT_LICENSE".to_string(),
+            self.license.accept_license.clone(),
+        );
         env.insert("CHOST".to_string(), self.chost.clone());
-        env.insert("DISTDIR".to_string(), self.distdir.to_string_lossy().to_string());
-        env.insert("PKGDIR".to_string(), self.pkgdir.to_string_lossy().to_string());
+        env.insert(
+            "DISTDIR".to_string(),
+            self.distdir.to_string_lossy().to_string(),
+        );
+        env.insert(
+            "PKGDIR".to_string(),
+            self.pkgdir.to_string_lossy().to_string(),
+        );
 
         // Add CPU flags
         for (key, values) in &self.cpu_flags {
-            env.insert(key.clone(), values.iter().cloned().collect::<Vec<_>>().join(" "));
+            env.insert(
+                key.clone(),
+                values.iter().cloned().collect::<Vec<_>>().join(" "),
+            );
         }
 
         // Add custom variables
@@ -353,8 +365,18 @@ impl MakeConf {
 
         // Common desktop USE flags
         let desktop_use = [
-            "X", "wayland", "pulseaudio", "pipewire", "dbus", "policykit",
-            "udisks", "networkmanager", "bluetooth", "cups", "gtk", "qt5",
+            "X",
+            "wayland",
+            "pulseaudio",
+            "pipewire",
+            "dbus",
+            "policykit",
+            "udisks",
+            "networkmanager",
+            "bluetooth",
+            "cups",
+            "gtk",
+            "qt5",
         ];
         for flag in desktop_use {
             config.use_config.add_global(flag);

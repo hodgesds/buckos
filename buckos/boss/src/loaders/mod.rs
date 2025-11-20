@@ -74,16 +74,11 @@ impl LoaderRegistry {
     ///
     /// Automatically selects the appropriate loader based on the file extension.
     pub fn load(&self, path: &Path) -> Result<ServiceDefinition> {
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
-        let loader = self
-            .find_loader(ext)
-            .ok_or_else(|| crate::error::Error::ConfigError(
-                format!("No loader found for extension: {}", ext)
-            ))?;
+        let loader = self.find_loader(ext).ok_or_else(|| {
+            crate::error::Error::ConfigError(format!("No loader found for extension: {}", ext))
+        })?;
 
         loader.load(path)
     }
