@@ -7,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use crate::steps;
 use crate::system;
 use crate::types::{
-    DiskInfo, FilesystemType, InstallConfig, InstallProfile, InstallProgress, InstallStep,
-    MountPoint, PartitionConfig, UserConfig,
+    AudioSubsystem, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType, FilesystemType,
+    HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig, InstallProfile,
+    InstallProgress, InstallStep, MountPoint, PartitionConfig, UserConfig,
 };
 
 /// Main installer application state
@@ -36,12 +37,24 @@ pub struct InstallerApp {
 }
 
 /// Temporary UI state
-#[derive(Default)]
 struct UiState {
+    // Hardware detection
+    hardware_info: HardwareInfo,
+    hardware_suggestions: Vec<HardwarePackageSuggestion>,
+
+    // Profile selection
+    selected_de: DesktopEnvironment,
+    selected_handheld: HandheldDevice,
+    audio_subsystem: AudioSubsystem,
+
     // Disk setup
     selected_disk_index: usize,
     auto_partition: bool,
     show_partition_editor: bool,
+    layout_preset: DiskLayoutPreset,
+    encryption_type: EncryptionType,
+    encryption_passphrase: String,
+    confirm_encryption_passphrase: String,
 
     // User setup
     new_username: String,
@@ -60,6 +73,10 @@ struct UiState {
     selected_locale_index: usize,
     selected_keyboard_index: usize,
 
+    // Summary confirmations
+    confirm_wipe: bool,
+    confirm_install: bool,
+
     // Extra packages
     extra_packages_text: String,
 
@@ -72,6 +89,43 @@ struct UiState {
     keyboards: Vec<String>,
 }
 
+impl Default for UiState {
+    fn default() -> Self {
+        Self {
+            hardware_info: HardwareInfo::default(),
+            hardware_suggestions: Vec::new(),
+            selected_de: DesktopEnvironment::Gnome,
+            selected_handheld: HandheldDevice::SteamDeck,
+            audio_subsystem: AudioSubsystem::PipeWire,
+            selected_disk_index: 0,
+            auto_partition: true,
+            show_partition_editor: false,
+            layout_preset: DiskLayoutPreset::Standard,
+            encryption_type: EncryptionType::None,
+            encryption_passphrase: String::new(),
+            confirm_encryption_passphrase: String::new(),
+            new_username: String::new(),
+            new_fullname: String::new(),
+            new_password: String::new(),
+            confirm_password: String::new(),
+            new_user_admin: true,
+            root_password: String::new(),
+            confirm_root_password: String::new(),
+            hostname: "buckos".to_string(),
+            selected_timezone_index: 0,
+            selected_locale_index: 0,
+            selected_keyboard_index: 0,
+            confirm_wipe: false,
+            confirm_install: false,
+            extra_packages_text: String::new(),
+            validation_error: None,
+            timezones: Vec::new(),
+            locales: Vec::new(),
+            keyboards: Vec::new(),
+        }
+    }
+}
+
 impl InstallerApp {
     pub fn new(_cc: &eframe::CreationContext<'_>, target: String, dry_run: bool) -> Self {
         let available_disks = system::get_available_disks().unwrap_or_default();
@@ -81,6 +135,10 @@ impl InstallerApp {
         config.target_root = PathBuf::from(target);
         config.dry_run = dry_run;
 
+        // Perform hardware detection
+        let hardware_info = system::detect_hardware();
+        let hardware_suggestions = system::generate_hardware_suggestions(&hardware_info);
+
         // Initialize UI state with defaults
         let mut ui_state = UiState::default();
         ui_state.auto_partition = true;
@@ -88,6 +146,13 @@ impl InstallerApp {
         ui_state.timezones = system::get_timezones();
         ui_state.locales = system::get_locales();
         ui_state.keyboards = system::get_keyboard_layouts();
+        ui_state.hardware_info = hardware_info;
+        ui_state.hardware_suggestions = hardware_suggestions;
+
+        // Auto-detect handheld device
+        if let Some(device) = system::detect_handheld_device() {
+            ui_state.selected_handheld = device;
+        }
 
         // Find default selections
         ui_state.selected_timezone_index = ui_state
@@ -116,11 +181,18 @@ impl InstallerApp {
     fn can_proceed(&self) -> bool {
         match self.current_step {
             InstallStep::Welcome => true,
+            InstallStep::HardwareDetection => true,
+            InstallStep::ProfileSelection => true,
             InstallStep::DiskSetup => {
                 // Need at least one disk available or manual setup
-                !self.available_disks.is_empty() || !self.ui_state.auto_partition
+                let disk_ok = !self.available_disks.is_empty() || !self.ui_state.auto_partition;
+                // If encryption selected, need passphrase
+                let enc_ok = self.ui_state.encryption_type == EncryptionType::None
+                    || (!self.ui_state.encryption_passphrase.is_empty()
+                        && self.ui_state.encryption_passphrase == self.ui_state.confirm_encryption_passphrase);
+                disk_ok && enc_ok
             }
-            InstallStep::ProfileSelection => true,
+            InstallStep::Bootloader => true,
             InstallStep::UserSetup => {
                 // Need root password
                 !self.ui_state.root_password.is_empty()
@@ -128,7 +200,16 @@ impl InstallerApp {
             }
             InstallStep::NetworkSetup => !self.ui_state.hostname.is_empty(),
             InstallStep::Timezone => true,
-            InstallStep::Summary => true,
+            InstallStep::Summary => {
+                // Need to confirm installation
+                let base_confirm = self.ui_state.confirm_install;
+                let wipe_confirm = if self.config.disk.is_some() && !self.config.dry_run {
+                    self.ui_state.confirm_wipe
+                } else {
+                    true
+                };
+                base_confirm && wipe_confirm
+            }
             InstallStep::Installing => false, // Can't proceed during installation
             InstallStep::Complete => false,
         }
@@ -138,6 +219,55 @@ impl InstallerApp {
         self.ui_state.validation_error = None;
 
         match self.current_step {
+            InstallStep::HardwareDetection => {
+                // Copy hardware info and selected suggestions to config
+                self.config.hardware_info = self.ui_state.hardware_info.clone();
+                self.config.hardware_packages = self.ui_state.hardware_suggestions.clone();
+            }
+            InstallStep::ProfileSelection => {
+                // Update config with selected profile and audio subsystem
+                self.config.profile = match &self.config.profile {
+                    InstallProfile::Desktop(_) => InstallProfile::Desktop(self.ui_state.selected_de.clone()),
+                    InstallProfile::Handheld(_) => InstallProfile::Handheld(self.ui_state.selected_handheld.clone()),
+                    other => other.clone(),
+                };
+                self.config.audio_subsystem = self.ui_state.audio_subsystem.clone();
+            }
+            InstallStep::DiskSetup => {
+                // Validate encryption passphrase
+                if self.ui_state.encryption_type != EncryptionType::None {
+                    if self.ui_state.encryption_passphrase.is_empty() {
+                        self.ui_state.validation_error = Some("Encryption passphrase is required".to_string());
+                        return false;
+                    }
+                    if self.ui_state.encryption_passphrase != self.ui_state.confirm_encryption_passphrase {
+                        self.ui_state.validation_error = Some("Encryption passphrases do not match".to_string());
+                        return false;
+                    }
+                    if self.ui_state.encryption_passphrase.len() < 8 {
+                        self.ui_state.validation_error =
+                            Some("Encryption passphrase should be at least 8 characters".to_string());
+                        return false;
+                    }
+                }
+
+                // Set encryption config
+                self.config.encryption.encryption_type = self.ui_state.encryption_type.clone();
+                self.config.encryption.passphrase = self.ui_state.encryption_passphrase.clone();
+                self.config.disk_layout = self.ui_state.layout_preset.clone();
+
+                // Create disk configuration
+                if self.ui_state.auto_partition && !self.available_disks.is_empty() {
+                    let disk = &self.available_disks[self.ui_state.selected_disk_index];
+                    self.config.disk = Some(create_auto_partition_config(
+                        disk,
+                        &self.ui_state.layout_preset,
+                    ));
+                }
+            }
+            InstallStep::Bootloader => {
+                // Bootloader is set directly in UI, nothing to validate
+            }
             InstallStep::UserSetup => {
                 if self.ui_state.root_password.is_empty() {
                     self.ui_state.validation_error = Some("Root password is required".to_string());
@@ -172,10 +302,15 @@ impl InstallerApp {
                     self.config.locale.keyboard = kb.clone();
                 }
             }
-            InstallStep::DiskSetup => {
-                if self.ui_state.auto_partition && !self.available_disks.is_empty() {
-                    let disk = &self.available_disks[self.ui_state.selected_disk_index];
-                    self.config.disk = Some(create_auto_partition_config(disk));
+            InstallStep::Summary => {
+                // Validate confirmation checkboxes
+                if !self.ui_state.confirm_install {
+                    self.ui_state.validation_error = Some("Please confirm installation".to_string());
+                    return false;
+                }
+                if self.config.disk.is_some() && !self.config.dry_run && !self.ui_state.confirm_wipe {
+                    self.ui_state.validation_error = Some("Please confirm data destruction".to_string());
+                    return false;
                 }
             }
             _ => {}
@@ -274,15 +409,33 @@ impl eframe::App for InstallerApp {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 match self.current_step {
                     InstallStep::Welcome => steps::render_welcome(ui, &self.system_info),
+                    InstallStep::HardwareDetection => steps::render_hardware_detection(
+                        ui,
+                        &self.ui_state.hardware_info,
+                        &mut self.ui_state.hardware_suggestions,
+                    ),
+                    InstallStep::ProfileSelection => steps::render_profile_selection(
+                        ui,
+                        &mut self.config.profile,
+                        &mut self.ui_state.selected_de,
+                        &mut self.ui_state.selected_handheld,
+                        &mut self.ui_state.audio_subsystem,
+                    ),
                     InstallStep::DiskSetup => steps::render_disk_setup(
                         ui,
                         &self.available_disks,
                         &mut self.ui_state.selected_disk_index,
                         &mut self.ui_state.auto_partition,
+                        &mut self.ui_state.layout_preset,
+                        &mut self.ui_state.encryption_type,
+                        &mut self.ui_state.encryption_passphrase,
+                        &mut self.ui_state.confirm_encryption_passphrase,
                     ),
-                    InstallStep::ProfileSelection => {
-                        steps::render_profile_selection(ui, &mut self.config.profile)
-                    }
+                    InstallStep::Bootloader => steps::render_bootloader(
+                        ui,
+                        &mut self.config.bootloader,
+                        system::is_efi_system(),
+                    ),
                     InstallStep::UserSetup => steps::render_user_setup(
                         ui,
                         &mut self.config.users,
@@ -308,7 +461,14 @@ impl eframe::App for InstallerApp {
                         &self.ui_state.keyboards,
                         &mut self.ui_state.selected_keyboard_index,
                     ),
-                    InstallStep::Summary => steps::render_summary(ui, &self.config, &self.available_disks, self.ui_state.selected_disk_index),
+                    InstallStep::Summary => steps::render_summary(
+                        ui,
+                        &self.config,
+                        &self.available_disks,
+                        self.ui_state.selected_disk_index,
+                        &mut self.ui_state.confirm_wipe,
+                        &mut self.ui_state.confirm_install,
+                    ),
                     InstallStep::Installing => {
                         let progress = self.progress.lock().unwrap();
                         steps::render_installing(ui, &progress)
@@ -321,56 +481,162 @@ impl eframe::App for InstallerApp {
 }
 
 /// Create automatic partition configuration for a disk
-fn create_auto_partition_config(disk: &DiskInfo) -> crate::types::DiskConfig {
+fn create_auto_partition_config(disk: &DiskInfo, layout: &DiskLayoutPreset) -> crate::types::DiskConfig {
     let is_efi = system::is_efi_system();
-
     let mut partitions = Vec::new();
+    let mut part_num = 1;
 
+    // Determine filesystem type based on layout
+    let root_fs = match layout {
+        DiskLayoutPreset::BtrfsSubvolumes => FilesystemType::Btrfs,
+        _ => FilesystemType::Ext4,
+    };
+
+    // Boot/EFI partition
     if is_efi {
-        // EFI System Partition
         partitions.push(PartitionConfig {
-            device: format!("{}1", disk.device),
+            device: format!("{}{}", disk.device, part_num),
             size: 512 * 1024 * 1024, // 512 MB
             filesystem: FilesystemType::Fat32,
             mount_point: MountPoint::BootEfi,
             format: true,
             mount_options: String::new(),
         });
+        part_num += 1;
     } else {
-        // BIOS boot partition
         partitions.push(PartitionConfig {
-            device: format!("{}1", disk.device),
+            device: format!("{}{}", disk.device, part_num),
             size: 1024 * 1024, // 1 MB for BIOS boot
             filesystem: FilesystemType::None,
             mount_point: MountPoint::Boot,
             format: false,
             mount_options: String::new(),
         });
+        part_num += 1;
     }
 
-    // Swap partition (size based on RAM, max 8GB)
-    let swap_size = std::cmp::min(
-        8 * 1024 * 1024 * 1024,
-        sysinfo::System::new_all().total_memory() * 2,
-    );
-    partitions.push(PartitionConfig {
-        device: format!("{}2", disk.device),
-        size: swap_size,
-        filesystem: FilesystemType::Swap,
-        mount_point: MountPoint::Swap,
-        format: true,
-        mount_options: String::new(),
-    });
+    // Swap partition (for all layouts except Simple)
+    if !matches!(layout, DiskLayoutPreset::Simple) {
+        let swap_size = std::cmp::min(
+            8 * 1024 * 1024 * 1024,
+            sysinfo::System::new_all().total_memory() * 2,
+        );
+        partitions.push(PartitionConfig {
+            device: format!("{}{}", disk.device, part_num),
+            size: swap_size,
+            filesystem: FilesystemType::Swap,
+            mount_point: MountPoint::Swap,
+            format: true,
+            mount_options: String::new(),
+        });
+        part_num += 1;
+    }
 
-    // Root partition (remaining space)
-    partitions.push(PartitionConfig {
-        device: format!("{}3", disk.device),
-        size: 0, // Use remaining space
-        filesystem: FilesystemType::Ext4,
-        mount_point: MountPoint::Root,
-        format: true,
-        mount_options: String::new(),
-    });
+    // Layout-specific partitions
+    match layout {
+        DiskLayoutPreset::Simple => {
+            // Single root partition
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 0,
+                filesystem: root_fs,
+                mount_point: MountPoint::Root,
+                format: true,
+                mount_options: String::new(),
+            });
+        }
+        DiskLayoutPreset::Standard => {
+            // Root partition only
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 0,
+                filesystem: root_fs,
+                mount_point: MountPoint::Root,
+                format: true,
+                mount_options: String::new(),
+            });
+        }
+        DiskLayoutPreset::SeparateHome => {
+            // Root partition (50GB or 50% of remaining, whichever is smaller)
+            let root_size = std::cmp::min(50 * 1024 * 1024 * 1024, disk.size / 2);
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: root_size,
+                filesystem: root_fs,
+                mount_point: MountPoint::Root,
+                format: true,
+                mount_options: String::new(),
+            });
+            part_num += 1;
+
+            // Home partition (remaining space)
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 0,
+                filesystem: root_fs,
+                mount_point: MountPoint::Home,
+                format: true,
+                mount_options: String::new(),
+            });
+        }
+        DiskLayoutPreset::Server => {
+            // Root partition (30GB)
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 30 * 1024 * 1024 * 1024,
+                filesystem: root_fs,
+                mount_point: MountPoint::Root,
+                format: true,
+                mount_options: String::new(),
+            });
+            part_num += 1;
+
+            // Var partition (20GB)
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 20 * 1024 * 1024 * 1024,
+                filesystem: root_fs,
+                mount_point: MountPoint::Var,
+                format: true,
+                mount_options: String::new(),
+            });
+            part_num += 1;
+
+            // Home partition (remaining)
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 0,
+                filesystem: root_fs,
+                mount_point: MountPoint::Home,
+                format: true,
+                mount_options: String::new(),
+            });
+        }
+        DiskLayoutPreset::BtrfsSubvolumes => {
+            // Single btrfs partition with subvolumes
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 0,
+                filesystem: FilesystemType::Btrfs,
+                mount_point: MountPoint::Root,
+                format: true,
+                mount_options: "subvol=@,compress=zstd".to_string(),
+            });
+            // Note: Subvolumes (@, @home, @snapshots) will be created during installation
+        }
+        DiskLayoutPreset::Custom => {
+            // Custom layout - user will configure manually
+            // Just create a basic root partition as placeholder
+            partitions.push(PartitionConfig {
+                device: format!("{}{}", disk.device, part_num),
+                size: 0,
+                filesystem: root_fs,
+                mount_point: MountPoint::Root,
+                format: true,
+                mount_options: String::new(),
+            });
+        }
+    }
 
     crate::types::DiskConfig {
         device: disk.device.clone(),

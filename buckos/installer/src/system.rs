@@ -5,7 +5,10 @@ use std::path::Path;
 use std::process::Command;
 use sysinfo::{Disks, System};
 
-use crate::types::{DiskInfo, PartitionInfo};
+use crate::types::{
+    AudioDeviceInfo, DiskInfo, GpuInfo, GpuVendor, HardwareInfo, HardwarePackageSuggestion,
+    NetworkInterfaceInfo, NetworkInterfaceType, PartitionInfo, PowerProfile, StorageControllerType,
+};
 
 /// Required tools for installation
 const REQUIRED_TOOLS: &[(&str, &str)] = &[
@@ -373,6 +376,552 @@ pub fn get_locales() -> Vec<String> {
         "nl_NL.UTF-8".to_string(),
         "sv_SE.UTF-8".to_string(),
     ]
+}
+
+/// Detect GPUs in the system using lspci
+pub fn detect_gpus() -> Vec<GpuInfo> {
+    let mut gpus = Vec::new();
+
+    // Try lspci first
+    if let Ok(output) = Command::new("lspci").args(["-nn", "-d", "::0300"]).output() {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Some(gpu) = parse_gpu_line(line) {
+                    gpus.push(gpu);
+                }
+            }
+        }
+    }
+
+    // Also check for 3D controllers (some GPUs)
+    if let Ok(output) = Command::new("lspci").args(["-nn", "-d", "::0302"]).output() {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Some(gpu) = parse_gpu_line(line) {
+                    gpus.push(gpu);
+                }
+            }
+        }
+    }
+
+    // Fallback: check /sys/class/drm
+    if gpus.is_empty() {
+        if let Ok(entries) = std::fs::read_dir("/sys/class/drm") {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with("card") && !name.contains('-') {
+                    let vendor_path = entry.path().join("device/vendor");
+                    if let Ok(vendor_id) = std::fs::read_to_string(&vendor_path) {
+                        let vendor = match vendor_id.trim() {
+                            "0x10de" => GpuVendor::Nvidia,
+                            "0x1002" => GpuVendor::Amd,
+                            "0x8086" => GpuVendor::Intel,
+                            "0x80ee" => GpuVendor::VirtualBox,
+                            "0x15ad" => GpuVendor::VMware,
+                            _ => GpuVendor::Unknown,
+                        };
+                        gpus.push(GpuInfo {
+                            vendor,
+                            name: format!("GPU {}", name),
+                            pci_id: vendor_id.trim().to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    gpus
+}
+
+fn parse_gpu_line(line: &str) -> Option<GpuInfo> {
+    // Example: "00:02.0 VGA compatible controller [0300]: Intel Corporation ... [8086:3e92]"
+    let vendor = if line.contains("NVIDIA") || line.contains("[10de:") {
+        GpuVendor::Nvidia
+    } else if line.contains("AMD") || line.contains("ATI") || line.contains("[1002:") {
+        GpuVendor::Amd
+    } else if line.contains("Intel") || line.contains("[8086:") {
+        GpuVendor::Intel
+    } else if line.contains("VirtualBox") || line.contains("[80ee:") {
+        GpuVendor::VirtualBox
+    } else if line.contains("VMware") || line.contains("[15ad:") {
+        GpuVendor::VMware
+    } else {
+        GpuVendor::Unknown
+    };
+
+    // Extract PCI ID
+    let pci_id = if let Some(start) = line.rfind('[') {
+        if let Some(end) = line.rfind(']') {
+            line[start + 1..end].to_string()
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    // Extract name (between controller type and PCI ID)
+    let name = if let Some(colon_pos) = line.find("]: ") {
+        let after_type = &line[colon_pos + 3..];
+        if let Some(bracket_pos) = after_type.rfind(" [") {
+            after_type[..bracket_pos].trim().to_string()
+        } else {
+            after_type.trim().to_string()
+        }
+    } else {
+        line.to_string()
+    };
+
+    Some(GpuInfo {
+        vendor,
+        name,
+        pci_id,
+    })
+}
+
+/// Detect network interfaces
+pub fn detect_network_interfaces() -> Vec<NetworkInterfaceInfo> {
+    let mut interfaces = Vec::new();
+    let net_path = Path::new("/sys/class/net");
+
+    if let Ok(entries) = std::fs::read_dir(net_path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+
+            // Skip loopback
+            if name == "lo" {
+                continue;
+            }
+
+            let path = entry.path();
+
+            // Determine interface type
+            let interface_type = if path.join("wireless").exists() {
+                NetworkInterfaceType::Wifi
+            } else if name.starts_with("eth") || name.starts_with("en") {
+                NetworkInterfaceType::Ethernet
+            } else if name.starts_with("br") || name.starts_with("docker") {
+                NetworkInterfaceType::Bridge
+            } else if name.starts_with("veth") || name.starts_with("virbr") || name.starts_with("vnet") {
+                NetworkInterfaceType::Virtual
+            } else {
+                NetworkInterfaceType::Unknown
+            };
+
+            // Get MAC address
+            let mac_address = std::fs::read_to_string(path.join("address"))
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| s != "00:00:00:00:00:00");
+
+            // Get driver
+            let driver = std::fs::read_link(path.join("device/driver"))
+                .ok()
+                .and_then(|p| p.file_name().map(|s| s.to_string_lossy().to_string()));
+
+            interfaces.push(NetworkInterfaceInfo {
+                name,
+                interface_type,
+                mac_address,
+                driver,
+            });
+        }
+    }
+
+    interfaces
+}
+
+/// Detect audio devices
+pub fn detect_audio_devices() -> Vec<AudioDeviceInfo> {
+    let mut devices = Vec::new();
+
+    // Check /proc/asound/cards
+    if let Ok(content) = std::fs::read_to_string("/proc/asound/cards") {
+        for line in content.lines() {
+            // Lines look like: " 0 [PCH            ]: HDA-Intel - HDA Intel PCH"
+            if let Some(bracket_start) = line.find('[') {
+                if let Some(bracket_end) = line.find(']') {
+                    let card_id = line[bracket_start + 1..bracket_end].trim().to_string();
+
+                    // Get the name part after the colon
+                    let name = if let Some(colon_pos) = line.find(':') {
+                        line[colon_pos + 1..].trim().to_string()
+                    } else {
+                        card_id.clone()
+                    };
+
+                    let is_hdmi = name.to_lowercase().contains("hdmi")
+                        || name.to_lowercase().contains("displayport")
+                        || card_id.to_lowercase().contains("hdmi");
+
+                    devices.push(AudioDeviceInfo {
+                        name,
+                        card_id,
+                        is_hdmi,
+                    });
+                }
+            }
+        }
+    }
+
+    devices
+}
+
+/// Detect storage controller type
+pub fn detect_storage_controller() -> StorageControllerType {
+    // Check for NVMe
+    if Path::new("/sys/class/nvme").exists() {
+        if let Ok(entries) = std::fs::read_dir("/sys/class/nvme") {
+            if entries.count() > 0 {
+                return StorageControllerType::Nvme;
+            }
+        }
+    }
+
+    // Check for virtio
+    if let Ok(output) = Command::new("lspci").output() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if stdout.contains("Virtio") && stdout.contains("block") {
+            return StorageControllerType::Virtio;
+        }
+        if stdout.contains("RAID") {
+            return StorageControllerType::Raid;
+        }
+    }
+
+    // Default to AHCI (SATA)
+    StorageControllerType::Ahci
+}
+
+/// Detect if system is a laptop
+pub fn detect_is_laptop() -> bool {
+    // Check for battery
+    let battery_path = Path::new("/sys/class/power_supply");
+    if let Ok(entries) = std::fs::read_dir(battery_path) {
+        for entry in entries.flatten() {
+            let type_path = entry.path().join("type");
+            if let Ok(ptype) = std::fs::read_to_string(type_path) {
+                if ptype.trim() == "Battery" {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // Check DMI chassis type
+    if let Ok(chassis) = std::fs::read_to_string("/sys/class/dmi/id/chassis_type") {
+        let chassis_type: u32 = chassis.trim().parse().unwrap_or(0);
+        // Laptop chassis types: 8=Portable, 9=Laptop, 10=Notebook, 14=Sub Notebook
+        // 30=Tablet, 31=Convertible, 32=Detachable
+        if matches!(chassis_type, 8 | 9 | 10 | 14 | 30 | 31 | 32) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Detect if running in a virtual machine
+pub fn detect_is_virtual_machine() -> bool {
+    // Check DMI product name
+    if let Ok(product) = std::fs::read_to_string("/sys/class/dmi/id/product_name") {
+        let product = product.to_lowercase();
+        if product.contains("virtualbox")
+            || product.contains("vmware")
+            || product.contains("qemu")
+            || product.contains("kvm")
+            || product.contains("hyper-v")
+            || product.contains("virtual machine") {
+            return true;
+        }
+    }
+
+    // Check systemd-detect-virt
+    if let Ok(output) = Command::new("systemd-detect-virt").output() {
+        if output.status.success() {
+            let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if result != "none" {
+                return true;
+            }
+        }
+    }
+
+    // Check /proc/cpuinfo for hypervisor flag
+    if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
+        if cpuinfo.contains("hypervisor") {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Detect if Bluetooth is available
+pub fn detect_bluetooth() -> bool {
+    // Check /sys/class/bluetooth
+    if let Ok(entries) = std::fs::read_dir("/sys/class/bluetooth") {
+        if entries.count() > 0 {
+            return true;
+        }
+    }
+
+    // Check for Bluetooth in lsusb
+    if let Ok(output) = Command::new("lsusb").output() {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if stdout.to_lowercase().contains("bluetooth") {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Detect if touchscreen is present
+pub fn detect_touchscreen() -> bool {
+    let input_path = Path::new("/sys/class/input");
+    if let Ok(entries) = std::fs::read_dir(input_path) {
+        for entry in entries.flatten() {
+            let name_path = entry.path().join("device/name");
+            if let Ok(name) = std::fs::read_to_string(name_path) {
+                let name_lower = name.to_lowercase();
+                if name_lower.contains("touch") || name_lower.contains("wacom") {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Get CPU vendor and flags
+pub fn get_cpu_info() -> (String, Vec<String>) {
+    let mut vendor = String::new();
+    let mut flags = Vec::new();
+
+    if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
+        for line in cpuinfo.lines() {
+            if line.starts_with("vendor_id") {
+                if let Some(v) = line.split(':').nth(1) {
+                    vendor = v.trim().to_string();
+                }
+            } else if line.starts_with("flags") {
+                if let Some(f) = line.split(':').nth(1) {
+                    flags = f.split_whitespace().map(|s| s.to_string()).collect();
+                }
+                break; // Only need first CPU's flags
+            }
+        }
+    }
+
+    (vendor, flags)
+}
+
+/// Perform complete hardware detection
+pub fn detect_hardware() -> HardwareInfo {
+    let gpus = detect_gpus();
+    let network_interfaces = detect_network_interfaces();
+    let audio_devices = detect_audio_devices();
+    let storage_controller = detect_storage_controller();
+    let is_laptop = detect_is_laptop();
+    let is_virtual_machine = detect_is_virtual_machine();
+    let has_bluetooth = detect_bluetooth();
+    let has_touchscreen = detect_touchscreen();
+    let (cpu_vendor, cpu_flags) = get_cpu_info();
+
+    // Determine power profile
+    let power_profile = if is_virtual_machine {
+        PowerProfile::Desktop
+    } else if is_laptop {
+        // Check if it's a gaming laptop by looking for high-end GPU
+        let has_dedicated_gpu = gpus.iter().any(|g| {
+            matches!(g.vendor, GpuVendor::Nvidia | GpuVendor::Amd)
+        });
+        if has_dedicated_gpu {
+            PowerProfile::Gaming
+        } else {
+            PowerProfile::Laptop
+        }
+    } else {
+        PowerProfile::Desktop
+    };
+
+    HardwareInfo {
+        gpus,
+        network_interfaces,
+        audio_devices,
+        storage_controller,
+        power_profile,
+        has_bluetooth,
+        has_touchscreen,
+        is_laptop,
+        is_virtual_machine,
+        cpu_vendor,
+        cpu_flags,
+    }
+}
+
+/// Generate package suggestions based on detected hardware
+pub fn generate_hardware_suggestions(hardware: &HardwareInfo) -> Vec<HardwarePackageSuggestion> {
+    let mut suggestions = Vec::new();
+
+    // GPU drivers
+    for gpu in &hardware.gpus {
+        let packages: Vec<String> = gpu.vendor.driver_packages().iter().map(|s| s.to_string()).collect();
+        if !packages.is_empty() {
+            suggestions.push(HardwarePackageSuggestion {
+                category: "Graphics".to_string(),
+                reason: format!("Detected {} GPU: {}",
+                    match gpu.vendor {
+                        GpuVendor::Nvidia => "NVIDIA",
+                        GpuVendor::Amd => "AMD",
+                        GpuVendor::Intel => "Intel",
+                        GpuVendor::VirtualBox => "VirtualBox",
+                        GpuVendor::VMware => "VMware",
+                        GpuVendor::Unknown => "Unknown",
+                    },
+                    gpu.name
+                ),
+                packages,
+                selected: true,
+            });
+        }
+    }
+
+    // WiFi support
+    let has_wifi = hardware.network_interfaces.iter()
+        .any(|i| matches!(i.interface_type, NetworkInterfaceType::Wifi));
+    if has_wifi {
+        suggestions.push(HardwarePackageSuggestion {
+            category: "Networking".to_string(),
+            reason: "WiFi interface detected".to_string(),
+            packages: vec![
+                "wpa_supplicant".to_string(),
+                "wireless-tools".to_string(),
+                "iw".to_string(),
+            ],
+            selected: true,
+        });
+    }
+
+    // Bluetooth
+    if hardware.has_bluetooth {
+        suggestions.push(HardwarePackageSuggestion {
+            category: "Bluetooth".to_string(),
+            reason: "Bluetooth adapter detected".to_string(),
+            packages: vec![
+                "bluez".to_string(),
+                "bluez-utils".to_string(),
+            ],
+            selected: true,
+        });
+    }
+
+    // Touchscreen
+    if hardware.has_touchscreen {
+        suggestions.push(HardwarePackageSuggestion {
+            category: "Input".to_string(),
+            reason: "Touchscreen detected".to_string(),
+            packages: vec![
+                "xf86-input-wacom".to_string(),
+                "libinput".to_string(),
+            ],
+            selected: true,
+        });
+    }
+
+    // Power management for laptops
+    if hardware.is_laptop && !hardware.is_virtual_machine {
+        let packages: Vec<String> = hardware.power_profile.packages()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        if !packages.is_empty() {
+            suggestions.push(HardwarePackageSuggestion {
+                category: "Power Management".to_string(),
+                reason: "Laptop detected - power optimization tools".to_string(),
+                packages,
+                selected: true,
+            });
+        }
+    }
+
+    // Virtual machine tools
+    if hardware.is_virtual_machine {
+        let vm_packages = if hardware.gpus.iter().any(|g| matches!(g.vendor, GpuVendor::VirtualBox)) {
+            vec!["virtualbox-guest-additions".to_string()]
+        } else if hardware.gpus.iter().any(|g| matches!(g.vendor, GpuVendor::VMware)) {
+            vec!["open-vm-tools".to_string()]
+        } else {
+            vec!["qemu-guest-agent".to_string()]
+        };
+
+        suggestions.push(HardwarePackageSuggestion {
+            category: "Virtualization".to_string(),
+            reason: "Running in virtual machine".to_string(),
+            packages: vm_packages,
+            selected: true,
+        });
+    }
+
+    // NVMe tools
+    if matches!(hardware.storage_controller, StorageControllerType::Nvme) {
+        suggestions.push(HardwarePackageSuggestion {
+            category: "Storage".to_string(),
+            reason: "NVMe storage detected".to_string(),
+            packages: vec!["nvme-cli".to_string()],
+            selected: true,
+        });
+    }
+
+    // CPU microcode
+    if hardware.cpu_vendor.contains("Intel") {
+        suggestions.push(HardwarePackageSuggestion {
+            category: "Firmware".to_string(),
+            reason: "Intel CPU detected".to_string(),
+            packages: vec!["intel-microcode".to_string()],
+            selected: true,
+        });
+    } else if hardware.cpu_vendor.contains("AMD") {
+        suggestions.push(HardwarePackageSuggestion {
+            category: "Firmware".to_string(),
+            reason: "AMD CPU detected".to_string(),
+            packages: vec!["amd-microcode".to_string()],
+            selected: true,
+        });
+    }
+
+    suggestions
+}
+
+/// Detect handheld gaming device type
+pub fn detect_handheld_device() -> Option<crate::types::HandheldDevice> {
+    // Check DMI product name
+    if let Ok(product) = std::fs::read_to_string("/sys/class/dmi/id/product_name") {
+        let product_lower = product.to_lowercase();
+
+        if product_lower.contains("jupiter") || product_lower.contains("steam deck") {
+            return Some(crate::types::HandheldDevice::SteamDeck);
+        }
+        if product_lower.contains("aya") || product_lower.contains("ayaneo") {
+            return Some(crate::types::HandheldDevice::AyaNeo);
+        }
+        if product_lower.contains("gpd") {
+            return Some(crate::types::HandheldDevice::GpdWin);
+        }
+        if product_lower.contains("legion go") {
+            return Some(crate::types::HandheldDevice::LegionGo);
+        }
+        if product_lower.contains("rog ally") {
+            return Some(crate::types::HandheldDevice::RogAlly);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]

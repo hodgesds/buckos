@@ -3,7 +3,11 @@
 use egui::{self, RichText, Ui};
 
 use crate::system::{self, SystemInfo};
-use crate::types::{DiskInfo, InstallConfig, InstallProfile, InstallProgress, UserConfig};
+use crate::types::{
+    AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset,
+    EncryptionType, HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig,
+    InstallProfile, InstallProgress, NetworkInterfaceType, UserConfig,
+};
 
 /// Render the welcome step
 pub fn render_welcome(ui: &mut Ui, system_info: &SystemInfo) {
@@ -74,14 +78,120 @@ pub fn render_welcome(ui: &mut Ui, system_info: &SystemInfo) {
     });
 }
 
+/// Render the hardware detection step
+pub fn render_hardware_detection(
+    ui: &mut Ui,
+    hardware: &HardwareInfo,
+    suggestions: &mut Vec<HardwarePackageSuggestion>,
+) {
+    ui.label("We've detected the following hardware in your system. Select which drivers and tools to install.");
+
+    ui.add_space(16.0);
+
+    // GPU section
+    if !hardware.gpus.is_empty() {
+        ui.label(RichText::new("Graphics Cards").strong());
+        ui.indent("gpus", |ui| {
+            for gpu in &hardware.gpus {
+                let vendor_name = match gpu.vendor {
+                    crate::types::GpuVendor::Nvidia => "NVIDIA",
+                    crate::types::GpuVendor::Amd => "AMD",
+                    crate::types::GpuVendor::Intel => "Intel",
+                    crate::types::GpuVendor::VirtualBox => "VirtualBox",
+                    crate::types::GpuVendor::VMware => "VMware",
+                    crate::types::GpuVendor::Unknown => "Unknown",
+                };
+                ui.label(format!("{}: {}", vendor_name, gpu.name));
+            }
+        });
+        ui.add_space(8.0);
+    }
+
+    // Network interfaces
+    if !hardware.network_interfaces.is_empty() {
+        ui.label(RichText::new("Network Interfaces").strong());
+        ui.indent("network", |ui| {
+            for iface in &hardware.network_interfaces {
+                let itype = match iface.interface_type {
+                    NetworkInterfaceType::Ethernet => "Ethernet",
+                    NetworkInterfaceType::Wifi => "WiFi",
+                    NetworkInterfaceType::Bridge => "Bridge",
+                    NetworkInterfaceType::Virtual => "Virtual",
+                    NetworkInterfaceType::Unknown => "Unknown",
+                };
+                ui.label(format!("{} ({})", iface.name, itype));
+            }
+        });
+        ui.add_space(8.0);
+    }
+
+    // System characteristics
+    ui.label(RichText::new("System Type").strong());
+    ui.indent("system_type", |ui| {
+        if hardware.is_virtual_machine {
+            ui.label("Running in virtual machine");
+        } else if hardware.is_laptop {
+            ui.label("Laptop/Portable device");
+        } else {
+            ui.label("Desktop system");
+        }
+
+        if hardware.has_bluetooth {
+            ui.label("Bluetooth available");
+        }
+        if hardware.has_touchscreen {
+            ui.label("Touchscreen detected");
+        }
+    });
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Package suggestions
+    ui.label(RichText::new("Recommended Packages").strong());
+    ui.label(
+        RichText::new("Based on your hardware, we recommend installing the following packages:")
+            .small()
+            .weak(),
+    );
+
+    ui.add_space(8.0);
+
+    egui::ScrollArea::vertical()
+        .max_height(250.0)
+        .show(ui, |ui| {
+            for suggestion in suggestions.iter_mut() {
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut suggestion.selected, "");
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new(&suggestion.category).strong());
+                        ui.label(RichText::new(&suggestion.reason).small().weak());
+                        ui.label(
+                            RichText::new(suggestion.packages.join(", "))
+                                .monospace()
+                                .small(),
+                        );
+                    });
+                });
+                ui.add_space(4.0);
+            }
+        });
+}
+
 /// Render the disk setup step
+#[allow(clippy::too_many_arguments)]
 pub fn render_disk_setup(
     ui: &mut Ui,
     disks: &[DiskInfo],
     selected_disk: &mut usize,
     auto_partition: &mut bool,
+    layout_preset: &mut DiskLayoutPreset,
+    encryption_type: &mut EncryptionType,
+    encryption_passphrase: &mut String,
+    confirm_passphrase: &mut String,
 ) {
-    ui.label("Select the disk to install Buckos on. You can use automatic partitioning or set up partitions manually.");
+    ui.label("Configure disk partitioning and encryption for your installation.");
 
     ui.add_space(16.0);
 
@@ -98,47 +208,425 @@ pub fn render_disk_setup(
         return;
     }
 
-    ui.label(RichText::new("Available Disks:").strong());
+    // Disk selection
+    ui.label(RichText::new("Select Disk:").strong());
+    ui.add_space(4.0);
+
+    egui::ScrollArea::vertical()
+        .max_height(120.0)
+        .id_salt("disk_scroll")
+        .show(ui, |ui| {
+            for (i, disk) in disks.iter().enumerate() {
+                let is_selected = *selected_disk == i;
+                let response = ui.selectable_label(
+                    is_selected,
+                    format!(
+                        "{} - {} ({}){}",
+                        disk.device,
+                        disk.model,
+                        system::format_size(disk.size),
+                        if disk.removable { " [Removable]" } else { "" }
+                    ),
+                );
+                if response.clicked() {
+                    *selected_disk = i;
+                }
+
+                // Show existing partitions
+                if is_selected && !disk.partitions.is_empty() {
+                    ui.indent("partitions", |ui| {
+                        ui.label(RichText::new("Existing partitions:").small());
+                        for part in &disk.partitions {
+                            let fs = part.filesystem.as_deref().unwrap_or("unknown");
+                            let mount = part
+                                .mount_point
+                                .as_deref()
+                                .map(|m| format!(" on {}", m))
+                                .unwrap_or_default();
+                            ui.label(
+                                RichText::new(format!(
+                                    "  {} - {} ({}){}",
+                                    part.device,
+                                    system::format_size(part.size),
+                                    fs,
+                                    mount
+                                ))
+                                .small(),
+                            );
+                        }
+                    });
+                }
+            }
+        });
+
+    ui.add_space(16.0);
+    ui.separator();
     ui.add_space(8.0);
 
-    for (i, disk) in disks.iter().enumerate() {
-        let is_selected = *selected_disk == i;
-        let response = ui.selectable_label(
-            is_selected,
-            format!(
-                "{} - {} ({}){}",
-                disk.device,
-                disk.model,
-                system::format_size(disk.size),
-                if disk.removable { " [Removable]" } else { "" }
-            ),
-        );
-        if response.clicked() {
-            *selected_disk = i;
+    // Partitioning options
+    ui.checkbox(auto_partition, "Use automatic partitioning");
+
+    if *auto_partition {
+        ui.add_space(8.0);
+        ui.label(RichText::new("Partition Layout:").strong());
+        ui.add_space(4.0);
+
+        for preset in DiskLayoutPreset::all() {
+            if preset == DiskLayoutPreset::Custom {
+                continue; // Skip custom in auto mode
+            }
+            let is_selected = layout_preset == &preset;
+            let response = ui.selectable_label(is_selected, preset.name());
+            if response.clicked() {
+                *layout_preset = preset.clone();
+            }
+            ui.indent("layout_desc", |ui| {
+                ui.label(RichText::new(preset.description()).small().weak());
+            });
         }
 
-        // Show existing partitions
-        if is_selected && !disk.partitions.is_empty() {
-            ui.indent("partitions", |ui| {
-                ui.label(RichText::new("Existing partitions:").small());
-                for part in &disk.partitions {
-                    let fs = part.filesystem.as_deref().unwrap_or("unknown");
-                    let mount = part
-                        .mount_point
-                        .as_deref()
-                        .map(|m| format!(" on {}", m))
-                        .unwrap_or_default();
-                    ui.label(
-                        RichText::new(format!(
-                            "  {} - {} ({}){}",
-                            part.device,
-                            system::format_size(part.size),
-                            fs,
-                            mount
-                        ))
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new("Warning: This will erase all data on the selected disk!")
+                .color(egui::Color32::RED),
+        );
+    } else {
+        *layout_preset = DiskLayoutPreset::Custom;
+        ui.indent("manual_part_info", |ui| {
+            ui.label("You will need to partition the disk manually before proceeding.");
+            ui.label("Mount your root partition to the target directory.");
+        });
+    }
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Encryption options
+    ui.label(RichText::new("Disk Encryption:").strong());
+    ui.add_space(4.0);
+
+    for enc in EncryptionType::all() {
+        let is_selected = encryption_type == &enc;
+        let response = ui.selectable_label(is_selected, enc.name());
+        if response.clicked() {
+            *encryption_type = enc.clone();
+        }
+        ui.indent("enc_desc", |ui| {
+            ui.label(RichText::new(enc.description()).small().weak());
+        });
+    }
+
+    // Encryption passphrase (if encryption selected)
+    if *encryption_type != EncryptionType::None {
+        ui.add_space(8.0);
+        ui.label(RichText::new("Encryption Passphrase:").strong());
+        ui.indent("enc_pass", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Passphrase:");
+                ui.add(egui::TextEdit::singleline(encryption_passphrase).password(true));
+            });
+            ui.horizontal(|ui| {
+                ui.label("Confirm:");
+                ui.add(egui::TextEdit::singleline(confirm_passphrase).password(true));
+            });
+
+            if !encryption_passphrase.is_empty() && encryption_passphrase != confirm_passphrase {
+                ui.label(
+                    RichText::new("Passphrases do not match")
+                        .color(egui::Color32::RED)
                         .small(),
-                    );
+                );
+            }
+
+            if !encryption_passphrase.is_empty() && encryption_passphrase.len() < 8 {
+                ui.label(
+                    RichText::new("Passphrase should be at least 8 characters")
+                        .color(egui::Color32::YELLOW)
+                        .small(),
+                );
+            }
+        });
+    }
+}
+
+/// Render the bootloader selection step
+pub fn render_bootloader(
+    ui: &mut Ui,
+    bootloader: &mut BootloaderType,
+    is_efi: bool,
+) {
+    ui.label("Select a bootloader to boot your system.");
+
+    ui.add_space(16.0);
+
+    // Show boot mode
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Boot Mode:").strong());
+        ui.label(if is_efi { "UEFI" } else { "BIOS/Legacy" });
+    });
+
+    ui.add_space(8.0);
+
+    if !is_efi {
+        ui.label(
+            RichText::new("Note: Some bootloaders require UEFI and are not available in BIOS mode.")
+                .color(egui::Color32::YELLOW)
+                .small(),
+        );
+        ui.add_space(8.0);
+    }
+
+    ui.label(RichText::new("Select Bootloader:").strong());
+    ui.add_space(8.0);
+
+    let available_bootloaders = if is_efi {
+        BootloaderType::all()
+    } else {
+        BootloaderType::all_for_bios()
+    };
+
+    for bl in available_bootloaders {
+        let is_selected = *bootloader == bl;
+        let response = ui.selectable_label(
+            is_selected,
+            RichText::new(bl.as_str()).strong(),
+        );
+        if response.clicked() {
+            *bootloader = bl;
+        }
+
+        ui.indent("bl_desc", |ui| {
+            ui.label(RichText::new(bl.description()).small());
+
+            if bl.requires_uefi() {
+                ui.label(
+                    RichText::new("Requires UEFI")
+                        .small()
+                        .weak(),
+                );
+            }
+        });
+        ui.add_space(4.0);
+    }
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Bootloader-specific notes
+    match bootloader {
+        BootloaderType::Grub => {
+            ui.label(RichText::new("GRUB Notes:").strong());
+            ui.indent("grub_notes", |ui| {
+                ui.label("• Most compatible option");
+                ui.label("• Supports both BIOS and UEFI");
+                ui.label("• Rich feature set (themes, encryption, etc.)");
+                ui.label("• Can chainload other operating systems");
+            });
+        }
+        BootloaderType::Systemdboot => {
+            ui.label(RichText::new("systemd-boot Notes:").strong());
+            ui.indent("sdb_notes", |ui| {
+                ui.label("• Simple and minimal");
+                ui.label("• Fast boot times");
+                ui.label("• Easy to configure");
+                ui.label("• Automatic kernel detection");
+            });
+        }
+        BootloaderType::Refind => {
+            ui.label(RichText::new("rEFInd Notes:").strong());
+            ui.indent("refind_notes", |ui| {
+                ui.label("• Graphical boot menu");
+                ui.label("• Auto-detects operating systems");
+                ui.label("• Highly customizable themes");
+                ui.label("• Great for multi-boot setups");
+            });
+        }
+        BootloaderType::Efistub => {
+            ui.label(RichText::new("EFISTUB Notes:").strong());
+            ui.indent("efistub_notes", |ui| {
+                ui.label("• Boots kernel directly from UEFI");
+                ui.label("• No bootloader overhead");
+                ui.label("• Requires UEFI configuration");
+                ui.label("• Advanced users only");
+            });
+        }
+        BootloaderType::Limine => {
+            ui.label(RichText::new("Limine Notes:").strong());
+            ui.indent("limine_notes", |ui| {
+                ui.label("• Modern bootloader");
+                ui.label("• Supports both BIOS and UEFI");
+                ui.label("• Multiboot and chainloading support");
+                ui.label("• Active development");
+            });
+        }
+        BootloaderType::None => {
+            ui.label(RichText::new("Manual Bootloader:").strong());
+            ui.indent("manual_notes", |ui| {
+                ui.label("• No bootloader will be installed");
+                ui.label("• You must configure a bootloader yourself");
+                ui.label("• System will not boot without configuration");
+            });
+        }
+    }
+}
+
+/// Render the profile selection step
+#[allow(clippy::too_many_arguments)]
+pub fn render_profile_selection(
+    ui: &mut Ui,
+    profile: &mut InstallProfile,
+    selected_de: &mut DesktopEnvironment,
+    selected_handheld: &mut HandheldDevice,
+    audio_subsystem: &mut AudioSubsystem,
+) {
+    ui.label("Select an installation profile. This determines the default package set to install.");
+
+    ui.add_space(16.0);
+
+    // Profile category selection
+    let categories = ["Desktop", "Server", "Handheld", "Minimal", "Custom"];
+    let current_category = profile.category();
+
+    ui.label(RichText::new("Profile Type").strong());
+    ui.add_space(4.0);
+
+    ui.horizontal(|ui| {
+        for cat in categories {
+            let is_selected = current_category == cat;
+            if ui.selectable_label(is_selected, cat).clicked() {
+                *profile = match cat {
+                    "Desktop" => InstallProfile::Desktop(selected_de.clone()),
+                    "Server" => InstallProfile::Server,
+                    "Handheld" => InstallProfile::Handheld(selected_handheld.clone()),
+                    "Minimal" => InstallProfile::Minimal,
+                    "Custom" => InstallProfile::Custom,
+                    _ => profile.clone(),
+                };
+            }
+        }
+    });
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Show options based on selected category
+    match profile {
+        InstallProfile::Desktop(_) => {
+            ui.label(RichText::new("Desktop Environment").strong());
+            ui.label(
+                RichText::new("Choose your preferred desktop environment:")
+                    .small()
+                    .weak(),
+            );
+            ui.add_space(8.0);
+
+            egui::ScrollArea::vertical()
+                .max_height(200.0)
+                .show(ui, |ui| {
+                    for de in DesktopEnvironment::all() {
+                        let is_selected = selected_de == &de;
+                        let response = ui.selectable_label(
+                            is_selected,
+                            RichText::new(de.name()).strong(),
+                        );
+                        if response.clicked() {
+                            *selected_de = de.clone();
+                            *profile = InstallProfile::Desktop(de.clone());
+                        }
+
+                        ui.indent("de_desc", |ui| {
+                            ui.label(RichText::new(de.description()).small());
+                        });
+                        ui.add_space(4.0);
+                    }
+                });
+        }
+        InstallProfile::Handheld(_) => {
+            ui.label(RichText::new("Handheld Device").strong());
+            ui.label(
+                RichText::new("Select your gaming handheld device:")
+                    .small()
+                    .weak(),
+            );
+            ui.add_space(8.0);
+
+            for device in HandheldDevice::all() {
+                let is_selected = selected_handheld == &device;
+                let response = ui.selectable_label(
+                    is_selected,
+                    RichText::new(device.name()).strong(),
+                );
+                if response.clicked() {
+                    *selected_handheld = device.clone();
+                    *profile = InstallProfile::Handheld(device.clone());
                 }
+
+                ui.indent("handheld_desc", |ui| {
+                    ui.label(RichText::new(device.description()).small());
+                });
+                ui.add_space(4.0);
+            }
+
+            ui.add_space(8.0);
+            ui.label(
+                RichText::new("Includes: Steam, Gamescope, gaming optimizations")
+                    .small()
+                    .weak(),
+            );
+        }
+        InstallProfile::Server => {
+            ui.label(RichText::new("Server Profile").strong());
+            ui.label("Minimal system with server tools and services.");
+            ui.add_space(8.0);
+            ui.label("Includes:");
+            ui.indent("server_includes", |ui| {
+                ui.label("• Core system utilities");
+                ui.label("• SSH server");
+                ui.label("• Network tools");
+                ui.label("• System monitoring");
+            });
+        }
+        InstallProfile::Minimal => {
+            ui.label(RichText::new("Minimal Profile").strong());
+            ui.label("Base system with only essential utilities.");
+            ui.add_space(8.0);
+            ui.label("Build your system from scratch - only @system package set installed.");
+        }
+        InstallProfile::Custom => {
+            ui.label(RichText::new("Custom Profile").strong());
+            ui.label("Select packages manually after installation.");
+            ui.add_space(8.0);
+            ui.label("Starts with @system, then customize as needed.");
+        }
+    }
+
+    // Audio subsystem selection for desktop/handheld profiles
+    if matches!(profile, InstallProfile::Desktop(_) | InstallProfile::Handheld(_)) {
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(8.0);
+
+        ui.label(RichText::new("Audio System").strong());
+        ui.add_space(4.0);
+
+        let audio_systems = [
+            AudioSubsystem::PipeWire,
+            AudioSubsystem::PulseAudio,
+            AudioSubsystem::Alsa,
+        ];
+
+        for audio in audio_systems {
+            let is_selected = *audio_subsystem == audio;
+            let response = ui.selectable_label(is_selected, audio.name());
+            if response.clicked() {
+                *audio_subsystem = audio.clone();
+            }
+            let desc = audio.description();
+            ui.indent("audio_desc", |ui| {
+                ui.label(RichText::new(desc).small().weak());
             });
         }
     }
@@ -147,76 +635,11 @@ pub fn render_disk_setup(
     ui.separator();
     ui.add_space(8.0);
 
-    ui.checkbox(auto_partition, "Use automatic partitioning");
-
-    if *auto_partition {
-        ui.indent("auto_part_info", |ui| {
-            ui.label("Automatic partitioning will create:");
-            ui.label(if system::is_efi_system() {
-                "  • EFI System Partition (512 MB, FAT32)"
-            } else {
-                "  • BIOS Boot Partition (1 MB)"
-            });
-            ui.label("  • Swap Partition (based on RAM size)");
-            ui.label("  • Root Partition (remaining space, ext4)");
-
-            ui.add_space(8.0);
-            ui.label(
-                RichText::new("Warning: This will erase all data on the selected disk!")
-                    .color(egui::Color32::RED),
-            );
-        });
-    } else {
-        ui.indent("manual_part_info", |ui| {
-            ui.label("You will need to partition the disk manually before proceeding.");
-            ui.label("Mount your root partition to the target directory.");
-        });
-    }
-}
-
-/// Render the profile selection step
-pub fn render_profile_selection(ui: &mut Ui, profile: &mut InstallProfile) {
-    ui.label("Select an installation profile. This determines the default package set to install.");
-
-    ui.add_space(16.0);
-
-    let profiles = [
-        InstallProfile::Desktop,
-        InstallProfile::Minimal,
-        InstallProfile::Server,
-        InstallProfile::Custom,
-    ];
-
-    for p in profiles {
-        let is_selected = *profile == p;
-        let response = ui.selectable_label(
-            is_selected,
-            RichText::new(format!("{:?}", p)).strong(),
-        );
-        if response.clicked() {
-            *profile = p.clone();
+    ui.label(RichText::new("Package Sets:").strong());
+    ui.indent("packages", |ui| {
+        for pkg_set in profile.package_sets() {
+            ui.label(format!("• {}", pkg_set));
         }
-
-        ui.indent("profile_desc", |ui| {
-            ui.label(p.description());
-            ui.label(
-                RichText::new(format!("Packages: {}", p.package_sets().join(", ")))
-                    .small()
-                    .weak(),
-            );
-        });
-        ui.add_space(8.0);
-    }
-
-    ui.add_space(16.0);
-
-    ui.label(RichText::new("Package Sets Explained:").strong());
-    ui.indent("package_sets", |ui| {
-        ui.label("• @system - Core system utilities and libraries");
-        ui.label("• @desktop - Desktop environment and common applications");
-        ui.label("• @server - Server services and management tools");
-        ui.label("• @audio - Audio subsystem and utilities");
-        ui.label("• @network - Network tools and services");
     });
 }
 
@@ -473,7 +896,14 @@ pub fn render_timezone_setup(
 }
 
 /// Render the summary step
-pub fn render_summary(ui: &mut Ui, config: &InstallConfig, disks: &[DiskInfo], selected_disk: usize) {
+pub fn render_summary(
+    ui: &mut Ui,
+    config: &InstallConfig,
+    disks: &[DiskInfo],
+    selected_disk: usize,
+    confirm_wipe: &mut bool,
+    confirm_install: &mut bool,
+) {
     ui.label("Review your installation settings before proceeding.");
 
     ui.add_space(16.0);
@@ -487,85 +917,212 @@ pub fn render_summary(ui: &mut Ui, config: &InstallConfig, disks: &[DiskInfo], s
         ui.add_space(8.0);
     }
 
-    egui::Grid::new("summary_grid")
-        .num_columns(2)
-        .spacing([20.0, 8.0])
-        .show(ui, |ui| {
-            ui.label(RichText::new("Target:").strong());
-            ui.label(config.target_root.display().to_string());
-            ui.end_row();
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        egui::Grid::new("summary_grid")
+            .num_columns(2)
+            .spacing([20.0, 8.0])
+            .show(ui, |ui| {
+                ui.label(RichText::new("Target:").strong());
+                ui.label(config.target_root.display().to_string());
+                ui.end_row();
 
-            ui.label(RichText::new("Profile:").strong());
-            ui.label(format!("{:?}", config.profile));
-            ui.end_row();
+                // Profile details
+                ui.label(RichText::new("Profile:").strong());
+                let profile_str = match &config.profile {
+                    InstallProfile::Desktop(de) => format!("Desktop ({})", de.name()),
+                    InstallProfile::Handheld(device) => format!("Handheld ({})", device.name()),
+                    InstallProfile::Server => "Server".to_string(),
+                    InstallProfile::Minimal => "Minimal".to_string(),
+                    InstallProfile::Custom => "Custom".to_string(),
+                };
+                ui.label(profile_str);
+                ui.end_row();
 
-            if let Some(disk_config) = &config.disk {
-                ui.label(RichText::new("Disk:").strong());
-                if let Some(disk) = disks.get(selected_disk) {
-                    ui.label(format!("{} ({})", disk.device, system::format_size(disk.size)));
+                // Audio subsystem for desktop/handheld
+                if matches!(config.profile, InstallProfile::Desktop(_) | InstallProfile::Handheld(_)) {
+                    ui.label(RichText::new("Audio:").strong());
+                    ui.label(config.audio_subsystem.name());
+                    ui.end_row();
+                }
+
+                // Disk configuration
+                if let Some(disk_config) = &config.disk {
+                    ui.label(RichText::new("Disk:").strong());
+                    if let Some(disk) = disks.get(selected_disk) {
+                        ui.label(format!("{} ({})", disk.device, system::format_size(disk.size)));
+                    } else {
+                        ui.label(&disk_config.device);
+                    }
+                    ui.end_row();
+
+                    ui.label(RichText::new("Layout:").strong());
+                    ui.label(config.disk_layout.name());
+                    ui.end_row();
+
+                    ui.label(RichText::new("Partitions:").strong());
+                    ui.label(format!("{} partitions", disk_config.partitions.len()));
+                    ui.end_row();
+                }
+
+                // Encryption
+                ui.label(RichText::new("Encryption:").strong());
+                ui.label(config.encryption.encryption_type.name());
+                ui.end_row();
+
+                // Bootloader
+                ui.label(RichText::new("Bootloader:").strong());
+                ui.label(config.bootloader.as_str());
+                ui.end_row();
+
+                ui.label(RichText::new("Hostname:").strong());
+                ui.label(&config.network.hostname);
+                ui.end_row();
+
+                ui.label(RichText::new("Timezone:").strong());
+                ui.label(&config.timezone.timezone);
+                ui.end_row();
+
+                ui.label(RichText::new("Locale:").strong());
+                ui.label(&config.locale.locale);
+                ui.end_row();
+
+                ui.label(RichText::new("Keyboard:").strong());
+                ui.label(&config.locale.keyboard);
+                ui.end_row();
+
+                ui.label(RichText::new("Users:").strong());
+                if config.users.is_empty() {
+                    ui.label("None (root only)");
                 } else {
-                    ui.label(&disk_config.device);
+                    ui.label(
+                        config
+                            .users
+                            .iter()
+                            .map(|u| u.username.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
                 }
                 ui.end_row();
+            });
 
-                ui.label(RichText::new("Partitions:").strong());
-                ui.label(format!("{} partitions", disk_config.partitions.len()));
-                ui.end_row();
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(8.0);
+
+        ui.label(RichText::new("Package Sets to Install:").strong());
+        ui.indent("packages", |ui| {
+            for pkg_set in config.profile.package_sets() {
+                ui.label(format!("• {}", pkg_set));
             }
-
-            ui.label(RichText::new("Bootloader:").strong());
-            ui.label(config.bootloader.as_str());
-            ui.end_row();
-
-            ui.label(RichText::new("Hostname:").strong());
-            ui.label(&config.network.hostname);
-            ui.end_row();
-
-            ui.label(RichText::new("Timezone:").strong());
-            ui.label(&config.timezone.timezone);
-            ui.end_row();
-
-            ui.label(RichText::new("Locale:").strong());
-            ui.label(&config.locale.locale);
-            ui.end_row();
-
-            ui.label(RichText::new("Keyboard:").strong());
-            ui.label(&config.locale.keyboard);
-            ui.end_row();
-
-            ui.label(RichText::new("Users:").strong());
-            if config.users.is_empty() {
-                ui.label("None (root only)");
-            } else {
-                ui.label(
-                    config
-                        .users
-                        .iter()
-                        .map(|u| u.username.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                );
+            // Add audio subsystem package set
+            if matches!(config.profile, InstallProfile::Desktop(_) | InstallProfile::Handheld(_)) {
+                ui.label(format!("• {}", config.audio_subsystem.package_set()));
             }
-            ui.end_row();
         });
 
-    ui.add_space(16.0);
-    ui.separator();
-    ui.add_space(8.0);
+        // Hardware packages
+        let selected_hw_packages: Vec<_> = config
+            .hardware_packages
+            .iter()
+            .filter(|p| p.selected)
+            .collect();
 
-    ui.label(RichText::new("Package Sets to Install:").strong());
-    ui.indent("packages", |ui| {
-        for pkg_set in config.profile.package_sets() {
-            ui.label(format!("• {}", pkg_set));
+        if !selected_hw_packages.is_empty() {
+            ui.add_space(8.0);
+            ui.label(RichText::new("Hardware-Specific Packages:").strong());
+            ui.indent("hw_packages", |ui| {
+                for suggestion in selected_hw_packages {
+                    ui.label(format!("• {} ({})", suggestion.category, suggestion.packages.join(", ")));
+                }
+            });
+        }
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(8.0);
+
+        // Warning section for destructive operations
+        if config.disk.is_some() && !config.dry_run {
+            ui.label(
+                RichText::new("WARNING: Destructive Operations")
+                    .color(egui::Color32::RED)
+                    .strong()
+                    .heading(),
+            );
+            ui.add_space(8.0);
+
+            egui::Frame::none()
+                .fill(egui::Color32::from_rgb(50, 20, 20))
+                .inner_margin(12.0)
+                .rounding(4.0)
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("The following operations will PERMANENTLY DESTROY DATA:")
+                            .color(egui::Color32::from_rgb(255, 150, 150)),
+                    );
+                    ui.add_space(4.0);
+
+                    if let Some(disk) = disks.get(selected_disk) {
+                        ui.label(
+                            RichText::new(format!("• Disk {} will be WIPED", disk.device))
+                                .color(egui::Color32::from_rgb(255, 200, 200)),
+                        );
+                    }
+
+                    if config.encryption.encryption_type != crate::types::EncryptionType::None {
+                        ui.label(
+                            RichText::new("• Encryption will be applied (requires passphrase on every boot)")
+                                .color(egui::Color32::from_rgb(255, 200, 200)),
+                        );
+                    }
+
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new("Make sure you have backed up any important data!")
+                            .color(egui::Color32::YELLOW)
+                            .strong(),
+                    );
+                });
+
+            ui.add_space(12.0);
+
+            ui.checkbox(
+                confirm_wipe,
+                RichText::new("I understand that all data on the selected disk will be destroyed")
+                    .strong(),
+            );
+        }
+
+        ui.add_space(8.0);
+
+        ui.checkbox(
+            confirm_install,
+            RichText::new("I have reviewed the settings and want to proceed with installation")
+                .strong(),
+        );
+
+        ui.add_space(16.0);
+
+        let can_install = if config.disk.is_some() && !config.dry_run {
+            *confirm_wipe && *confirm_install
+        } else {
+            *confirm_install
+        };
+
+        if !can_install {
+            ui.label(
+                RichText::new("Please check the confirmation boxes above to enable installation")
+                    .small()
+                    .weak(),
+            );
+        } else {
+            ui.label(
+                RichText::new("Click 'Install' to begin the installation process.")
+                    .strong(),
+            );
         }
     });
-
-    ui.add_space(16.0);
-
-    ui.label(
-        RichText::new("Click 'Install' to begin the installation process.")
-            .strong(),
-    );
 }
 
 /// Render the installing step

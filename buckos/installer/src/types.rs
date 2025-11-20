@@ -3,15 +3,140 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Desktop environment choices
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum DesktopEnvironment {
+    Gnome,
+    Kde,
+    Xfce,
+    Mate,
+    Cinnamon,
+    LxQt,
+    I3,
+    Sway,
+    Hyprland,
+    None,
+}
+
+impl DesktopEnvironment {
+    pub fn name(&self) -> &'static str {
+        match self {
+            DesktopEnvironment::Gnome => "GNOME",
+            DesktopEnvironment::Kde => "KDE Plasma",
+            DesktopEnvironment::Xfce => "Xfce",
+            DesktopEnvironment::Mate => "MATE",
+            DesktopEnvironment::Cinnamon => "Cinnamon",
+            DesktopEnvironment::LxQt => "LXQt",
+            DesktopEnvironment::I3 => "i3 (tiling WM)",
+            DesktopEnvironment::Sway => "Sway (Wayland tiling)",
+            DesktopEnvironment::Hyprland => "Hyprland (Wayland)",
+            DesktopEnvironment::None => "None (minimal X/Wayland)",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            DesktopEnvironment::Gnome => "Modern, user-friendly desktop with GNOME Shell",
+            DesktopEnvironment::Kde => "Feature-rich desktop with extensive customization",
+            DesktopEnvironment::Xfce => "Lightweight, fast, and traditional desktop",
+            DesktopEnvironment::Mate => "Traditional desktop, continuation of GNOME 2",
+            DesktopEnvironment::Cinnamon => "Modern desktop with traditional layout",
+            DesktopEnvironment::LxQt => "Lightweight Qt-based desktop environment",
+            DesktopEnvironment::I3 => "Tiling window manager for power users",
+            DesktopEnvironment::Sway => "Wayland compositor compatible with i3",
+            DesktopEnvironment::Hyprland => "Dynamic tiling Wayland compositor",
+            DesktopEnvironment::None => "Only basic display server, configure manually",
+        }
+    }
+
+    pub fn package_set(&self) -> &'static str {
+        match self {
+            DesktopEnvironment::Gnome => "@gnome",
+            DesktopEnvironment::Kde => "@kde",
+            DesktopEnvironment::Xfce => "@xfce",
+            DesktopEnvironment::Mate => "@mate",
+            DesktopEnvironment::Cinnamon => "@cinnamon",
+            DesktopEnvironment::LxQt => "@lxqt",
+            DesktopEnvironment::I3 => "@i3",
+            DesktopEnvironment::Sway => "@sway",
+            DesktopEnvironment::Hyprland => "@hyprland",
+            DesktopEnvironment::None => "@xorg-minimal",
+        }
+    }
+
+    pub fn all() -> Vec<DesktopEnvironment> {
+        vec![
+            DesktopEnvironment::Gnome,
+            DesktopEnvironment::Kde,
+            DesktopEnvironment::Xfce,
+            DesktopEnvironment::Mate,
+            DesktopEnvironment::Cinnamon,
+            DesktopEnvironment::LxQt,
+            DesktopEnvironment::I3,
+            DesktopEnvironment::Sway,
+            DesktopEnvironment::Hyprland,
+            DesktopEnvironment::None,
+        ]
+    }
+}
+
+/// Handheld/gaming device type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum HandheldDevice {
+    SteamDeck,
+    AyaNeo,
+    GpdWin,
+    LegionGo,
+    RogAlly,
+    Generic,
+}
+
+impl HandheldDevice {
+    pub fn name(&self) -> &'static str {
+        match self {
+            HandheldDevice::SteamDeck => "Steam Deck",
+            HandheldDevice::AyaNeo => "AYA NEO",
+            HandheldDevice::GpdWin => "GPD Win",
+            HandheldDevice::LegionGo => "Lenovo Legion Go",
+            HandheldDevice::RogAlly => "ASUS ROG Ally",
+            HandheldDevice::Generic => "Generic Handheld",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            HandheldDevice::SteamDeck => "Valve's portable gaming PC with APU",
+            HandheldDevice::AyaNeo => "AYA NEO handheld gaming devices",
+            HandheldDevice::GpdWin => "GPD Win portable gaming devices",
+            HandheldDevice::LegionGo => "Lenovo Legion Go gaming handheld",
+            HandheldDevice::RogAlly => "ASUS ROG Ally gaming handheld",
+            HandheldDevice::Generic => "Generic gaming handheld or console",
+        }
+    }
+
+    pub fn all() -> Vec<HandheldDevice> {
+        vec![
+            HandheldDevice::SteamDeck,
+            HandheldDevice::AyaNeo,
+            HandheldDevice::GpdWin,
+            HandheldDevice::LegionGo,
+            HandheldDevice::RogAlly,
+            HandheldDevice::Generic,
+        ]
+    }
+}
+
 /// Represents an installation profile/preset
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum InstallProfile {
     /// Minimal system with just base utilities
     Minimal,
     /// Desktop environment with common applications
-    Desktop,
+    Desktop(DesktopEnvironment),
     /// Server configuration with services
     Server,
+    /// Handheld gaming device configuration
+    Handheld(HandheldDevice),
     /// Custom selection
     Custom,
 }
@@ -20,8 +145,9 @@ impl InstallProfile {
     pub fn description(&self) -> &'static str {
         match self {
             InstallProfile::Minimal => "Base system with essential utilities only",
-            InstallProfile::Desktop => "Full desktop environment with common applications",
+            InstallProfile::Desktop(_) => "Full desktop environment with common applications",
             InstallProfile::Server => "Server configuration with common services",
+            InstallProfile::Handheld(_) => "Gaming handheld with Steam and gaming optimizations",
             InstallProfile::Custom => "Select packages manually",
         }
     }
@@ -29,11 +155,296 @@ impl InstallProfile {
     pub fn package_sets(&self) -> Vec<&'static str> {
         match self {
             InstallProfile::Minimal => vec!["@system"],
-            InstallProfile::Desktop => vec!["@system", "@desktop", "@audio", "@network"],
+            InstallProfile::Desktop(de) => vec!["@system", "@desktop", "@audio", "@network", de.package_set()],
             InstallProfile::Server => vec!["@system", "@server", "@network"],
+            InstallProfile::Handheld(_) => vec!["@system", "@desktop", "@audio", "@network", "@gaming", "@steam"],
             InstallProfile::Custom => vec!["@system"],
         }
     }
+
+    pub fn category(&self) -> &'static str {
+        match self {
+            InstallProfile::Minimal => "Minimal",
+            InstallProfile::Desktop(_) => "Desktop",
+            InstallProfile::Server => "Server",
+            InstallProfile::Handheld(_) => "Handheld",
+            InstallProfile::Custom => "Custom",
+        }
+    }
+}
+
+impl Default for InstallProfile {
+    fn default() -> Self {
+        InstallProfile::Desktop(DesktopEnvironment::Gnome)
+    }
+}
+
+/// GPU vendor for driver selection
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum GpuVendor {
+    Nvidia,
+    Amd,
+    Intel,
+    VirtualBox,
+    VMware,
+    Unknown,
+}
+
+impl GpuVendor {
+    pub fn driver_packages(&self) -> Vec<&'static str> {
+        match self {
+            GpuVendor::Nvidia => vec!["nvidia-drivers", "nvidia-settings"],
+            GpuVendor::Amd => vec!["mesa", "vulkan-radeon", "libva-mesa-driver"],
+            GpuVendor::Intel => vec!["mesa", "vulkan-intel", "intel-media-driver"],
+            GpuVendor::VirtualBox => vec!["virtualbox-guest-additions"],
+            GpuVendor::VMware => vec!["open-vm-tools", "xf86-video-vmware"],
+            GpuVendor::Unknown => vec!["mesa"],
+        }
+    }
+}
+
+/// Detected GPU information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuInfo {
+    pub vendor: GpuVendor,
+    pub name: String,
+    pub pci_id: String,
+}
+
+/// Network interface type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum NetworkInterfaceType {
+    Ethernet,
+    Wifi,
+    Bridge,
+    Virtual,
+    Unknown,
+}
+
+/// Detected network interface
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkInterfaceInfo {
+    pub name: String,
+    pub interface_type: NetworkInterfaceType,
+    pub mac_address: Option<String>,
+    pub driver: Option<String>,
+}
+
+/// Audio subsystem type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AudioSubsystem {
+    PipeWire,
+    PulseAudio,
+    Alsa,
+}
+
+impl AudioSubsystem {
+    pub fn name(&self) -> &'static str {
+        match self {
+            AudioSubsystem::PipeWire => "PipeWire",
+            AudioSubsystem::PulseAudio => "PulseAudio",
+            AudioSubsystem::Alsa => "ALSA only",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            AudioSubsystem::PipeWire => "Modern multimedia server (recommended)",
+            AudioSubsystem::PulseAudio => "Traditional Linux audio server",
+            AudioSubsystem::Alsa => "Basic kernel-level audio (minimal)",
+        }
+    }
+
+    pub fn package_set(&self) -> &'static str {
+        match self {
+            AudioSubsystem::PipeWire => "@pipewire",
+            AudioSubsystem::PulseAudio => "@pulseaudio",
+            AudioSubsystem::Alsa => "@alsa",
+        }
+    }
+}
+
+/// Detected audio device
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioDeviceInfo {
+    pub name: String,
+    pub card_id: String,
+    pub is_hdmi: bool,
+}
+
+/// Storage controller type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum StorageControllerType {
+    Nvme,
+    Ahci,
+    Raid,
+    Virtio,
+    Usb,
+    Unknown,
+}
+
+/// Power profile for laptops/handhelds
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PowerProfile {
+    Desktop,
+    Laptop,
+    Gaming,
+    Server,
+}
+
+impl PowerProfile {
+    pub fn packages(&self) -> Vec<&'static str> {
+        match self {
+            PowerProfile::Desktop => vec![],
+            PowerProfile::Laptop => vec!["tlp", "thermald", "powertop"],
+            PowerProfile::Gaming => vec!["gamemode", "cpupower"],
+            PowerProfile::Server => vec!["tuned"],
+        }
+    }
+}
+
+/// Complete hardware detection results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HardwareInfo {
+    pub gpus: Vec<GpuInfo>,
+    pub network_interfaces: Vec<NetworkInterfaceInfo>,
+    pub audio_devices: Vec<AudioDeviceInfo>,
+    pub storage_controller: StorageControllerType,
+    pub power_profile: PowerProfile,
+    pub has_bluetooth: bool,
+    pub has_touchscreen: bool,
+    pub is_laptop: bool,
+    pub is_virtual_machine: bool,
+    pub cpu_vendor: String,
+    pub cpu_flags: Vec<String>,
+}
+
+impl Default for HardwareInfo {
+    fn default() -> Self {
+        Self {
+            gpus: Vec::new(),
+            network_interfaces: Vec::new(),
+            audio_devices: Vec::new(),
+            storage_controller: StorageControllerType::Unknown,
+            power_profile: PowerProfile::Desktop,
+            has_bluetooth: false,
+            has_touchscreen: false,
+            is_laptop: false,
+            is_virtual_machine: false,
+            cpu_vendor: String::new(),
+            cpu_flags: Vec::new(),
+        }
+    }
+}
+
+/// Suggested packages based on hardware detection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HardwarePackageSuggestion {
+    pub category: String,
+    pub reason: String,
+    pub packages: Vec<String>,
+    pub selected: bool,
+}
+
+/// Disk layout preset
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum DiskLayoutPreset {
+    /// Simple: single root partition
+    Simple,
+    /// Standard: boot/efi + swap + root
+    Standard,
+    /// Separate home: boot/efi + swap + root + home
+    SeparateHome,
+    /// Server: boot/efi + swap + root + var + home
+    Server,
+    /// Btrfs with subvolumes
+    BtrfsSubvolumes,
+    /// Custom manual layout
+    Custom,
+}
+
+impl DiskLayoutPreset {
+    pub fn name(&self) -> &'static str {
+        match self {
+            DiskLayoutPreset::Simple => "Simple",
+            DiskLayoutPreset::Standard => "Standard",
+            DiskLayoutPreset::SeparateHome => "Separate /home",
+            DiskLayoutPreset::Server => "Server Layout",
+            DiskLayoutPreset::BtrfsSubvolumes => "Btrfs Subvolumes",
+            DiskLayoutPreset::Custom => "Custom",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            DiskLayoutPreset::Simple => "Single root partition (simplest setup)",
+            DiskLayoutPreset::Standard => "Boot/EFI + Swap + Root (recommended)",
+            DiskLayoutPreset::SeparateHome => "Standard + separate /home partition",
+            DiskLayoutPreset::Server => "Root + /var + /home for servers",
+            DiskLayoutPreset::BtrfsSubvolumes => "Btrfs with @, @home, @snapshots subvolumes",
+            DiskLayoutPreset::Custom => "Configure partitions manually",
+        }
+    }
+
+    pub fn all() -> Vec<DiskLayoutPreset> {
+        vec![
+            DiskLayoutPreset::Standard,
+            DiskLayoutPreset::Simple,
+            DiskLayoutPreset::SeparateHome,
+            DiskLayoutPreset::Server,
+            DiskLayoutPreset::BtrfsSubvolumes,
+            DiskLayoutPreset::Custom,
+        ]
+    }
+}
+
+/// Encryption type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum EncryptionType {
+    None,
+    LuksRoot,
+    LuksFull,
+    LuksHome,
+}
+
+impl EncryptionType {
+    pub fn name(&self) -> &'static str {
+        match self {
+            EncryptionType::None => "No Encryption",
+            EncryptionType::LuksRoot => "Encrypt Root Only",
+            EncryptionType::LuksFull => "Full Disk Encryption",
+            EncryptionType::LuksHome => "Encrypt /home Only",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            EncryptionType::None => "No disk encryption (fastest)",
+            EncryptionType::LuksRoot => "Encrypt root partition with LUKS",
+            EncryptionType::LuksFull => "Encrypt all partitions except boot (most secure)",
+            EncryptionType::LuksHome => "Only encrypt the home partition",
+        }
+    }
+
+    pub fn all() -> Vec<EncryptionType> {
+        vec![
+            EncryptionType::None,
+            EncryptionType::LuksRoot,
+            EncryptionType::LuksFull,
+            EncryptionType::LuksHome,
+        ]
+    }
+}
+
+/// Encryption configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptionConfig {
+    pub encryption_type: EncryptionType,
+    pub passphrase: String,
+    /// Use TPM to unlock automatically on trusted boot
+    pub use_tpm: bool,
+    /// LUKS key derivation function iterations (higher = more secure but slower)
+    pub luks_pbkdf_iterations: Option<u32>,
 }
 
 /// Filesystem type for partitions
@@ -135,6 +546,9 @@ pub struct DiskConfig {
 pub enum BootloaderType {
     Grub,
     Systemdboot,
+    Refind,
+    Efistub,
+    Limine,
     None,
 }
 
@@ -143,8 +557,45 @@ impl BootloaderType {
         match self {
             BootloaderType::Grub => "GRUB",
             BootloaderType::Systemdboot => "systemd-boot",
+            BootloaderType::Refind => "rEFInd",
+            BootloaderType::Efistub => "EFISTUB",
+            BootloaderType::Limine => "Limine",
             BootloaderType::None => "None (manual)",
         }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            BootloaderType::Grub => "Most compatible, supports BIOS and UEFI, many features",
+            BootloaderType::Systemdboot => "Simple UEFI bootloader, minimal and fast",
+            BootloaderType::Refind => "Graphical UEFI boot manager with auto-detection",
+            BootloaderType::Efistub => "Boot kernel directly from UEFI (advanced)",
+            BootloaderType::Limine => "Modern bootloader with multiboot support",
+            BootloaderType::None => "Manual bootloader setup required",
+        }
+    }
+
+    pub fn requires_uefi(&self) -> bool {
+        matches!(self, BootloaderType::Systemdboot | BootloaderType::Refind | BootloaderType::Efistub)
+    }
+
+    pub fn all() -> Vec<BootloaderType> {
+        vec![
+            BootloaderType::Grub,
+            BootloaderType::Systemdboot,
+            BootloaderType::Refind,
+            BootloaderType::Limine,
+            BootloaderType::Efistub,
+            BootloaderType::None,
+        ]
+    }
+
+    pub fn all_for_bios() -> Vec<BootloaderType> {
+        vec![
+            BootloaderType::Grub,
+            BootloaderType::Limine,
+            BootloaderType::None,
+        ]
     }
 }
 
@@ -205,6 +656,10 @@ pub struct InstallConfig {
     pub profile: InstallProfile,
     /// Disk configuration
     pub disk: Option<DiskConfig>,
+    /// Disk layout preset used
+    pub disk_layout: DiskLayoutPreset,
+    /// Encryption configuration
+    pub encryption: EncryptionConfig,
     /// Bootloader configuration
     pub bootloader: BootloaderType,
     /// Root password
@@ -217,6 +672,12 @@ pub struct InstallConfig {
     pub timezone: TimezoneConfig,
     /// Locale configuration
     pub locale: LocaleConfig,
+    /// Audio subsystem choice
+    pub audio_subsystem: AudioSubsystem,
+    /// Detected hardware information
+    pub hardware_info: HardwareInfo,
+    /// Hardware-based package suggestions
+    pub hardware_packages: Vec<HardwarePackageSuggestion>,
     /// Additional packages to install
     pub extra_packages: Vec<String>,
     /// Dry run mode
@@ -227,8 +688,15 @@ impl Default for InstallConfig {
     fn default() -> Self {
         Self {
             target_root: PathBuf::from("/mnt/buckos"),
-            profile: InstallProfile::Desktop,
+            profile: InstallProfile::default(),
             disk: None,
+            disk_layout: DiskLayoutPreset::Standard,
+            encryption: EncryptionConfig {
+                encryption_type: EncryptionType::None,
+                passphrase: String::new(),
+                use_tpm: false,
+                luks_pbkdf_iterations: None,
+            },
             bootloader: BootloaderType::Grub,
             root_password: String::new(),
             users: Vec::new(),
@@ -247,6 +715,9 @@ impl Default for InstallConfig {
                 locale: "en_US.UTF-8".to_string(),
                 keyboard: "us".to_string(),
             },
+            audio_subsystem: AudioSubsystem::PipeWire,
+            hardware_info: HardwareInfo::default(),
+            hardware_packages: Vec::new(),
             extra_packages: Vec::new(),
             dry_run: false,
         }
@@ -257,8 +728,10 @@ impl Default for InstallConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallStep {
     Welcome,
-    DiskSetup,
+    HardwareDetection,
     ProfileSelection,
+    DiskSetup,
+    Bootloader,
     UserSetup,
     NetworkSetup,
     Timezone,
@@ -271,8 +744,10 @@ impl InstallStep {
     pub fn title(&self) -> &'static str {
         match self {
             InstallStep::Welcome => "Welcome",
-            InstallStep::DiskSetup => "Disk Setup",
+            InstallStep::HardwareDetection => "Hardware Detection",
             InstallStep::ProfileSelection => "Profile Selection",
+            InstallStep::DiskSetup => "Disk Setup",
+            InstallStep::Bootloader => "Bootloader",
             InstallStep::UserSetup => "User Setup",
             InstallStep::NetworkSetup => "Network Setup",
             InstallStep::Timezone => "Timezone & Locale",
@@ -284,9 +759,11 @@ impl InstallStep {
 
     pub fn next(&self) -> Option<InstallStep> {
         match self {
-            InstallStep::Welcome => Some(InstallStep::DiskSetup),
-            InstallStep::DiskSetup => Some(InstallStep::ProfileSelection),
-            InstallStep::ProfileSelection => Some(InstallStep::UserSetup),
+            InstallStep::Welcome => Some(InstallStep::HardwareDetection),
+            InstallStep::HardwareDetection => Some(InstallStep::ProfileSelection),
+            InstallStep::ProfileSelection => Some(InstallStep::DiskSetup),
+            InstallStep::DiskSetup => Some(InstallStep::Bootloader),
+            InstallStep::Bootloader => Some(InstallStep::UserSetup),
             InstallStep::UserSetup => Some(InstallStep::NetworkSetup),
             InstallStep::NetworkSetup => Some(InstallStep::Timezone),
             InstallStep::Timezone => Some(InstallStep::Summary),
@@ -299,9 +776,11 @@ impl InstallStep {
     pub fn prev(&self) -> Option<InstallStep> {
         match self {
             InstallStep::Welcome => None,
-            InstallStep::DiskSetup => Some(InstallStep::Welcome),
-            InstallStep::ProfileSelection => Some(InstallStep::DiskSetup),
-            InstallStep::UserSetup => Some(InstallStep::ProfileSelection),
+            InstallStep::HardwareDetection => Some(InstallStep::Welcome),
+            InstallStep::ProfileSelection => Some(InstallStep::HardwareDetection),
+            InstallStep::DiskSetup => Some(InstallStep::ProfileSelection),
+            InstallStep::Bootloader => Some(InstallStep::DiskSetup),
+            InstallStep::UserSetup => Some(InstallStep::Bootloader),
             InstallStep::NetworkSetup => Some(InstallStep::UserSetup),
             InstallStep::Timezone => Some(InstallStep::NetworkSetup),
             InstallStep::Summary => Some(InstallStep::Timezone),
@@ -313,19 +792,21 @@ impl InstallStep {
     pub fn index(&self) -> usize {
         match self {
             InstallStep::Welcome => 0,
-            InstallStep::DiskSetup => 1,
+            InstallStep::HardwareDetection => 1,
             InstallStep::ProfileSelection => 2,
-            InstallStep::UserSetup => 3,
-            InstallStep::NetworkSetup => 4,
-            InstallStep::Timezone => 5,
-            InstallStep::Summary => 6,
-            InstallStep::Installing => 7,
-            InstallStep::Complete => 8,
+            InstallStep::DiskSetup => 3,
+            InstallStep::Bootloader => 4,
+            InstallStep::UserSetup => 5,
+            InstallStep::NetworkSetup => 6,
+            InstallStep::Timezone => 7,
+            InstallStep::Summary => 8,
+            InstallStep::Installing => 9,
+            InstallStep::Complete => 10,
         }
     }
 
     pub fn total_steps() -> usize {
-        9
+        11
     }
 }
 

@@ -1,6 +1,6 @@
 # buckos-installer
 
-A graphical installer for Buckos - a beginner-friendly system installation tool that guides users through installing Buckos on their system.
+A graphical installer for Buckos - a beginner-friendly system installation tool that guides users through installing Buckos on their system with hardware detection, multiple profiles, and encryption support.
 
 ## Overview
 
@@ -9,20 +9,99 @@ buckos-installer provides an intuitive GUI for installing Buckos while maintaini
 ## Features
 
 - **Graphical Interface**: Easy-to-use wizard with progress tracking
+- **Hardware Detection**: Automatic detection of GPUs, network interfaces, audio devices, and more
+- **Installation Profiles**: Desktop (9 DE choices), Server, Handheld/Gaming, Minimal, Custom
+- **Disk Encryption**: LUKS encryption support with multiple encryption schemes
+- **Multiple Bootloaders**: GRUB, systemd-boot, rEFInd, Limine, EFISTUB
+- **Partition Layouts**: Standard, Btrfs with subvolumes, separate /home, server layout
 - **Text Mode**: Command-line instructions for manual installation
-- **Automatic Partitioning**: GPT/MBR support with EFI/BIOS detection
-- **Installation Profiles**: Pre-configured package sets for different use cases
-- **System Detection**: Automatic hardware and disk detection
 - **Dry Run Mode**: Test installation without making changes
 
 ## Installation Profiles
 
-| Profile | Description | Package Sets |
-|---------|-------------|--------------|
-| Desktop | Full desktop environment with common applications | @system, @desktop, @audio, @network |
-| Minimal | Base system with essential utilities only | @system |
-| Server | Server configuration with common services | @system, @server, @network |
-| Custom | Select packages manually | @system |
+### Desktop Profile
+Full desktop environment with common applications. Choose from multiple desktop environments:
+
+| Desktop Environment | Description |
+|---------------------|-------------|
+| GNOME | Modern, user-friendly desktop with GNOME Shell |
+| KDE Plasma | Feature-rich desktop with extensive customization |
+| Xfce | Lightweight, fast, and traditional desktop |
+| MATE | Traditional desktop, continuation of GNOME 2 |
+| Cinnamon | Modern desktop with traditional layout |
+| LXQt | Lightweight Qt-based desktop environment |
+| i3 | Tiling window manager for power users |
+| Sway | Wayland compositor compatible with i3 |
+| Hyprland | Dynamic tiling Wayland compositor |
+
+### Server Profile
+Minimal system with server tools and services. Includes:
+- Core system utilities
+- SSH server
+- Network tools
+- System monitoring
+
+### Handheld/Gaming Profile
+Optimized for portable gaming devices:
+- Steam Deck
+- AYA NEO
+- GPD Win
+- Lenovo Legion Go
+- ASUS ROG Ally
+- Generic handheld
+
+Includes Steam, Gamescope, and gaming optimizations.
+
+### Minimal Profile
+Base system with only essential utilities. Build your system from scratch.
+
+### Custom Profile
+Select packages manually after installation.
+
+## Bootloader Options
+
+| Bootloader | Boot Mode | Description |
+|------------|-----------|-------------|
+| GRUB | BIOS/UEFI | Most compatible, many features |
+| systemd-boot | UEFI only | Simple, minimal, and fast |
+| rEFInd | UEFI only | Graphical boot manager with auto-detection |
+| Limine | BIOS/UEFI | Modern bootloader with multiboot support |
+| EFISTUB | UEFI only | Boot kernel directly from UEFI (advanced) |
+
+## Disk Configuration
+
+### Partition Layouts
+
+| Layout | Description |
+|--------|-------------|
+| Standard | Boot/EFI + Swap + Root (recommended) |
+| Simple | Single root partition (simplest setup) |
+| Separate /home | Standard + separate /home partition |
+| Server | Root + /var + /home for servers |
+| Btrfs Subvolumes | Btrfs with @, @home, @snapshots subvolumes |
+| Custom | Configure partitions manually |
+
+### Encryption Options
+
+| Type | Description |
+|------|-------------|
+| No Encryption | No disk encryption (fastest) |
+| Encrypt Root Only | Encrypt root partition with LUKS |
+| Full Disk Encryption | Encrypt all partitions except boot (most secure) |
+| Encrypt /home Only | Only encrypt the home partition |
+
+## Hardware Detection
+
+The installer automatically detects and suggests packages for:
+
+- **GPUs**: NVIDIA, AMD, Intel drivers
+- **Network**: WiFi, Ethernet, Bluetooth
+- **Audio**: PipeWire, PulseAudio, or ALSA
+- **Storage**: NVMe tools
+- **Power Management**: Laptop power optimization (TLP, thermald)
+- **Virtual Machines**: VirtualBox/VMware/QEMU guest tools
+- **CPU Microcode**: Intel/AMD microcode updates
+- **Touchscreen**: Input drivers for touch devices
 
 ## Building
 
@@ -78,14 +157,16 @@ sudo buckos-installer --skip-checks
 ## Installation Wizard Steps
 
 1. **Welcome** - System information and overview
-2. **Disk Setup** - Select target disk and partitioning method
-3. **Profile Selection** - Choose installation profile
-4. **User Setup** - Configure root password and create user accounts
-5. **Network Setup** - Set hostname and network configuration
-6. **Timezone & Locale** - Configure timezone, locale, and keyboard layout
-7. **Summary** - Review settings before installation
-8. **Installing** - Installation progress
-9. **Complete** - Post-installation instructions
+2. **Hardware Detection** - Detect hardware and suggest drivers/packages
+3. **Profile Selection** - Choose installation profile and desktop environment
+4. **Disk Setup** - Select disk, partition layout, and encryption
+5. **Bootloader** - Choose bootloader type
+6. **User Setup** - Configure root password and create user accounts
+7. **Network Setup** - Set hostname and network configuration
+8. **Timezone & Locale** - Configure timezone, locale, and keyboard layout
+9. **Summary** - Review settings with confirmation checkboxes
+10. **Installing** - Installation progress
+11. **Complete** - Post-installation instructions
 
 ## Manual Installation
 
@@ -108,23 +189,30 @@ This displays the manual installation steps:
    mkswap /dev/sdX2
    ```
 
-3. **Mount the target**:
+3. **Set up encryption (optional)**:
+   ```bash
+   cryptsetup luksFormat /dev/sdX1
+   cryptsetup open /dev/sdX1 cryptroot
+   mkfs.ext4 /dev/mapper/cryptroot
+   ```
+
+4. **Mount the target**:
    ```bash
    mount /dev/sdX1 /mnt/buckos
    ```
 
-4. **Install the base system**:
+5. **Install the base system**:
    ```bash
    buckos --root /mnt/buckos install @system
    ```
 
-5. **Configure the bootloader**:
+6. **Configure the bootloader**:
    ```bash
    chroot /mnt/buckos grub-install /dev/sdX
    chroot /mnt/buckos grub-mkconfig -o /boot/grub/grub.cfg
    ```
 
-6. **Set up users and finalize**:
+7. **Set up users and finalize**:
    ```bash
    chroot /mnt/buckos passwd root
    chroot /mnt/buckos useradd -m -G wheel username
@@ -154,6 +242,8 @@ The installer requires these tools to be available:
 | grub-install | grub |
 | blkid | util-linux |
 | lsblk | util-linux |
+| cryptsetup | cryptsetup |
+| lspci | pciutils |
 
 ### Minimum Hardware
 
@@ -163,17 +253,22 @@ The installer requires these tools to be available:
 
 ## Automatic Partitioning
 
-When using automatic partitioning, the installer creates:
+When using automatic partitioning, the installer creates partitions based on the selected layout:
 
-### UEFI Systems
+### Standard Layout (UEFI)
 - EFI System Partition (512 MB, FAT32)
 - Swap Partition (based on RAM size, max 8 GB)
 - Root Partition (remaining space, ext4)
 
-### BIOS Systems
+### Standard Layout (BIOS)
 - BIOS Boot Partition (1 MB)
 - Swap Partition (based on RAM size, max 8 GB)
 - Root Partition (remaining space, ext4)
+
+### Btrfs Subvolumes
+- EFI/BIOS Boot Partition
+- Swap Partition
+- Btrfs Partition with subvolumes: @, @home, @snapshots
 
 ## Post-Installation
 
