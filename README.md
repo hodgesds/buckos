@@ -237,6 +237,122 @@ buckos-tools report      # Generate system report
 - Multiple output formats (text, JSON)
 - Process sorting by CPU, memory, or PID
 
+## Build Definition System
+
+### Core Definition Files
+
+Buckos uses Starlark (`.bzl`) files to define build rules and metadata. These are located in the `defs/` directory:
+
+| File | Purpose |
+|------|---------|
+| `package_defs.bzl` | Package build rules and PackageInfo provider |
+| `use_flags.bzl` | USE flag definitions and resolution |
+| `registry.bzl` | Central package version registry |
+| `versions.bzl` | Version comparison and subslot system |
+| `eclasses.bzl` | Eclass inheritance system |
+| `licenses.bzl` | License management and groups |
+| `eapi.bzl` | EAPI versioning support |
+| `package_sets.bzl` | Package set definitions |
+| `maintainers.bzl` | Maintainer registry |
+| `package_customize.bzl` | Per-package customization |
+| `tooling.bzl` | External tool integration and profiles |
+
+### Eclasses
+
+Eclasses provide reusable build patterns (similar to Gentoo eclasses):
+
+```python
+load("//defs:eclasses.bzl", "inherit", "eclass_package")
+
+# Inherit from multiple eclasses
+config = inherit(["cmake", "xdg"])
+
+# Use in package definition
+eclass_package(
+    name = "my-app",
+    version = "1.0.0",
+    eclasses = ["cmake", "xdg"],
+    # Phases inherited from eclasses
+)
+```
+
+**Available Eclasses**:
+- `cmake` - CMake-based packages
+- `meson` - Meson-based packages
+- `autotools` - Traditional configure/make
+- `python-single-r1` - Single Python implementation
+- `python-r1` - Multiple Python versions
+- `go-module` - Go module packages
+- `cargo` - Rust/Cargo packages
+- `xdg` - Desktop applications
+- `linux-mod` - Kernel modules
+- `systemd` - Systemd services
+- `qt5` / `qt6` - Qt applications
+
+### License System
+
+License management with groups and compliance checking:
+
+```python
+load("//defs:licenses.bzl", "check_license", "expand_license_group")
+
+# Check if license is accepted
+check_license("GPL-2", ["@FREE"])  # Returns True
+
+# Expand license group
+expand_license_group("@FREE")  # Returns list of free licenses
+```
+
+**License Groups**:
+- `@FREE` - All free software licenses
+- `@OSI-APPROVED` - OSI-approved licenses
+- `@GPL-COMPATIBLE` - GPL-compatible licenses
+- `@COPYLEFT` - Copyleft licenses
+- `@PERMISSIVE` - Permissive licenses
+- `@BINARY-REDISTRIBUTABLE` - Binary redistribution allowed
+- `@FIRMWARE` - Firmware licenses
+
+### EAPI Versioning
+
+Safe evolution of the build API:
+
+```python
+load("//defs:eapi.bzl", "eapi_has_feature", "require_eapi")
+
+# Require minimum EAPI
+require_eapi(8)
+
+# Check for feature availability
+if eapi_has_feature("subslots"):
+    # Use subslot-aware dependencies
+    pass
+```
+
+**Supported EAPI Versions**: 6, 7, 8
+
+### Subslot System
+
+ABI tracking for libraries:
+
+```python
+load("//defs:versions.bzl", "subslot_dep", "multi_version_package_with_subslots")
+
+# Subslot-aware dependency
+deps = [
+    subslot_dep("//packages/linux/dev-libs/openssl", "3", "="),  # Rebuild on ABI change
+]
+
+# Define package with subslots
+multi_version_package_with_subslots(
+    name = "openssl",
+    versions = {
+        "3.2.0": {"slot": "3/3.2", "status": "stable", ...},
+        "3.1.4": {"slot": "3/3.1", "status": "stable", ...},
+    },
+    default_version = "3.2.0",
+)
+```
+
 ## Package Ecosystem
 
 ### Build Repository
@@ -647,7 +763,9 @@ Buckos uses the Varisat SAT solver for dependency resolution:
 
 - Handles complex version constraints
 - Resolves USE flag interactions
-- Supports slot-based dependencies
+- Supports slot and subslot dependencies
+- ABI tracking via subslots for library packages
+- Automatic rebuilds when subslots change
 - Detects circular dependencies
 - USE-conditional dependency support
 - Version conflict handling
