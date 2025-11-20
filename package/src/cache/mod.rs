@@ -2,7 +2,7 @@
 
 use crate::{Error, Result};
 use sha2::{Digest, Sha256};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 

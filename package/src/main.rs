@@ -4,7 +4,8 @@
 //! Designed to be compatible with Gentoo's emerge command.
 
 use buckos_package::{
-    config::SyncType, overlay::{OverlayConfig, OverlayManager, OverlayQuality},
+    config::SyncType,
+    overlay::{OverlayConfig, OverlayManager, OverlayQuality},
     BuildOptions, CleanOptions, Config, DepcleanOptions, EmergeOptions, InstallOptions,
     PackageManager, RemoveOptions, Resolution, SyncOptions, UpdateOptions,
 };
@@ -4407,11 +4408,7 @@ async fn cmd_overlay(args: OverlayArgs) -> buckos_package::Result<()> {
 
             manager.remove(&name, delete)?;
 
-            println!(
-                "{} Overlay {} removed",
-                style(">>>").green().bold(),
-                name
-            );
+            println!("{} Overlay {} removed", style(">>>").green().bold(), name);
         }
 
         OverlayCommand::Enable { name } => {
@@ -4423,11 +4420,7 @@ async fn cmd_overlay(args: OverlayArgs) -> buckos_package::Result<()> {
 
             manager.enable(&name)?;
 
-            println!(
-                "{} Overlay {} enabled",
-                style(">>>").green().bold(),
-                name
-            );
+            println!("{} Overlay {} enabled", style(">>>").green().bold(), name);
         }
 
         OverlayCommand::Disable { name } => {
@@ -4439,28 +4432,16 @@ async fn cmd_overlay(args: OverlayArgs) -> buckos_package::Result<()> {
 
             manager.disable(&name)?;
 
-            println!(
-                "{} Overlay {} disabled",
-                style(">>>").green().bold(),
-                name
-            );
+            println!("{} Overlay {} disabled", style(">>>").green().bold(), name);
         }
 
         OverlayCommand::Sync { name } => {
             if let Some(name) = name {
-                println!(
-                    "{} Syncing overlay {}...",
-                    style(">>>").blue().bold(),
-                    name
-                );
+                println!("{} Syncing overlay {}...", style(">>>").blue().bold(), name);
 
                 manager.sync(&name).await?;
 
-                println!(
-                    "{} Overlay {} synced",
-                    style(">>>").green().bold(),
-                    name
-                );
+                println!("{} Overlay {} synced", style(">>>").green().bold(), name);
             } else {
                 println!(
                     "{} Syncing all enabled overlays...",
@@ -4469,60 +4450,67 @@ async fn cmd_overlay(args: OverlayArgs) -> buckos_package::Result<()> {
 
                 manager.sync_all().await?;
 
-                println!(
-                    "{} All overlays synced",
-                    style(">>>").green().bold()
-                );
+                println!("{} All overlays synced", style(">>>").green().bold());
             }
         }
 
-        OverlayCommand::Info { name } => {
-            match manager.get_info(&name) {
-                Some(overlay) => {
-                    println!("{}", style("Overlay Information").bold().underlined());
-                    println!();
-                    println!("  {} {}", style("Name:").bold(), overlay.name);
-                    println!("  {} {}", style("Description:").bold(), overlay.description);
-                    println!("  {} {:?}", style("Sync Type:").bold(), overlay.sync_type);
-                    println!("  {} {}", style("Sync URI:").bold(), overlay.sync_uri);
-                    println!("  {} {}", style("Location:").bold(), overlay.location.display());
-                    println!("  {} {}", style("Priority:").bold(), overlay.priority);
-                    println!("  {} {}", style("Quality:").bold(), overlay.quality);
-                    println!(
-                        "  {} {}",
-                        style("Status:").bold(),
-                        if overlay.enabled { "enabled" } else { "disabled" }
-                    );
-                    println!(
-                        "  {} {}",
-                        style("Auto-sync:").bold(),
-                        if overlay.auto_sync { "yes" } else { "no" }
-                    );
-                    if let Some(owner) = &overlay.owner {
-                        println!("  {} {}", style("Owner:").bold(), owner);
+        OverlayCommand::Info { name } => match manager.get_info(&name) {
+            Some(overlay) => {
+                println!("{}", style("Overlay Information").bold().underlined());
+                println!();
+                println!("  {} {}", style("Name:").bold(), overlay.name);
+                println!("  {} {}", style("Description:").bold(), overlay.description);
+                println!("  {} {:?}", style("Sync Type:").bold(), overlay.sync_type);
+                println!("  {} {}", style("Sync URI:").bold(), overlay.sync_uri);
+                println!(
+                    "  {} {}",
+                    style("Location:").bold(),
+                    overlay.location.display()
+                );
+                println!("  {} {}", style("Priority:").bold(), overlay.priority);
+                println!("  {} {}", style("Quality:").bold(), overlay.quality);
+                println!(
+                    "  {} {}",
+                    style("Status:").bold(),
+                    if overlay.enabled {
+                        "enabled"
+                    } else {
+                        "disabled"
                     }
-                    if let Some(homepage) = &overlay.homepage {
-                        println!("  {} {}", style("Homepage:").bold(), homepage);
-                    }
-                    if !overlay.masters.is_empty() {
-                        println!("  {} {}", style("Masters:").bold(), overlay.masters.join(", "));
-                    }
-                    if let Some(last_sync) = overlay.last_sync {
-                        let datetime = chrono::DateTime::from_timestamp(last_sync as i64, 0)
-                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
-                        println!("  {} {}", style("Last Sync:").bold(), datetime);
-                    }
+                );
+                println!(
+                    "  {} {}",
+                    style("Auto-sync:").bold(),
+                    if overlay.auto_sync { "yes" } else { "no" }
+                );
+                if let Some(owner) = &overlay.owner {
+                    println!("  {} {}", style("Owner:").bold(), owner);
                 }
-                None => {
+                if let Some(homepage) = &overlay.homepage {
+                    println!("  {} {}", style("Homepage:").bold(), homepage);
+                }
+                if !overlay.masters.is_empty() {
                     println!(
-                        "{} Overlay not found: {}",
-                        style(">>>").yellow().bold(),
-                        name
+                        "  {} {}",
+                        style("Masters:").bold(),
+                        overlay.masters.join(", ")
                     );
+                }
+                if let Some(last_sync) = overlay.last_sync {
+                    let datetime = chrono::DateTime::from_timestamp(last_sync as i64, 0)
+                        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    println!("  {} {}", style("Last Sync:").bold(), datetime);
                 }
             }
-        }
+            None => {
+                println!(
+                    "{} Overlay not found: {}",
+                    style(">>>").yellow().bold(),
+                    name
+                );
+            }
+        },
 
         OverlayCommand::Priority { name, priority } => {
             println!(
@@ -4534,10 +4522,7 @@ async fn cmd_overlay(args: OverlayArgs) -> buckos_package::Result<()> {
 
             manager.set_priority(&name, priority)?;
 
-            println!(
-                "{} Priority updated",
-                style(">>>").green().bold()
-            );
+            println!("{} Priority updated", style(">>>").green().bold());
         }
 
         OverlayCommand::Search { query } => {

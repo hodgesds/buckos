@@ -9,7 +9,7 @@
 //! - brotli
 
 use super::{dep, dep_build, use_flag};
-use crate::types::{Dependency, PackageId, PackageInfo, UseFlag, VersionSpec};
+use crate::types::{PackageId, PackageInfo};
 use semver::Version;
 
 /// Get all compression packages

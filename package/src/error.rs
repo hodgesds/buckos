@@ -192,10 +192,7 @@ pub enum Error {
     #[error("Binary package server error: {0}")]
     BinaryPackageServerError(String),
     #[error("Package masked: {package} ({reason})")]
-    PackageMasked {
-        package: String,
-        reason: String,
-    },
+    PackageMasked { package: String, reason: String },
 
     #[error("Package keyword masked: {package} has keywords {keywords:?}, but only {accepted:?} are accepted")]
     KeywordMasked {
@@ -224,10 +221,7 @@ pub enum Error {
     OverlayAlreadyExists(String),
 
     #[error("Overlay sync failed for {name}: {reason}")]
-    OverlaySyncFailed {
-        name: String,
-        reason: String,
-    },
+    OverlaySyncFailed { name: String, reason: String },
 
     #[error("Invalid overlay configuration: {0}")]
     InvalidOverlayConfig(String),

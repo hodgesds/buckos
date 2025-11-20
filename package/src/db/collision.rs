@@ -2,9 +2,9 @@
 //!
 //! Prevents packages from overwriting files owned by other packages.
 
-use crate::{Error, PackageId, Result};
+use crate::PackageId;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Configuration for collision detection

@@ -13,10 +13,9 @@ use crate::types::{Dependency, PackageId, PackageInfo, VersionSpec};
 use petgraph::algo::is_cyclic_directed;
 use petgraph::graph::{DiGraph, NodeIndex};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs;
-use tracing::{info, warn};
 
 /// Package validator for checking package integrity and consistency
 pub struct PackageValidator {

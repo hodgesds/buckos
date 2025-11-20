@@ -3,7 +3,7 @@
 //! Virtual packages provide abstraction over provider implementations.
 //! For example, `virtual/jdk` can be satisfied by `dev-java/openjdk` or `dev-java/oracle-jdk`.
 
-use crate::{Error, PackageId, PackageInfo, Result, VersionSpec};
+use crate::{Error, PackageId, Result, VersionSpec};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

@@ -8,7 +8,7 @@ pub use buckconfig::{BuckConfigFile, BuckConfigOptions, BuckConfigSection};
 
 use crate::config::Config;
 use crate::{BuildOptions, BuildResult, Error, Result};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::Command;
 use tracing::{debug, error, info};

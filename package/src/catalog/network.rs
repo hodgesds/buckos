@@ -6,8 +6,8 @@
 //! - OpenSSL
 //! - ca-certificates
 
-use super::{dep, dep_build, dep_runtime, dep_use, use_flag};
-use crate::types::{Dependency, PackageId, PackageInfo, UseFlag, VersionSpec};
+use super::{dep, dep_build, dep_runtime, use_flag};
+use crate::types::{PackageId, PackageInfo};
 use semver::Version;
 
 /// Get all network packages

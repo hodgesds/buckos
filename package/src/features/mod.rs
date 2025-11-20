@@ -6,7 +6,7 @@
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// All available FEATURES flags
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -379,7 +379,10 @@ impl CcacheConfig {
     /// Get environment variables for ccache
     pub fn get_env(&self) -> HashMap<String, String> {
         let mut env = HashMap::new();
-        env.insert("CCACHE_DIR".to_string(), self.dir.to_string_lossy().to_string());
+        env.insert(
+            "CCACHE_DIR".to_string(),
+            self.dir.to_string_lossy().to_string(),
+        );
         env.insert("CCACHE_MAXSIZE".to_string(), self.max_size.clone());
         if self.compression {
             env.insert("CCACHE_COMPRESS".to_string(), "1".to_string());
@@ -626,7 +629,8 @@ impl Default for LoggingConfig {
 impl LoggingConfig {
     /// Get log path for a package
     pub fn get_log_path(&self, category: &str, name: &str, version: &str) -> PathBuf {
-        self.log_dir.join(format!("{}-{}-{}.log", category, name, version))
+        self.log_dir
+            .join(format!("{}-{}-{}.log", category, name, version))
     }
 
     /// Get log path for a specific phase
@@ -637,10 +641,8 @@ impl LoggingConfig {
         version: &str,
         phase: &str,
     ) -> PathBuf {
-        self.log_dir.join(format!(
-            "{}-{}-{}-{}.log",
-            category, name, version, phase
-        ))
+        self.log_dir
+            .join(format!("{}-{}-{}-{}.log", category, name, version, phase))
     }
 
     /// Clean old logs
@@ -761,7 +763,8 @@ impl FeatureContext {
 
         // Set test-related env
         if self.config.is_enabled(Feature::Test) {
-            self.env.insert("FEATURES_TEST".to_string(), "1".to_string());
+            self.env
+                .insert("FEATURES_TEST".to_string(), "1".to_string());
         }
 
         // Set doc-related env
@@ -771,7 +774,8 @@ impl FeatureContext {
 
         // Set debug-related env
         if self.config.is_enabled(Feature::Debug) {
-            self.env.insert("FEATURES_DEBUG".to_string(), "1".to_string());
+            self.env
+                .insert("FEATURES_DEBUG".to_string(), "1".to_string());
         }
     }
 
@@ -883,7 +887,9 @@ impl FeaturesManager {
 
         // Check for conflicting features
         if self.is_enabled(Feature::KeepWork) && self.is_enabled(Feature::CleanLogs) {
-            warnings.push("keepwork and clean-logs are both enabled, logs may be inconsistent".to_string());
+            warnings.push(
+                "keepwork and clean-logs are both enabled, logs may be inconsistent".to_string(),
+            );
         }
 
         Ok(warnings)
@@ -898,7 +904,10 @@ mod tests {
     fn test_feature_parsing() {
         assert_eq!(Feature::parse("test"), Some(Feature::Test));
         assert_eq!(Feature::parse("ccache"), Some(Feature::Ccache));
-        assert_eq!(Feature::parse("parallel-fetch"), Some(Feature::ParallelFetch));
+        assert_eq!(
+            Feature::parse("parallel-fetch"),
+            Some(Feature::ParallelFetch)
+        );
         assert_eq!(Feature::parse("unknown"), None);
     }
 
@@ -917,7 +926,8 @@ mod tests {
 
     #[test]
     fn test_parse_features_string() {
-        let config = FeaturesConfig::parse_features_string("test ccache -sandbox parallel-fetch").unwrap();
+        let config =
+            FeaturesConfig::parse_features_string("test ccache -sandbox parallel-fetch").unwrap();
 
         assert!(config.is_enabled(Feature::Test));
         assert!(config.is_enabled(Feature::Ccache));
@@ -935,18 +945,24 @@ mod tests {
         let s = config.to_features_string();
         let parsed = FeaturesConfig::parse_features_string(&s).unwrap();
 
-        assert_eq!(config.is_enabled(Feature::Test), parsed.is_enabled(Feature::Test));
-        assert_eq!(config.is_enabled(Feature::Ccache), parsed.is_enabled(Feature::Ccache));
-        assert_eq!(config.is_enabled(Feature::Sandbox), parsed.is_enabled(Feature::Sandbox));
+        assert_eq!(
+            config.is_enabled(Feature::Test),
+            parsed.is_enabled(Feature::Test)
+        );
+        assert_eq!(
+            config.is_enabled(Feature::Ccache),
+            parsed.is_enabled(Feature::Ccache)
+        );
+        assert_eq!(
+            config.is_enabled(Feature::Sandbox),
+            parsed.is_enabled(Feature::Sandbox)
+        );
     }
 
     #[test]
     fn test_distcc_job_calculation() {
         let mut config = DistccConfig::default();
-        config.hosts = vec![
-            "host1/8".to_string(),
-            "host2/4".to_string(),
-        ];
+        config.hosts = vec!["host1/8".to_string(), "host2/4".to_string()];
 
         assert_eq!(config.calculate_jobs(), 12);
     }

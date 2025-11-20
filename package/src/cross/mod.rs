@@ -187,7 +187,8 @@ impl CrossConfig {
 
     /// Set up environment variables for cross-compilation
     pub fn setup_env(&mut self) {
-        self.env.insert("CBUILD".to_string(), self.cbuild.to_string());
+        self.env
+            .insert("CBUILD".to_string(), self.cbuild.to_string());
         self.env.insert("CHOST".to_string(), self.chost.to_string());
 
         if let Some(ref ctarget) = self.ctarget {
@@ -195,10 +196,8 @@ impl CrossConfig {
         }
 
         if let Some(ref sysroot) = self.sysroot {
-            self.env.insert(
-                "SYSROOT".to_string(),
-                sysroot.to_string_lossy().to_string(),
-            );
+            self.env
+                .insert("SYSROOT".to_string(), sysroot.to_string_lossy().to_string());
         }
 
         // Add toolchain environment
@@ -233,7 +232,10 @@ impl CrossConfig {
                 let include_dir = sysroot.join("usr/include");
 
                 if !lib_dir.exists() && !usr_lib_dir.exists() {
-                    warnings.push(format!("No lib directory in sysroot: {}", sysroot.display()));
+                    warnings.push(format!(
+                        "No lib directory in sysroot: {}",
+                        sysroot.display()
+                    ));
                 }
 
                 if !include_dir.exists() {
@@ -353,7 +355,7 @@ impl CrossToolchain {
 
         // Target-prefixed versions
         let prefix = target.to_string().to_uppercase().replace("-", "_");
-        env.insert(format!("CC_{}",prefix), self.cc.clone());
+        env.insert(format!("CC_{}", prefix), self.cc.clone());
         env.insert(format!("CXX_{}", prefix), self.cxx.clone());
 
         // Flags
@@ -549,10 +551,7 @@ impl CrossManager {
         ));
 
         if let Some(ref sysroot) = self.config.sysroot {
-            content.push_str(&format!(
-                "set(CMAKE_SYSROOT {})\n",
-                sysroot.display()
-            ));
+            content.push_str(&format!("set(CMAKE_SYSROOT {})\n", sysroot.display()));
             content.push_str(&format!(
                 "set(CMAKE_FIND_ROOT_PATH {})\n",
                 sysroot.display()
@@ -604,17 +603,11 @@ impl CrossManager {
         content.push_str(&format!("system = '{}'\n", self.config.chost.os));
         content.push_str(&format!("cpu_family = '{}'\n", self.meson_cpu_family()));
         content.push_str(&format!("cpu = '{}'\n", self.config.chost.arch));
-        content.push_str(&format!(
-            "endian = '{}'\n",
-            self.meson_endian()
-        ));
+        content.push_str(&format!("endian = '{}'\n", self.meson_endian()));
 
         if let Some(ref sysroot) = self.config.sysroot {
             content.push_str("\n[properties]\n");
-            content.push_str(&format!(
-                "sys_root = '{}'\n",
-                sysroot.display()
-            ));
+            content.push_str(&format!("sys_root = '{}'\n", sysroot.display()));
         }
 
         content
@@ -706,7 +699,10 @@ impl ArchInfo {
                     TargetTriplet::new("x86_64", "unknown", "linux", Some("gnu")),
                     TargetTriplet::new("x86_64", "unknown", "linux", Some("musl")),
                 ],
-                cpu_flags: vec!["mmx", "sse", "sse2"].into_iter().map(String::from).collect(),
+                cpu_flags: vec!["mmx", "sse", "sse2"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
             }),
             "aarch64" | "arm64" => Some(Self {
                 name: "aarch64".to_string(),
@@ -716,7 +712,10 @@ impl ArchInfo {
                     TargetTriplet::new("aarch64", "unknown", "linux", Some("gnu")),
                     TargetTriplet::new("aarch64", "unknown", "linux", Some("musl")),
                 ],
-                cpu_flags: vec!["neon", "vfpv3"].into_iter().map(String::from).collect(),
+                cpu_flags: vec!["neon", "vfpv3"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
             }),
             "arm" | "armv7" => Some(Self {
                 name: "arm".to_string(),

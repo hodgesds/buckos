@@ -6,8 +6,8 @@
 //! - libgcc
 //! - linux-headers
 
-use super::{dep, dep_build, dep_use, use_flag};
-use crate::types::{Dependency, PackageId, PackageInfo, UseFlag, VersionSpec};
+use super::{dep, dep_build, use_flag};
+use crate::types::{PackageId, PackageInfo};
 use semver::Version;
 
 /// Get all core system library packages

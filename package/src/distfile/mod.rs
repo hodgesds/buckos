@@ -5,7 +5,6 @@
 
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
 
@@ -295,8 +294,6 @@ impl DistfileManager {
 
     /// Compute BLAKE2B hash of a file
     fn compute_blake2b(&self, path: &Path) -> Result<String> {
-        use blake3::Hasher;
-
         let data = std::fs::read(path)?;
         let hash = blake3::hash(&data);
         Ok(hash.to_hex().to_string())

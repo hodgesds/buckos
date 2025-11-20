@@ -2,9 +2,8 @@
 //!
 //! Checks installed packages against security advisories for known vulnerabilities.
 
-use crate::{Error, PackageId, Result, VersionSpec};
+use crate::{PackageId, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// A security advisory

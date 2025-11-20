@@ -4,14 +4,13 @@
 
 use crate::config::{Config, RepositoryConfig, SyncType};
 use crate::{
-    Dependency, Error, PackageId, PackageInfo, Repository, Result, UseCondition, UseFlag,
-    VersionSpec,
+    Dependency, Error, PackageId, PackageInfo, Result, UseCondition, UseFlag, VersionSpec,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 /// Repository manager
 pub struct RepositoryManager {

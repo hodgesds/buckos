@@ -3,8 +3,8 @@
 //! When dependency conflicts occur, this resolver can backtrack and try
 //! alternative versions or configurations.
 
-use crate::{Error, InstallOptions, PackageId, PackageInfo, Result, VersionSpec};
-use std::collections::{HashMap, HashSet, VecDeque};
+use crate::{Error, InstallOptions, PackageId, PackageInfo, Result};
+use std::collections::{HashMap, VecDeque};
 
 /// Configuration for backtracking behavior
 #[derive(Debug, Clone)]
