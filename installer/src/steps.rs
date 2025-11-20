@@ -184,6 +184,7 @@ pub fn render_disk_setup(
     selected_disk: &mut usize,
     auto_partition: &mut bool,
     layout_preset: &mut DiskLayoutPreset,
+    root_filesystem: &mut crate::types::FilesystemType,
     encryption_type: &mut EncryptionType,
     encryption_passphrase: &mut String,
     confirm_passphrase: &mut String,
@@ -281,6 +282,29 @@ pub fn render_disk_setup(
             }
             ui.indent("layout_desc", |ui| {
                 ui.label(RichText::new(preset.description()).small().weak());
+            });
+        }
+
+        ui.add_space(16.0);
+        ui.label(RichText::new("Root Filesystem:").strong());
+        ui.add_space(4.0);
+
+        // Filesystem options (only show filesystem types suitable for root)
+        let filesystem_options = [
+            (crate::types::FilesystemType::Ext4, "ext4", "Ext4 - Standard journaling filesystem (recommended)"),
+            (crate::types::FilesystemType::Btrfs, "btrfs", "Btrfs - Advanced copy-on-write filesystem with snapshots"),
+            (crate::types::FilesystemType::Xfs, "xfs", "XFS - High-performance journaling filesystem"),
+            (crate::types::FilesystemType::F2fs, "f2fs", "F2FS - Flash-Friendly File System (for SSDs)"),
+        ];
+
+        for (fs_type, name, description) in filesystem_options {
+            let is_selected = root_filesystem == &fs_type;
+            let response = ui.selectable_label(is_selected, name);
+            if response.clicked() {
+                *root_filesystem = fs_type;
+            }
+            ui.indent("fs_desc", |ui| {
+                ui.label(RichText::new(description).small().weak());
             });
         }
 

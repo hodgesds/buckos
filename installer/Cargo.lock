@@ -654,6 +654,7 @@ dependencies = [
  "parking_lot",
  "petgraph",
  "rayon",
+ "regex",
  "reqwest",
  "rusqlite",
  "semver",

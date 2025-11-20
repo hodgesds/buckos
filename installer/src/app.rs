@@ -52,6 +52,7 @@ struct UiState {
     auto_partition: bool,
     show_partition_editor: bool,
     layout_preset: DiskLayoutPreset,
+    root_filesystem: FilesystemType,
     encryption_type: EncryptionType,
     encryption_passphrase: String,
     confirm_encryption_passphrase: String,
@@ -101,6 +102,7 @@ impl Default for UiState {
             auto_partition: true,
             show_partition_editor: false,
             layout_preset: DiskLayoutPreset::Standard,
+            root_filesystem: FilesystemType::Ext4,
             encryption_type: EncryptionType::None,
             encryption_passphrase: String::new(),
             confirm_encryption_passphrase: String::new(),
@@ -273,6 +275,7 @@ impl InstallerApp {
                     self.config.disk = Some(create_auto_partition_config(
                         disk,
                         &self.ui_state.layout_preset,
+                        self.ui_state.root_filesystem,
                     ));
                 }
             }
@@ -473,6 +476,7 @@ impl eframe::App for InstallerApp {
                     &mut self.ui_state.selected_disk_index,
                     &mut self.ui_state.auto_partition,
                     &mut self.ui_state.layout_preset,
+                    &mut self.ui_state.root_filesystem,
                     &mut self.ui_state.encryption_type,
                     &mut self.ui_state.encryption_passphrase,
                     &mut self.ui_state.confirm_encryption_passphrase,
@@ -529,15 +533,16 @@ impl eframe::App for InstallerApp {
 fn create_auto_partition_config(
     disk: &DiskInfo,
     layout: &DiskLayoutPreset,
+    root_filesystem: FilesystemType,
 ) -> crate::types::DiskConfig {
     let is_efi = system::is_efi_system();
     let mut partitions = Vec::new();
     let mut part_num = 1;
 
-    // Determine filesystem type based on layout
+    // Use user-selected filesystem, or force Btrfs for BtrfsSubvolumes layout
     let root_fs = match layout {
         DiskLayoutPreset::BtrfsSubvolumes => FilesystemType::Btrfs,
-        _ => FilesystemType::Ext4,
+        _ => root_filesystem,
     };
 
     // Boot/EFI partition
@@ -697,6 +702,7 @@ fn create_auto_partition_config(
 /// Run the installation process in the background
 fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>) {
     use anyhow::Result;
+    use std::error::Error;
     use std::process::Command;
 
     // Helper to update progress and log
@@ -717,6 +723,16 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
 
     // Wrapper to run installation steps
     let run_step = || -> Result<()> {
+        // Ensure PATH includes system directories for commands like parted, wipefs, etc.
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let system_paths = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+        let new_path = if current_path.is_empty() {
+            system_paths.to_string()
+        } else {
+            format!("{}:{}", system_paths, current_path)
+        };
+        std::env::set_var("PATH", new_path);
+
         // Step 1: Pre-installation checks (5%)
         update_progress("Pre-installation checks", 0.05, 0.0, "Starting installation...");
         update_progress("Pre-installation checks", 0.05, 0.5, "Checking system requirements...");
@@ -731,37 +747,362 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
         update_progress("Disk partitioning", 0.10, 0.0, "Preparing disk partitioning...");
 
         if let Some(disk_config) = &config.disk {
+            // Safety check: Prevent installing on the disk containing the running system
+            update_progress("Disk partitioning", 0.10, 0.05, "Checking disk safety...");
+
+            let root_device_result = Command::new("findmnt")
+                .args(&["-n", "-o", "SOURCE", "/"])
+                .output();
+
+            if let Ok(output) = root_device_result {
+                if output.status.success() {
+                    let root_partition = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+                    // Use lsblk to get the parent disk device - more reliable than string manipulation
+                    let lsblk_result = Command::new("lsblk")
+                        .args(&["-no", "PKNAME", &root_partition])
+                        .output();
+
+                    let root_disk = if let Ok(lsblk_output) = lsblk_result {
+                        if lsblk_output.status.success() {
+                            let pkname = String::from_utf8_lossy(&lsblk_output.stdout).trim().to_string();
+                            if !pkname.is_empty() {
+                                format!("/dev/{}", pkname)
+                            } else {
+                                // lsblk didn't return a parent, the device might be the disk itself
+                                root_partition.clone()
+                            }
+                        } else {
+                            root_partition.clone()
+                        }
+                    } else {
+                        root_partition.clone()
+                    };
+
+                    // Check if target disk matches the root disk
+                    if disk_config.device == root_disk || root_disk.contains(&disk_config.device) {
+                        anyhow::bail!(
+                            "SAFETY CHECK FAILED: Cannot install on {} - it contains the running system's root filesystem ({}).\n\
+                            This would destroy your running system!\n\
+                            Please select a different disk or boot from a live USB/CD to install.",
+                            disk_config.device, root_partition
+                        );
+                    }
+
+                    tracing::info!("Safety check passed: root is on {}, installing to {}", root_disk, disk_config.device);
+                }
+            }
+
+            update_progress("Disk partitioning", 0.11, 0.1,
+                format!("Preparing disk: {}", disk_config.device).as_str());
+
+            // Unmount any partitions from the target disk
+            update_progress("Disk partitioning", 0.115, 0.2, "Unmounting existing partitions...");
+
+            // Use findmnt to get a reliable list of mounted filesystems
+            let findmnt_output = Command::new("findmnt")
+                .args(&["-rno", "TARGET,SOURCE"])
+                .output();
+
+            let mut mount_points_to_unmount = Vec::new();
+
+            if let Ok(output) = findmnt_output {
+                if output.status.success() {
+                    let mount_list = String::from_utf8_lossy(&output.stdout);
+                    for line in mount_list.lines() {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 2 {
+                            let mount_point = parts[0];
+                            let device = parts[1];
+
+                            // Check if this device is on our target disk
+                            if device.starts_with(&disk_config.device) {
+                                tracing::info!("Found mounted: {} on {}", device, mount_point);
+                                mount_points_to_unmount.push((mount_point.to_string(), device.to_string()));
+                            }
+                        }
+                    }
+                }
+            } else {
+                tracing::warn!("findmnt command failed or not available");
+            }
+
+            tracing::info!("Found {} mount points to unmount", mount_points_to_unmount.len());
+
+            // Sort mount points by depth (deepest first) to unmount in correct order
+            mount_points_to_unmount.sort_by(|a, b| {
+                b.0.matches('/').count().cmp(&a.0.matches('/').count())
+            });
+
+            // Unmount each mount point
+            for (mount_point, device) in &mount_points_to_unmount {
+                update_progress("Disk partitioning", 0.115, 0.3,
+                    format!("Unmounting {} ({})", mount_point, device).as_str());
+
+                tracing::info!("Unmounting: {} ({})", mount_point, device);
+
+                // Try normal unmount first
+                let umount_result = Command::new("umount")
+                    .arg(mount_point)
+                    .output();
+
+                match umount_result {
+                    Ok(output) if output.status.success() => {
+                        tracing::info!("Successfully unmounted {}", mount_point);
+                    }
+                    Ok(output) => {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        tracing::warn!("Failed to unmount {}: {}, trying lazy unmount", mount_point, stderr);
+
+                        // Try lazy unmount as fallback
+                        let _ = Command::new("umount")
+                            .args(&["-l", mount_point])
+                            .output();
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to unmount {}: {}", mount_point, e);
+                    }
+                }
+            }
+
+            // Deactivate any swap on the target disk
+            match Command::new("swapon").arg("--show=NAME").arg("--noheadings").output() {
+                Ok(output) if output.status.success() => {
+                    let swap_list = String::from_utf8_lossy(&output.stdout);
+                    for swap_device in swap_list.lines() {
+                        let swap_device = swap_device.trim();
+                        if swap_device.starts_with(&disk_config.device) {
+                            update_progress("Disk partitioning", 0.118, 0.4,
+                                format!("Deactivating swap on {}...", swap_device).as_str());
+
+                            tracing::info!("Deactivating swap on {}", swap_device);
+                            if let Err(e) = Command::new("swapoff").arg(swap_device).output() {
+                                tracing::warn!("Failed to run swapoff: {}", e);
+                            }
+                        }
+                    }
+                }
+                Ok(_) => tracing::debug!("swapon command returned non-zero status"),
+                Err(e) => tracing::debug!("swapon command not available: {}", e),
+            }
+
+            // Check if any processes are still using the disk (optional - fuser might not be available)
+            update_progress("Disk partitioning", 0.119, 0.45, "Checking for processes using disk...");
+
+            match Command::new("fuser").args(&["-m", &disk_config.device]).output() {
+                Ok(output) => {
+                    let users = String::from_utf8_lossy(&output.stdout);
+                    if !users.trim().is_empty() {
+                        tracing::warn!("Processes still using {}: {}", disk_config.device, users);
+                        update_progress("Disk partitioning", 0.119, 0.5,
+                            "Terminating processes using disk...");
+
+                        // Kill processes using the disk
+                        let _ = Command::new("fuser")
+                            .args(&["-km", &disk_config.device])
+                            .output();
+
+                        // Wait a moment for processes to die
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    }
+                }
+                Err(e) => {
+                    tracing::debug!("fuser command not available: {}", e);
+                }
+            }
+
+            tracing::info!("Starting disk partitioning on {}", disk_config.device);
             update_progress("Disk partitioning", 0.12, 0.3,
                 format!("Partitioning disk: {}", disk_config.device).as_str());
 
             if disk_config.wipe_disk {
+                tracing::info!("Wiping disk signatures with wipefs");
                 update_progress("Disk partitioning", 0.13, 0.5,
                     format!("Wiping disk: {}", disk_config.device).as_str());
 
-                // Wipe partition table
-                let output = Command::new("wipefs")
-                    .args(&["-a", &disk_config.device])
-                    .output()?;
-
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    anyhow::bail!("Failed to wipe disk: {}", stderr);
+                // Wipe partition table signatures (optional, parted mklabel will also clear the table)
+                match Command::new("wipefs").args(&["-a", &disk_config.device]).output() {
+                    Ok(output) => {
+                        if output.status.success() {
+                            tracing::info!("wipefs completed successfully");
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            tracing::warn!("wipefs failed: {}, continuing anyway", stderr);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("wipefs not available: {}, skipping (not critical)", e);
+                    }
                 }
             }
 
             // Create partition table
             let pt_type = if disk_config.use_gpt { "gpt" } else { "msdos" };
+            tracing::info!("Creating {} partition table on {}", pt_type, disk_config.device);
             update_progress("Disk partitioning", 0.14, 0.7,
                 format!("Creating {} partition table", pt_type).as_str());
 
             let output = Command::new("parted")
                 .args(&["-s", &disk_config.device, "mklabel", pt_type])
-                .output()?;
+                .output()
+                .map_err(|e| anyhow::anyhow!("Failed to execute parted command: {}. Make sure parted is installed and in PATH.", e))?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                anyhow::bail!("Failed to create partition table: {}", stderr);
+
+                // Provide detailed diagnostics on failure
+                tracing::error!("Failed to create partition table on {}", disk_config.device);
+
+                // Check what's still mounted (optional diagnostic)
+                match Command::new("findmnt").args(&["-rno", "TARGET,SOURCE"]).output() {
+                    Ok(mounts) if mounts.status.success() => {
+                        let mount_list = String::from_utf8_lossy(&mounts.stdout);
+                        for line in mount_list.lines() {
+                            if line.contains(&disk_config.device) {
+                                tracing::error!("Still mounted: {}", line);
+                            }
+                        }
+                    }
+                    Ok(_) => tracing::debug!("findmnt returned non-zero status"),
+                    Err(e) => tracing::debug!("findmnt not available: {}", e),
+                }
+
+                // Check what processes are using it (optional diagnostic)
+                match Command::new("fuser").args(&["-v", &disk_config.device]).output() {
+                    Ok(fuser) => {
+                        let users = String::from_utf8_lossy(&fuser.stderr); // fuser outputs to stderr
+                        if !users.trim().is_empty() {
+                            tracing::error!("Processes using disk: {}", users);
+                        }
+                    }
+                    Err(e) => tracing::debug!("fuser not available: {}", e),
+                }
+
+                // Check for active swaps (optional diagnostic)
+                match Command::new("swapon").arg("--show").output() {
+                    Ok(swaps) if swaps.status.success() => {
+                        let swap_list = String::from_utf8_lossy(&swaps.stdout);
+                        if swap_list.contains(&disk_config.device) {
+                            tracing::error!("Active swap on disk: {}", swap_list);
+                        }
+                    }
+                    Ok(_) => tracing::debug!("swapon returned non-zero status"),
+                    Err(e) => tracing::debug!("swapon not available: {}", e),
+                }
+
+                anyhow::bail!(
+                    "Failed to create partition table: {}\n\
+                    The disk may still be in use. Check the logs for details.\n\
+                    You may need to manually unmount partitions or reboot before installing.",
+                    stderr
+                );
             }
+
+            // Create partitions
+            let mut start_mb: u64 = 1; // Start at 1MB to align partitions
+            for (idx, partition) in disk_config.partitions.iter().enumerate() {
+                let step = 0.7 + ((idx as f32 + 1.0) / disk_config.partitions.len() as f32) * 0.3;
+                update_progress("Disk partitioning", 0.14 + (step * 0.01), step,
+                    format!("Creating partition {}", partition.device).as_str());
+
+                let size_mb = if partition.size == 0 {
+                    // Use remaining space
+                    "100%".to_string()
+                } else {
+                    format!("{}MB", start_mb + (partition.size / 1024 / 1024))
+                };
+
+                // Determine partition type for GPT
+                let part_type = if disk_config.use_gpt {
+                    match partition.mount_point {
+                        MountPoint::BootEfi => "fat32",
+                        MountPoint::Swap => "linux-swap",
+                        MountPoint::Boot if partition.filesystem == FilesystemType::None => "bios_grub",
+                        _ => "ext4", // Generic Linux filesystem
+                    }
+                } else {
+                    match partition.mount_point {
+                        MountPoint::BootEfi => "fat32",
+                        MountPoint::Swap => "linux-swap",
+                        _ => "ext4",
+                    }
+                };
+
+                let start = format!("{}MB", start_mb);
+                let output = Command::new("parted")
+                    .args(&[
+                        "-s",
+                        &disk_config.device,
+                        "mkpart",
+                        "primary",
+                        part_type,
+                        &start,
+                        &size_mb,
+                    ])
+                    .output()
+                    .map_err(|e| anyhow::anyhow!(
+                        "Failed to execute parted command for partition {}: {}. Make sure parted is available.",
+                        partition.device, e
+                    ))?;
+
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    anyhow::bail!("Failed to create partition {}: {}", partition.device, stderr);
+                }
+
+                // Set boot flag for EFI partition
+                if partition.mount_point == MountPoint::BootEfi && disk_config.use_gpt {
+                    let part_num = (idx + 1).to_string();
+                    let output = Command::new("parted")
+                        .args(&["-s", &disk_config.device, "set", &part_num, "esp", "on"])
+                        .output()
+                        .map_err(|e| anyhow::anyhow!("Failed to execute parted set esp: {}", e))?;
+
+                    if !output.status.success() {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        tracing::warn!("Failed to set ESP flag on partition {}: {}", partition.device, stderr);
+                    }
+                }
+
+                // Set bios_grub flag for BIOS boot partition
+                if partition.mount_point == MountPoint::Boot
+                    && partition.filesystem == FilesystemType::None
+                    && disk_config.use_gpt
+                {
+                    let part_num = (idx + 1).to_string();
+                    let output = Command::new("parted")
+                        .args(&["-s", &disk_config.device, "set", &part_num, "bios_grub", "on"])
+                        .output()
+                        .map_err(|e| anyhow::anyhow!("Failed to execute parted set bios_grub: {}", e))?;
+
+                    if !output.status.success() {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        tracing::warn!("Failed to set bios_grub flag on partition {}: {}", partition.device, stderr);
+                    }
+                }
+
+                // Update start for next partition
+                if partition.size > 0 {
+                    start_mb += partition.size / 1024 / 1024;
+                }
+            }
+
+            // Inform kernel of partition table changes
+            update_progress("Disk partitioning", 0.148, 0.95, "Updating partition table...");
+            let partprobe_result = Command::new("partprobe")
+                .arg(&disk_config.device)
+                .output();
+
+            if let Err(e) = partprobe_result {
+                // partprobe might not be available, try alternative
+                tracing::warn!("partprobe failed: {}, trying blockdev --rereadpt", e);
+                let _ = Command::new("blockdev")
+                    .args(&["--rereadpt", &disk_config.device])
+                    .output();
+            }
+
+            // Wait a moment for devices to appear
+            std::thread::sleep(std::time::Duration::from_secs(2));
         }
 
         update_progress("Disk partitioning", 0.15, 1.0, "✓ Disk partitioning complete");
@@ -774,32 +1115,42 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                 let step = (idx as f32 + 1.0) / disk_config.partitions.len() as f32;
 
                 if partition.format {
-                    let fs_cmd = match partition.filesystem {
-                        FilesystemType::Ext4 => "mkfs.ext4",
-                        FilesystemType::Btrfs => "mkfs.btrfs",
-                        FilesystemType::Xfs => "mkfs.xfs",
-                        FilesystemType::F2fs => "mkfs.f2fs",
-                        FilesystemType::Fat32 => "mkfs.vfat",
-                        FilesystemType::Swap => "mkswap",
+                    update_progress("Filesystem creation", 0.20 + (step * 0.05), step,
+                        format!("Creating {} on {}", partition.filesystem.as_str(), partition.device).as_str());
+
+                    // Build filesystem creation command with appropriate arguments
+                    let (fs_cmd, args): (&str, Vec<&str>) = match partition.filesystem {
+                        FilesystemType::Ext4 => {
+                            ("mkfs.ext4", vec!["-F", partition.device.as_str()])
+                        },
+                        FilesystemType::Btrfs => {
+                            ("mkfs.btrfs", vec!["-f", partition.device.as_str()])
+                        },
+                        FilesystemType::Xfs => {
+                            ("mkfs.xfs", vec!["-f", partition.device.as_str()])
+                        },
+                        FilesystemType::F2fs => {
+                            ("mkfs.f2fs", vec!["-f", partition.device.as_str()])
+                        },
+                        FilesystemType::Fat32 => {
+                            ("mkfs.vfat", vec!["-F", "32", partition.device.as_str()])
+                        },
+                        FilesystemType::Swap => {
+                            ("mkswap", vec![partition.device.as_str()])
+                        },
                         FilesystemType::None => {
                             // Skip formatting for None filesystem type
                             continue;
                         }
                     };
 
-                    update_progress("Filesystem creation", 0.20 + (step * 0.05), step,
-                        format!("Creating {} on {}", partition.filesystem.as_str(), partition.device).as_str());
-
-                    let mut args = vec!["-F"];
-                    if partition.filesystem == FilesystemType::Btrfs {
-                        args.insert(0, "-f");
-                        args.remove(1);
-                    }
-                    args.push(&partition.device);
-
                     let output = Command::new(fs_cmd)
                         .args(&args)
-                        .output()?;
+                        .output()
+                        .map_err(|e| anyhow::anyhow!(
+                            "Failed to execute {} command for {}: {}. Make sure {} is installed and in PATH.",
+                            fs_cmd, partition.device, e, fs_cmd
+                        ))?;
 
                     if !output.status.success() {
                         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -844,7 +1195,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
 
                     let output = Command::new("swapon")
                         .arg(&partition.device)
-                        .output()?;
+                        .output()
+                        .map_err(|e| anyhow::anyhow!(
+                            "Failed to execute swapon command for {}: {}. Make sure swapon is installed.",
+                            partition.device, e
+                        ))?;
 
                     if !output.status.success() {
                         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -875,7 +1230,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
 
                 mount_cmd.arg(&full_mount_path);
 
-                let output = mount_cmd.output()?;
+                let output = mount_cmd.output()
+                    .map_err(|e| anyhow::anyhow!(
+                        "Failed to execute mount command for {} to {}: {}. Make sure mount is installed.",
+                        partition.device, full_mount_path.display(), e
+                    ))?;
 
                 if !output.status.success() {
                     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -900,7 +1259,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                             let output = Command::new("btrfs")
                                 .args(&["subvolume", "create"])
                                 .arg(btrfs_root.join(subvol.trim_start_matches('@')))
-                                .output()?;
+                                .output()
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to execute btrfs command for subvolume {}: {}. Make sure btrfs-progs is installed.",
+                                    subvol, e
+                                ))?;
 
                             if !output.status.success() {
                                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -961,6 +1324,45 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
         // Install packages in groups for better progress tracking
         let total_packages = all_packages.len() as f32;
         let mut installed = 0;
+        let mut failed_packages = Vec::new();
+
+        // Define essential packages that must install successfully
+        // @system must be installed for user management utilities (useradd, chpasswd)
+        // @kernel and @firmware are also critical but not yet available
+        let essential_packages = vec!["@system"];
+
+        // NOTE: When kernel and firmware packages are ready, add them here:
+        // let essential_packages = vec!["@system", "@kernel", "@firmware"];
+
+        // Determine buckos binary path - try multiple locations
+        // Note: buckos_build_path is the output directory for built packages, NOT the buckos binary
+        let buckos_bin = {
+            let candidates = vec![
+                // Try workspace root (one level up from installer) - release
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/release/buckos"),
+                // Try workspace root - debug
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/debug/buckos"),
+                // Try current directory - release
+                PathBuf::from("./target/release/buckos"),
+                // Try current directory - debug
+                PathBuf::from("./target/debug/buckos"),
+                // Try in PATH as last resort
+                PathBuf::from("buckos"),
+            ];
+
+            candidates.into_iter()
+                .find(|path| path.exists())
+                .ok_or_else(|| anyhow::anyhow!(
+                    "buckos binary not found. Tried:\n  {}\n  {}\n  ./target/release/buckos\n  ./target/debug/buckos\n  buckos (in PATH)\n\
+                    Please build buckos first with: cargo build --release",
+                    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/release/buckos").display(),
+                    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/debug/buckos").display()
+                ))?
+        };
+
+        tracing::info!("Using buckos binary at: {}", buckos_bin.display());
+        update_progress("Installing packages", 0.35, 0.0,
+            format!("Using buckos from: {}", buckos_bin.display()).as_str());
 
         for (idx, package) in all_packages.iter().enumerate() {
             let step = (idx as f32 + 1.0) / total_packages;
@@ -969,27 +1371,45 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
             update_progress("Installing packages", overall, step,
                 format!("Installing package {} of {}: {}", idx + 1, all_packages.len(), package).as_str());
 
-            // Build buckos install command
-            let mut install_cmd = Command::new("buckos");
+            // Build buckos install command using full path
+            let mut install_cmd = Command::new(&buckos_bin);
             install_cmd
+                .arg("--repo-path")
+                .arg(&config.buckos_build_path)
                 .arg("install")
                 .arg("--root")
                 .arg(&config.target_root)
                 .arg(package);
 
             // Run the installation
-            let output = install_cmd.output()?;
+            let output = install_cmd.output()
+                .map_err(|e| anyhow::anyhow!(
+                    "Failed to execute buckos command at {} for package {}: {}.",
+                    buckos_bin.display(), package, e
+                ))?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 let stdout = String::from_utf8_lossy(&output.stdout);
 
-                // Log the error but continue - some packages might fail due to optional deps
-                update_progress("Installing packages", overall, step,
-                    format!("Warning: Failed to install {}: {}", package, stderr).as_str());
+                failed_packages.push(package.clone());
 
-                tracing::warn!("Package installation failed for {}: stdout={}, stderr={}",
-                    package, stdout, stderr);
+                // Check if this is an essential package
+                let is_essential = essential_packages.contains(&package.as_str());
+
+                if is_essential {
+                    anyhow::bail!(
+                        "Failed to install essential package {}: {}\nstdout: {}\nCannot continue without essential packages.",
+                        package, stderr, stdout
+                    );
+                } else {
+                    // Log the error but continue - some packages might fail due to optional deps
+                    update_progress("Installing packages", overall, step,
+                        format!("Warning: Failed to install {}: {}", package, stderr).as_str());
+
+                    tracing::warn!("Package installation failed for {}: stdout={}, stderr={}",
+                        package, stdout, stderr);
+                }
             } else {
                 installed += 1;
                 update_progress("Installing packages", overall, step,
@@ -1120,53 +1540,216 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
 
             match config.bootloader {
                 crate::types::BootloaderType::Grub => {
-                    // Find boot device (disk, not partition)
-                    let boot_device = if let Some(disk_config) = &config.disk {
-                        disk_config.device.clone()
+                    // Verify GRUB binaries exist in the target system
+                    let grub_install_path = config.target_root.join("usr/sbin/grub-install");
+                    let grub_mkconfig_path = config.target_root.join("usr/sbin/grub-mkconfig");
+
+                    if !grub_install_path.exists() || !grub_mkconfig_path.exists() {
+                        let warning_msg = format!(
+                            "⚠ Skipping GRUB installation: Required GRUB binaries not found.\n\
+                            Looking for:\n  {}\n  {}\n\
+                            The @grub package may not be available in the repository yet.\n\
+                            You will need to manually install and configure a bootloader.",
+                            grub_install_path.display(),
+                            grub_mkconfig_path.display()
+                        );
+                        update_progress("Installing bootloader", 0.90, 0.5, &warning_msg);
+                        tracing::warn!("{}", warning_msg);
                     } else {
-                        anyhow::bail!("No disk configuration found for GRUB installation");
-                    };
+                        // GRUB binaries found, proceed with installation
+                        tracing::info!("Found GRUB binaries, proceeding with installation");
 
-                    update_progress("Installing bootloader", 0.84, 0.2, "Running grub-install...");
+                        // Find boot device (disk, not partition)
+                        let boot_device = if let Some(disk_config) = &config.disk {
+                            disk_config.device.clone()
+                        } else {
+                            anyhow::bail!("No disk configuration found for GRUB installation");
+                        };
 
-                    // Install GRUB
-                    let is_efi = system::is_efi_system();
-                    let mut grub_install_cmd = Command::new("chroot");
-                    grub_install_cmd
-                        .arg(&config.target_root)
-                        .arg("grub-install");
+                        let is_efi = system::is_efi_system();
 
-                    if is_efi {
+                        // Verify boot/EFI partition is mounted
+                        update_progress("Installing bootloader", 0.83, 0.1, "Verifying boot partition...");
+
+                        let boot_mount_check = if is_efi {
+                            config.target_root.join("boot/efi").exists()
+                        } else {
+                            config.target_root.join("boot").exists()
+                        };
+
+                        if !boot_mount_check {
+                            anyhow::bail!(
+                                "Boot partition not properly mounted at {}",
+                                if is_efi { "/boot/efi" } else { "/boot" }
+                            );
+                        }
+
+                        // Set up bind mounts for chroot (required for grub-install)
+                        update_progress("Installing bootloader", 0.835, 0.15, "Preparing chroot environment...");
+
+                        let bind_mounts = vec![
+                            ("/dev", "dev"),
+                            ("/proc", "proc"),
+                            ("/sys", "sys"),
+                        ];
+
+                        // Mount /dev, /proc, /sys into chroot
+                        for (source, target) in &bind_mounts {
+                            let target_path = config.target_root.join(target);
+                            std::fs::create_dir_all(&target_path)?;
+
+                            let output = Command::new("mount")
+                                .args(&["--bind", source, target_path.to_str().unwrap()])
+                                .output()
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to bind mount {} to {}: {}",
+                                    source, target_path.display(), e
+                                ))?;
+
+                            if !output.status.success() {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                tracing::warn!("Failed to bind mount {}: {}", source, stderr);
+                            } else {
+                                tracing::info!("Bind mounted {} to {}", source, target_path.display());
+                            }
+                        }
+
+                        // Also mount /run if it exists (needed for some GRUB configurations)
+                        if PathBuf::from("/run").exists() {
+                            let run_target = config.target_root.join("run");
+                            std::fs::create_dir_all(&run_target)?;
+                            let _ = Command::new("mount")
+                                .args(&["--bind", "/run", run_target.to_str().unwrap()])
+                                .output();
+                        }
+
+                        update_progress("Installing bootloader", 0.84, 0.2, "Running grub-install...");
+
+                        // Create GRUB directory if it doesn't exist
+                        let grub_dir = if is_efi {
+                            config.target_root.join("boot/efi/EFI/GRUB")
+                        } else {
+                            config.target_root.join("boot/grub")
+                        };
+                        std::fs::create_dir_all(&grub_dir)?;
+
+                        // Install GRUB
+                        let mut grub_install_cmd = Command::new("chroot");
                         grub_install_cmd
-                            .arg("--target=x86_64-efi")
-                            .arg("--efi-directory=/boot/efi")
-                            .arg("--bootloader-id=GRUB");
-                    } else {
-                        grub_install_cmd
-                            .arg("--target=i386-pc")
-                            .arg(&boot_device);
-                    }
+                            .arg(&config.target_root)
+                            .arg("grub-install");
 
-                    let output = grub_install_cmd.output()?;
+                        if is_efi {
+                            grub_install_cmd
+                                .arg("--target=x86_64-efi")
+                                .arg("--efi-directory=/boot/efi")
+                                .arg("--bootloader-id=GRUB")
+                                .arg("--recheck");
+                        } else {
+                            grub_install_cmd
+                                .arg("--target=i386-pc")
+                                .arg("--recheck")
+                                .arg(&boot_device);
+                        }
 
-                    if !output.status.success() {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        anyhow::bail!("Failed to install GRUB: {}", stderr);
-                    }
+                        let output = grub_install_cmd.output()
+                            .map_err(|e| anyhow::anyhow!(
+                                "Failed to execute grub-install command: {}. Make sure chroot is available.",
+                                e
+                            ))?;
 
-                    update_progress("Installing bootloader", 0.87, 0.6, "Generating GRUB configuration...");
+                        if !output.status.success() {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            let stdout = String::from_utf8_lossy(&output.stdout);
 
-                    // Generate GRUB configuration
-                    let output = Command::new("chroot")
-                        .arg(&config.target_root)
-                        .arg("grub-mkconfig")
-                        .arg("-o")
-                        .arg("/boot/grub/grub.cfg")
-                        .output()?;
+                            // Cleanup bind mounts before failing
+                            for (_, target) in bind_mounts.iter().rev() {
+                                let target_path = config.target_root.join(target);
+                                let _ = Command::new("umount").arg(&target_path).output();
+                            }
 
-                    if !output.status.success() {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        anyhow::bail!("Failed to generate GRUB config: {}", stderr);
+                            anyhow::bail!(
+                                "Failed to install GRUB:\nstderr: {}\nstdout: {}\n\
+                                Make sure the @grub package includes all necessary GRUB modules.",
+                                stderr, stdout
+                            );
+                        }
+
+                        tracing::info!("grub-install completed successfully");
+                        update_progress("Installing bootloader", 0.87, 0.6, "Generating GRUB configuration...");
+
+                        // Generate GRUB configuration
+                        let output = Command::new("chroot")
+                            .arg(&config.target_root)
+                            .arg("grub-mkconfig")
+                            .arg("-o")
+                            .arg("/boot/grub/grub.cfg")
+                            .output()
+                            .map_err(|e| anyhow::anyhow!(
+                                "Failed to execute grub-mkconfig command: {}. Make sure chroot is available.",
+                                e
+                            ))?;
+
+                        if !output.status.success() {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+
+                            // Cleanup bind mounts before failing
+                            for (_, target) in bind_mounts.iter().rev() {
+                                let target_path = config.target_root.join(target);
+                                let _ = Command::new("umount").arg(&target_path).output();
+                            }
+
+                            anyhow::bail!(
+                                "Failed to generate GRUB config:\nstderr: {}\nstdout: {}",
+                                stderr, stdout
+                            );
+                        }
+
+                        tracing::info!("grub-mkconfig completed successfully");
+
+                        // Verify GRUB config was created
+                        let grub_cfg_path = config.target_root.join("boot/grub/grub.cfg");
+                        if !grub_cfg_path.exists() {
+                            tracing::warn!("GRUB config file not found at {}", grub_cfg_path.display());
+                        } else {
+                            tracing::info!("GRUB config created at {}", grub_cfg_path.display());
+                        }
+
+                        // Cleanup: Unmount bind mounts in reverse order
+                        update_progress("Installing bootloader", 0.89, 0.9, "Cleaning up chroot environment...");
+
+                        // Unmount /run if we mounted it
+                        if PathBuf::from("/run").exists() {
+                            let run_target = config.target_root.join("run");
+                            let _ = Command::new("umount").arg(&run_target).output();
+                        }
+
+                        for (_, target) in bind_mounts.iter().rev() {
+                            let target_path = config.target_root.join(target);
+                            let output = Command::new("umount")
+                                .arg(&target_path)
+                                .output();
+
+                            match output {
+                                Ok(out) if out.status.success() => {
+                                    tracing::info!("Unmounted {}", target_path.display());
+                                }
+                                Ok(out) => {
+                                    let stderr = String::from_utf8_lossy(&out.stderr);
+                                    tracing::warn!("Failed to unmount {}: {}", target_path.display(), stderr);
+                                    // Try lazy unmount
+                                    let _ = Command::new("umount")
+                                        .args(&["-l", target_path.to_str().unwrap()])
+                                        .output();
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Error unmounting {}: {}", target_path.display(), e);
+                                }
+                            }
+                        }
+
+                        tracing::info!("GRUB installation completed successfully");
                     }
                 }
 
@@ -1178,7 +1761,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                         .arg(&config.target_root)
                         .arg("bootctl")
                         .arg("install")
-                        .output()?;
+                        .output()
+                        .map_err(|e| anyhow::anyhow!(
+                            "Failed to execute chroot/bootctl command: {}. Make sure chroot is available.",
+                            e
+                        ))?;
 
                     if !output.status.success() {
                         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1207,7 +1794,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                                 .arg("-s").arg("UUID")
                                 .arg("-o").arg("value")
                                 .arg(&root_part.device)
-                                .output()?;
+                                .output()
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to execute blkid command: {}. Make sure blkid is installed.",
+                                    e
+                                ))?;
 
                             if output.status.success() {
                                 String::from_utf8_lossy(&output.stdout).trim().to_string()
@@ -1236,7 +1827,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                     let output = Command::new("chroot")
                         .arg(&config.target_root)
                         .arg("refind-install")
-                        .output()?;
+                        .output()
+                        .map_err(|e| anyhow::anyhow!(
+                            "Failed to execute chroot/refind-install command: {}. Make sure chroot is available.",
+                            e
+                        ))?;
 
                     if !output.status.success() {
                         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1268,7 +1863,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                         .arg(&config.target_root)
                         .arg("limine-deploy")
                         .arg(&boot_device)
-                        .output()?;
+                        .output()
+                        .map_err(|e| anyhow::anyhow!(
+                            "Failed to execute chroot/limine-deploy command: {}. Make sure chroot is available.",
+                            e
+                        ))?;
 
                     if !limine_deploy.status.success() {
                         let stderr = String::from_utf8_lossy(&limine_deploy.stderr);
@@ -1310,7 +1909,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                         .arg("--loader").arg("/vmlinuz-linux")
                         .arg("--unicode")
                         .arg(format!("root={} rw initrd=\\initramfs-linux.img", root_dev))
-                        .output()?;
+                        .output()
+                        .map_err(|e| anyhow::anyhow!(
+                            "Failed to execute chroot/efibootmgr command: {}. Make sure chroot is available.",
+                            e
+                        ))?;
 
                     if !output.status.success() {
                         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1328,7 +1931,36 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
         }
 
         // Step 8: User creation (95%)
-        update_progress("Creating users", 0.92, 0.0, "Setting root password...");
+        update_progress("Creating users", 0.92, 0.0, "Verifying user management utilities...");
+
+        // Verify required utilities exist in the target system
+        let chpasswd_path = config.target_root.join("usr/bin/chpasswd");
+        let useradd_path = config.target_root.join("usr/sbin/useradd");
+
+        if !chpasswd_path.exists() {
+            anyhow::bail!(
+                "CRITICAL: chpasswd utility not found at {}.\n\
+                The @system package must be installed and must include shadow-utils or equivalent.\n\
+                User management utilities (chpasswd, useradd, passwd) are required for installation.\n\
+                Please ensure the @system package includes these utilities.",
+                chpasswd_path.display()
+            );
+        }
+
+        if !useradd_path.exists() {
+            anyhow::bail!(
+                "CRITICAL: useradd utility not found at {}.\n\
+                The @system package must be installed and must include shadow-utils or equivalent.\n\
+                User management utilities (chpasswd, useradd, passwd) are required for installation.\n\
+                Please ensure the @system package includes these utilities.",
+                useradd_path.display()
+            );
+        }
+
+        tracing::info!("User management utilities verified: chpasswd and useradd found");
+        update_progress("Creating users", 0.92, 0.1, "✓ User management utilities verified");
+
+        update_progress("Creating users", 0.92, 0.2, "Setting root password...");
 
         // Set root password using chpasswd
         let root_passwd_cmd = format!("root:{}", config.root_password);
@@ -1343,7 +1975,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                     stdin.write_all(root_passwd_cmd.as_bytes())?;
                 }
                 child.wait_with_output()
-            })?;
+            })
+            .map_err(|e| anyhow::anyhow!(
+                "Failed to execute chroot/chpasswd command for root: {}. Make sure chroot and passwd utilities are available.",
+                e
+            ))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1376,7 +2012,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
 
             useradd_cmd.arg(&user.username);
 
-            let output = useradd_cmd.output()?;
+            let output = useradd_cmd.output()
+                .map_err(|e| anyhow::anyhow!(
+                    "Failed to execute chroot/useradd command for user {}: {}. Make sure chroot and user utilities are available.",
+                    user.username, e
+                ))?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1398,7 +2038,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
                         stdin.write_all(user_passwd_cmd.as_bytes())?;
                     }
                     child.wait_with_output()
-                })?;
+                })
+                .map_err(|e| anyhow::anyhow!(
+                    "Failed to execute chroot/chpasswd command for user {}: {}. Make sure chroot and passwd utilities are available.",
+                    user.username, e
+                ))?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1419,7 +2063,16 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
 
     // Run the installation and handle errors
     if let Err(e) = run_step() {
-        log_error(&format!("Installation failed: {}", e));
-        tracing::error!("Installation failed: {}", e);
+        // Display the full error chain for better debugging
+        let error_msg = format!("Installation failed: {:?}", e);
+        log_error(&error_msg);
+        tracing::error!("Installation failed: {:?}", e);
+
+        // Also log the error chain separately for clarity
+        let mut current = e.source();
+        while let Some(err) = current {
+            tracing::error!("  Caused by: {}", err);
+            current = err.source();
+        }
     }
 }
