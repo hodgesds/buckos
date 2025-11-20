@@ -160,6 +160,15 @@ pub enum Error {
     #[error("News not found: {0}")]
     NewsNotFound(String),
 
+    #[error("Profile not found: {0}")]
+    ProfileNotFound(String),
+
+    #[error("Invalid profile: {0}")]
+    InvalidProfile(String),
+
+    #[error("Profile inheritance cycle detected: {0}")]
+    ProfileCycle(String),
+
     #[error("{0}")]
     Other(String),
 }
