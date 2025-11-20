@@ -352,12 +352,22 @@ impl BuckIntegration {
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            // Parse output like "//path/to/target <TAB> /path/to/output"
+            debug!("Buck show-output: {}", stdout);
+
+            // Parse output like "//path/to/target <TAB/SPACE> /path/to/output"
             for line in stdout.lines() {
-                if let Some((_target, path)) = line.split_once('\t') {
-                    return Ok(Some(PathBuf::from(path.trim())));
+                // Try tab first, then space
+                if let Some((_target, path)) = line.split_once('\t').or_else(|| line.split_once(' ')) {
+                    let path_str = path.trim();
+                    // Path is relative to repo_path, make it absolute
+                    let abs_path = self.repo_path.join(path_str);
+                    debug!("Found output path: {}", abs_path.display());
+                    return Ok(Some(abs_path));
                 }
             }
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            debug!("Buck show-output failed: {}", stderr);
         }
 
         Ok(None)

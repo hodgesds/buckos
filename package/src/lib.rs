@@ -135,7 +135,7 @@ impl PackageManager {
 
         // Create transaction
         let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
 
         // Add install operations
         for pkg in &resolution.packages {
@@ -194,7 +194,7 @@ impl PackageManager {
 
         // Create transaction
         let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
 
         // Add remove operations
         for pkg in to_remove {
@@ -251,7 +251,7 @@ impl PackageManager {
 
         // Create transaction
         let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
 
         // Add upgrade operations
         for (old, new) in updates {
@@ -625,7 +625,7 @@ impl PackageManager {
 
         // Create transaction for removal
         let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone());
+            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
 
         for pkg in to_remove {
             transaction.add_remove(pkg);

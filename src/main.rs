@@ -175,6 +175,12 @@ async fn create_package_manager(
     // Set buck_repo to the detected buckos-build path
     config.buck_repo = repo_path.clone();
 
+    // Also update the repository location for package discovery
+    if let Some(repo) = config.repositories.get_mut(0) {
+        repo.location = repo_path.clone();
+        repo.sync_type = package::config::SyncType::Local;
+    }
+
     // Set target root if provided
     if let Some(root) = target_root {
         config.root = root.clone();

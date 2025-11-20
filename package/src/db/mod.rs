@@ -19,10 +19,8 @@ pub struct PackageDb {
 impl PackageDb {
     /// Open or create the package database
     pub fn open(path: &Path) -> Result<Self> {
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        // Ensure directory exists (path should be the database directory)
+        std::fs::create_dir_all(path)?;
 
         let db_file = path.join("packages.db");
         let conn = Connection::open(&db_file)?;

@@ -22,11 +22,17 @@ impl PackageId {
         format!("{}/{}", self.category, self.name)
     }
 
-    /// Parse a package identifier from string (e.g., "sys-apps/systemd")
+    /// Parse a package identifier from string (e.g., "sys-apps/systemd" or "system/apps/shadow")
     pub fn parse(s: &str) -> Option<Self> {
-        let parts: Vec<&str> = s.split('/').collect();
-        if parts.len() == 2 {
-            Some(Self::new(parts[0], parts[1]))
+        // Find the last slash - everything before is category, after is name
+        if let Some(last_slash) = s.rfind('/') {
+            let category = &s[..last_slash];
+            let name = &s[last_slash + 1..];
+            if !category.is_empty() && !name.is_empty() {
+                Some(Self::new(category, name))
+            } else {
+                None
+            }
         } else {
             None
         }

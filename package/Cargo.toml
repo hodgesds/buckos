@@ -83,6 +83,7 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 indicatif = "0.17"
 console = "0.15"
 petgraph = "0.6"
+regex = "1.10"
 
 [dev-dependencies]
 tokio-test = "0.4"

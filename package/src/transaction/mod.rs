@@ -33,6 +33,7 @@ pub struct Transaction {
     buck: Arc<BuckIntegration>,
     operations: Vec<Operation>,
     backup_dir: PathBuf,
+    root: PathBuf,
 }
 
 impl Transaction {
@@ -41,6 +42,7 @@ impl Transaction {
         db: Arc<RwLock<PackageDb>>,
         cache: Arc<PackageCache>,
         buck: Arc<BuckIntegration>,
+        root: PathBuf,
     ) -> Self {
         let backup_dir = std::env::temp_dir().join("buckos-backup");
         Self {
@@ -49,6 +51,7 @@ impl Transaction {
             buck,
             operations: Vec::new(),
             backup_dir,
+            root,
         }
     }
 
@@ -232,21 +235,16 @@ impl Transaction {
 
     async fn install_files(
         &self,
-        archive_path: &Path,
+        build_output_path: &Path,
         pkg_id: &PackageId,
     ) -> Result<Vec<InstalledFile>> {
-        let temp_dir = tempfile::tempdir()?;
-        let extract_dir = temp_dir.path();
-
-        // Extract archive
-        crate::cache::extract_tarball(archive_path, extract_dir)?;
-
-        // Install files to system
+        // Buck output is a DESTDIR-structured directory (usr/lib, usr/include, etc.)
+        // not a tarball, so we walk it directly
         let mut installed_files = Vec::new();
 
-        for entry in walkdir::WalkDir::new(extract_dir) {
+        for entry in walkdir::WalkDir::new(build_output_path) {
             let entry = entry?;
-            let relative_path = match entry.path().strip_prefix(extract_dir) {
+            let relative_path = match entry.path().strip_prefix(build_output_path) {
                 Ok(p) => p,
                 Err(_) => continue,
             };
@@ -255,7 +253,9 @@ impl Transaction {
                 continue;
             }
 
-            let dest_path = Path::new("/").join(relative_path);
+            // Files are already in DESTDIR structure (usr/lib, usr/include, etc.)
+            // Install to target root
+            let dest_path = self.root.join(relative_path);
             let metadata = entry.metadata()?;
 
             if metadata.is_dir() {
