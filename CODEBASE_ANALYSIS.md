@@ -20,7 +20,7 @@ buckos/
 │   ├── config/               # Configuration system (20 modules)
 │   ├── installer/            # GUI installer with hardware detection
 │   ├── assist/               # System diagnostics
-│   ├── start/                # Init system (PID 1)
+│   ├── boss/                 # Init system (PID 1)
 │   ├── tools/                # System utilities
 │   └── web/                  # Documentation site
 ├── defs/                      # Build definition system
@@ -42,17 +42,12 @@ buckos/
 ```
 
 ### Key Crates
-
-| Crate | Binary | Purpose | Status |
-|-------|--------|---------|--------|
-| **buckos-package** | `buckos` | Package manager CLI | ✅ Production-ready |
-| **buckos-config** | - | Configuration system | ✅ Feature-complete |
-| **buckos-model** | - | Core data models | ✅ Stable |
-| **buckos-installer** | `installer` | GUI installation wizard | ✅ Feature-complete |
-| **buckos-start** | `start` | Init system (PID 1) | ⚠️ Framework |
-| **buckos-assist** | `assist` | System diagnostics | ⚠️ Framework |
-| **buckos-tools** | `tools` | System utilities | ⚠️ Framework |
-| **buckos-web** | `web` | Documentation site | ⚠️ Minimal |
+1. **buckos-package**: Main package manager CLI (`src/main.rs`)
+2. **buckos-config**: Configuration management (`src/use_flags.rs`)
+3. **buckos-model**: Core data models
+4. **buckos-boss**: Init system
+5. **buckos-assist**: System diagnostics
+6. **buckos-tools**: System utilities
 
 ---
 
