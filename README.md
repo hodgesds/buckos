@@ -20,6 +20,20 @@ Buckos combines the best of both worlds:
 - **Buck2 Integration**: Fast, reproducible builds with remote caching support
 - **Portage Compatibility**: Familiar interface for Gentoo users
 
+## Current Status
+
+| Component | Status | Description |
+|-----------|--------|-------------|
+| **buckos-package** | ✅ Complete | Core package manager with full CLI |
+| **buckos-config** | ✅ Complete | Portage-compatible configuration system |
+| **buckos-boss** | ✅ Complete | Init system and service manager |
+| **buckos-model** | ✅ Complete | Core data types and structures |
+| **buckos-installer** | ✅ Complete | GUI installer with hardware detection |
+| **Build System (defs/)** | ✅ Complete | Eclasses, licenses, EAPI, subslots |
+| **buckos-assist** | 🔄 In Progress | System diagnostics and help |
+| **buckos-tools** | 🔄 In Progress | System utilities |
+| **buckos-web** | 🔄 In Progress | Documentation website |
+
 ## Project Structure
 
 ```
@@ -35,6 +49,7 @@ buckos/
 │   ├── assist/           # System diagnostics
 │   ├── config/           # Configuration management
 │   ├── boss/             # Init system (PID 1)
+│   ├── installer/        # GUI system installer
 │   ├── web/              # Documentation website
 │   └── tools/            # System utilities
 ├── build/                # Build artifacts
@@ -209,6 +224,31 @@ Core data types used throughout the project including Package, User, License, an
 ### buckos-web (Documentation Website)
 
 Official website and documentation server built with Axum.
+
+### buckos-installer (GUI Installer)
+
+A beginner-friendly graphical installer for Buckos with hardware detection.
+
+**Binary**: `buckos-installer`
+
+**Commands**:
+```bash
+buckos-installer                    # Launch GUI installer
+buckos-installer --text-mode        # Text-based installation guide
+buckos-installer --target /mnt/os   # Set target directory
+buckos-installer --dry-run          # Simulate installation
+```
+
+**Features**:
+- Automatic hardware detection (GPU, network, audio, storage)
+- Multiple installation profiles (Minimal, Desktop, Server, Handheld)
+- Desktop environment selection (GNOME, KDE, Xfce, i3, Sway, Hyprland, etc.)
+- Gaming handheld support (Steam Deck, ROG Ally, Legion Go, etc.)
+- Disk layout presets (Simple, Standard, Btrfs subvolumes, Custom)
+- LUKS encryption options with TPM support
+- Multiple bootloader choices (GRUB, systemd-boot, rEFInd, Limine)
+- User and network configuration
+- Step-by-step guided installation
 
 ### buckos-tools (System Utilities)
 
@@ -560,6 +600,23 @@ buckos list
 - SQLite 3.x
 - Linux kernel 5.x+
 
+### Using the GUI Installer
+
+The recommended way to install Buckos is using the graphical installer:
+
+```bash
+# Boot from Buckos installation media
+# The installer will start automatically, or run:
+buckos-installer
+```
+
+The installer guides you through:
+1. Hardware detection and driver selection
+2. Profile selection (Desktop, Server, Minimal, Handheld)
+3. Disk partitioning and encryption
+4. Bootloader installation
+5. User and network configuration
+
 ### Building from Source
 
 ```bash
@@ -848,11 +905,18 @@ cargo fmt --check
 
 ## Roadmap
 
+### Completed
+- [x] Complete package manager core functionality
+- [x] Init system and service manager
+- [x] Build definition system (eclasses, EAPI, subslots)
+- [x] GUI installer with hardware detection
+- [x] Configuration management system
+
 ### Near-term
-- [ ] Complete package manager core functionality
-- [ ] Implement remaining utility tools
+- [ ] Complete system utility tools
 - [ ] Documentation and tutorials
 - [ ] Initial package repository population
+- [ ] System diagnostics assistant
 
 ### Medium-term
 - [ ] Binary package distribution
