@@ -124,6 +124,12 @@ pub enum Error {
     #[error("Sandbox error: {0}")]
     SandboxError(String),
 
+    #[error("Signing error: {0}")]
+    Signing(String),
+
+    #[error("Configuration error: {0}")]
+    Config(String),
+
     #[error("Network error: {0}")]
     NetworkError(String),
 

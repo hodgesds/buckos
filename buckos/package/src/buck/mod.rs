@@ -2,6 +2,10 @@
 //!
 //! This module provides integration with Buck2 for building packages from source.
 
+pub mod buckconfig;
+
+pub use buckconfig::{BuckConfigFile, BuckConfigOptions, BuckConfigSection};
+
 use crate::{BuildOptions, BuildResult, Error, Result};
 use crate::config::Config;
 use std::path::{Path, PathBuf};
@@ -19,11 +23,18 @@ pub struct BuckIntegration {
     output_dir: PathBuf,
     /// Number of parallel jobs
     jobs: usize,
+    /// Custom Buck configuration options
+    config_options: BuckConfigOptions,
 }
 
 impl BuckIntegration {
     /// Create a new Buck integration
     pub fn new(config: &Config) -> Result<Self> {
+        Self::with_config_options(config, BuckConfigOptions::default())
+    }
+
+    /// Create a new Buck integration with custom config options
+    pub fn with_config_options(config: &Config, config_options: BuckConfigOptions) -> Result<Self> {
         let buck_path = config.buck_path.clone();
         let repo_path = config.buck_repo.clone();
         let output_dir = config.cache_dir.join("buck-out");
@@ -37,6 +48,7 @@ impl BuckIntegration {
                     repo_path,
                     output_dir,
                     jobs: config.parallelism,
+                    config_options,
                 })
             } else {
                 Err(Error::BuckError(format!(
@@ -50,8 +62,29 @@ impl BuckIntegration {
                 repo_path,
                 output_dir,
                 jobs: config.parallelism,
+                config_options,
             })
         }
+    }
+
+    /// Get mutable reference to config options
+    pub fn config_options_mut(&mut self) -> &mut BuckConfigOptions {
+        &mut self.config_options
+    }
+
+    /// Get reference to config options
+    pub fn config_options(&self) -> &BuckConfigOptions {
+        &self.config_options
+    }
+
+    /// Set custom config options
+    pub fn set_config_options(&mut self, options: BuckConfigOptions) {
+        self.config_options = options;
+    }
+
+    /// Load and apply .buckconfig from the repository
+    pub fn load_repo_config(&self) -> Result<BuckConfigFile> {
+        buckconfig::load_repo_config(&self.repo_path)
     }
 
     /// Build a target
@@ -71,8 +104,20 @@ impl BuckIntegration {
         let jobs = opts.jobs.unwrap_or(self.jobs);
         cmd.arg(format!("--num-threads={}", jobs));
 
-        // Release mode
-        if opts.release {
+        // Apply custom config options from BuckIntegration
+        for arg in self.config_options.to_args() {
+            cmd.arg(arg);
+        }
+
+        // Apply build-specific config options
+        if let Some(ref build_config) = opts.config_options {
+            for arg in build_config.to_args() {
+                cmd.arg(arg);
+            }
+        }
+
+        // Release mode (can be overridden by config options)
+        if opts.release && self.config_options.build_mode.is_none() {
             cmd.arg("--config").arg("build.mode=release");
         }
 
@@ -143,7 +188,20 @@ impl BuckIntegration {
         let jobs = opts.jobs.unwrap_or(self.jobs);
         cmd.arg(format!("--num-threads={}", jobs));
 
-        if opts.release {
+        // Apply custom config options from BuckIntegration
+        for arg in self.config_options.to_args() {
+            cmd.arg(arg);
+        }
+
+        // Apply build-specific config options
+        if let Some(ref build_config) = opts.config_options {
+            for arg in build_config.to_args() {
+                cmd.arg(arg);
+            }
+        }
+
+        // Release mode (can be overridden by config options)
+        if opts.release && self.config_options.build_mode.is_none() {
             cmd.arg("--config").arg("build.mode=release");
         }
 
