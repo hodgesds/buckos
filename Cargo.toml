@@ -25,4 +25,7 @@ web = { package = "buckos-web", version = "0.0.1", path = "web" }
 installer = { package = "buckos-installer", version = "0.0.1", path = "installer" }
 tar = "0.4.38"
 tempdir = "0.3"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 users = "0.11"

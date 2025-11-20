@@ -432,17 +432,21 @@ impl PackageManager {
     }
 
     /// Get the system set (essential system packages)
+    /// These match the packages defined in buckos-build's SYSTEM_PACKAGES
+    /// Uses glibc by default for maximum compatibility (can be changed to musl for minimal systems)
     pub async fn get_system_set(&self) -> Result<WorldSet> {
         // System packages are predefined essential packages
+        // Using buckos-build registry naming: category/name
         let system_packages = vec![
-            PackageId::new("sys-libs", "glibc"),
-            PackageId::new("sys-apps", "coreutils"),
-            PackageId::new("sys-apps", "util-linux"),
-            PackageId::new("sys-apps", "systemd"),
-            PackageId::new("sys-process", "procps"),
-            PackageId::new("sys-apps", "shadow"),
-            PackageId::new("sys-apps", "file"),
-            PackageId::new("app-shells", "bash"),
+            PackageId::new("core", "glibc"),       // GNU C library (use "musl" for minimal systems)
+            PackageId::new("system/apps", "coreutils"),  // Core utilities
+            PackageId::new("core", "util-linux"),  // System utilities
+            PackageId::new("core", "procps-ng"),   // Process monitoring
+            PackageId::new("system/apps", "shadow"), // User/group management
+            PackageId::new("core", "file"),        // File type detection
+            PackageId::new("core", "bash"),        // Shell
+            PackageId::new("system/init", "systemd"), // Init system
+            PackageId::new("core", "zlib"),        // Compression library
         ];
 
         Ok(WorldSet {

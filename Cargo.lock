@@ -730,6 +730,9 @@ dependencies = [
  "serde_json",
  "tar",
  "tempdir",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
  "users",
 ]
 
