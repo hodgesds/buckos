@@ -761,6 +761,7 @@ async fn main() -> ExitCode {
         verbose: cli.verbose,
         quiet: cli.quiet,
         jobs: cli.jobs,
+        ..Default::default()
     };
 
     // Execute command
@@ -824,6 +825,12 @@ async fn cmd_install(
         newuse: emerge_opts.newuse,
         empty_tree: args.empty_tree,
         no_replace: args.no_replace,
+        use_pkg: emerge_opts.use_pkg,
+        use_pkg_only: emerge_opts.use_pkg_only,
+        get_binpkg: emerge_opts.get_binpkg,
+        get_binpkg_only: emerge_opts.get_binpkg_only,
+        build_pkg: emerge_opts.build_pkg,
+        build_pkg_only: emerge_opts.build_pkg_only,
     };
 
     // Resolve dependencies first to show what will be installed
@@ -1155,6 +1162,7 @@ async fn cmd_build(pm: &PackageManager, args: BuildArgs) -> buckos_package::Resu
         jobs: args.jobs,
         release: args.release,
         buck_args: args.buck_args,
+        config_options: None,
     };
 
     let result = pm.build(&args.target, opts).await?;
@@ -3068,6 +3076,12 @@ async fn cmd_set_install(
         newuse: emerge_opts.newuse,
         empty_tree: false,
         no_replace: true,
+        use_pkg: emerge_opts.use_pkg,
+        use_pkg_only: emerge_opts.use_pkg_only,
+        get_binpkg: emerge_opts.get_binpkg,
+        get_binpkg_only: emerge_opts.get_binpkg_only,
+        build_pkg: emerge_opts.build_pkg,
+        build_pkg_only: emerge_opts.build_pkg_only,
     };
 
     // Resolve dependencies
