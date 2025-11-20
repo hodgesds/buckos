@@ -23,23 +23,16 @@ pub struct CircularDependency {
 #[derive(Debug, Clone)]
 pub enum CycleBreakSuggestion {
     /// Disable a USE flag to remove a conditional dependency
-    DisableUseFlag {
-        package: PackageId,
-        flag: String,
-    },
+    DisableUseFlag { package: PackageId, flag: String },
     /// Use a bootstrap version of a package
-    UseBootstrap {
-        package: PackageId,
-    },
+    UseBootstrap { package: PackageId },
     /// Build in multiple passes
     MultiPassBuild {
         first_pass: Vec<PackageId>,
         second_pass: Vec<PackageId>,
     },
     /// Manual intervention required
-    ManualIntervention {
-        reason: String,
-    },
+    ManualIntervention { reason: String },
 }
 
 /// Circular dependency detector
@@ -129,10 +122,8 @@ impl CircularDepDetector {
         for scc in sccs {
             // A cycle exists if SCC has more than one node
             if scc.len() > 1 {
-                let packages: Vec<PackageId> = scc
-                    .iter()
-                    .map(|&node| self.graph[node].clone())
-                    .collect();
+                let packages: Vec<PackageId> =
+                    scc.iter().map(|&node| self.graph[node].clone()).collect();
 
                 let (breakable, suggestion) = self.analyze_cycle(&scc);
 
@@ -189,7 +180,9 @@ impl CircularDepDetector {
             let mut second_pass = Vec::new();
 
             for &node in cycle_nodes {
-                let has_runtime_cycle_dep = self.graph.edges(node)
+                let has_runtime_cycle_dep = self
+                    .graph
+                    .edges(node)
                     .any(|e| node_set.contains(&e.target()) && !e.weight().build_only);
 
                 if has_runtime_cycle_dep {
@@ -248,16 +241,13 @@ impl CircularDepDetector {
             ("dev-lang", "go"),
         ];
 
-        bootstrap_packages.iter().any(|(cat, name)| {
-            pkg_id.category == *cat && pkg_id.name == *name
-        })
+        bootstrap_packages
+            .iter()
+            .any(|(cat, name)| pkg_id.category == *cat && pkg_id.name == *name)
     }
 
     /// Attempt to break cycles and return a valid build order
-    pub fn break_cycles_and_order(
-        &self,
-        cycles: &[CircularDependency],
-    ) -> Result<Vec<PackageId>> {
+    pub fn break_cycles_and_order(&self, cycles: &[CircularDependency]) -> Result<Vec<PackageId>> {
         if cycles.is_empty() {
             // No cycles, just do topological sort
             return self.topological_sort();

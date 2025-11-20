@@ -125,7 +125,8 @@ impl SoftwareInfo {
             version: System::os_version().unwrap_or_else(|| "Unknown".to_string()),
             kernel_version: System::kernel_version().unwrap_or_else(|| "Unknown".to_string()),
             arch: std::env::consts::ARCH.to_string(),
-            hostname: redactor.redact(&System::host_name().unwrap_or_else(|| "Unknown".to_string())),
+            hostname: redactor
+                .redact(&System::host_name().unwrap_or_else(|| "Unknown".to_string())),
             uptime: System::uptime(),
             boot_time: System::boot_time(),
         }

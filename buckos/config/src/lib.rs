@@ -112,9 +112,7 @@ pub use portage::{PortageConfig, PortageConfigBuilder};
 pub use profile::{AvailableProfiles, ProfileConfig, ProfileEntry, ProfileInfo, ProfileStatus};
 pub use repos::{RepoDefaults, ReposConfig, Repository, SyncType};
 pub use sets::{PackageSet, SetsConfig};
-pub use use_flags::{
-    PackageUseEntry, UseConfig, UseExpandVariable, UseFlag, UseFlagDescription,
-};
+pub use use_flags::{PackageUseEntry, UseConfig, UseExpandVariable, UseFlag, UseFlagDescription};
 
 // Re-export legacy types
 pub use build::*;

@@ -3,18 +3,18 @@
 //! This module provides definitions for common system packages including
 //! core libraries, toolchains, build systems, utilities, and services.
 
-pub mod categories;
-pub mod core;
-pub mod toolchain;
 pub mod build;
-pub mod utils;
-pub mod services;
-pub mod network;
+pub mod categories;
 pub mod compression;
+pub mod core;
+pub mod network;
+pub mod services;
+pub mod toolchain;
+pub mod utils;
 
-use crate::types::{PackageId, PackageInfo, Dependency, UseFlag, VersionSpec, UseCondition};
-use std::collections::HashMap;
+use crate::types::{Dependency, PackageId, PackageInfo, UseCondition, UseFlag, VersionSpec};
 use semver::Version;
+use std::collections::HashMap;
 
 /// Package catalog containing all known package definitions
 pub struct PackageCatalog {
@@ -55,28 +55,31 @@ impl PackageCatalog {
 
     /// Get the latest version of a package
     pub fn get_latest(&self, id: &PackageId) -> Option<&PackageInfo> {
-        self.packages.get(id).and_then(|versions| {
-            versions.iter().max_by(|a, b| a.version.cmp(&b.version))
-        })
+        self.packages
+            .get(id)
+            .and_then(|versions| versions.iter().max_by(|a, b| a.version.cmp(&b.version)))
     }
 
     /// Get a specific version of a package
     pub fn get_version(&self, id: &PackageId, version: &Version) -> Option<&PackageInfo> {
-        self.packages.get(id).and_then(|versions| {
-            versions.iter().find(|p| &p.version == version)
-        })
+        self.packages
+            .get(id)
+            .and_then(|versions| versions.iter().find(|p| &p.version == version))
     }
 
     /// Search packages by name or description
     pub fn search(&self, query: &str) -> Vec<&PackageInfo> {
         let query_lower = query.to_lowercase();
-        let mut results: Vec<&PackageInfo> = self.packages
+        let mut results: Vec<&PackageInfo> = self
+            .packages
             .values()
             .flatten()
             .filter(|p| {
                 p.id.name.to_lowercase().contains(&query_lower)
                     || p.description.to_lowercase().contains(&query_lower)
-                    || p.keywords.iter().any(|k| k.to_lowercase().contains(&query_lower))
+                    || p.keywords
+                        .iter()
+                        .any(|k| k.to_lowercase().contains(&query_lower))
             })
             .collect();
 

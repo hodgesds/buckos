@@ -134,16 +134,10 @@ pub enum Error {
     NetworkError(String),
 
     #[error("Fetch restricted: {filename} - {message}")]
-    FetchRestricted {
-        filename: String,
-        message: String,
-    },
+    FetchRestricted { filename: String, message: String },
 
     #[error("Download failed for {filename}: {reason}")]
-    DistfileDownloadFailed {
-        filename: String,
-        reason: String,
-    },
+    DistfileDownloadFailed { filename: String, reason: String },
 
     #[error("Invalid path: {0}")]
     InvalidPath(String),

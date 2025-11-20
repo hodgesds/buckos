@@ -344,12 +344,13 @@ impl VirtualManager {
     /// Select a provider for a virtual package
     pub fn select_provider(&mut self, virtual_id: PackageId, provider: PackageId) -> Result<()> {
         // Verify the virtual exists
-        let virtual_pkg = self.virtuals.get(&virtual_id)
+        let virtual_pkg = self
+            .virtuals
+            .get(&virtual_id)
             .ok_or_else(|| Error::PackageNotFound(virtual_id.to_string()))?;
 
         // Verify the provider is valid for this virtual
-        let is_valid = virtual_pkg.providers.iter()
-            .any(|p| p.package == provider);
+        let is_valid = virtual_pkg.providers.iter().any(|p| p.package == provider);
 
         if !is_valid {
             return Err(Error::InvalidProvider {
@@ -436,7 +437,10 @@ mod tests {
         // Check providers
         let jdk = manager.get(&PackageId::new("virtual", "jdk")).unwrap();
         assert!(!jdk.providers.is_empty());
-        assert_eq!(jdk.default_provider, Some(PackageId::new("dev-java", "openjdk")));
+        assert_eq!(
+            jdk.default_provider,
+            Some(PackageId::new("dev-java", "openjdk"))
+        );
     }
 
     #[test]
@@ -445,10 +449,9 @@ mod tests {
         let virtual_id = PackageId::new("virtual", "editor");
 
         // Select neovim as editor
-        manager.select_provider(
-            virtual_id.clone(),
-            PackageId::new("app-editors", "neovim"),
-        ).unwrap();
+        manager
+            .select_provider(virtual_id.clone(), PackageId::new("app-editors", "neovim"))
+            .unwrap();
 
         let selected = manager.get_selected_provider(&virtual_id).unwrap();
         assert_eq!(selected, &PackageId::new("app-editors", "neovim"));

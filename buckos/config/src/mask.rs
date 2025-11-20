@@ -27,12 +27,22 @@ impl MaskConfig {
 
     /// Add a package mask
     pub fn add_mask(&mut self, atom: PackageAtom, reason: Option<String>) {
-        self.masked.push(MaskEntry { atom, reason, author: None, date: None });
+        self.masked.push(MaskEntry {
+            atom,
+            reason,
+            author: None,
+            date: None,
+        });
     }
 
     /// Add a package unmask
     pub fn add_unmask(&mut self, atom: PackageAtom, reason: Option<String>) {
-        self.unmasked.push(MaskEntry { atom, reason, author: None, date: None });
+        self.unmasked.push(MaskEntry {
+            atom,
+            reason,
+            author: None,
+            date: None,
+        });
     }
 
     /// Check if a package is masked
@@ -82,7 +92,8 @@ impl MaskConfig {
 
     /// Get all masked atoms
     pub fn all_masked(&self) -> Vec<&PackageAtom> {
-        self.masked.iter()
+        self.masked
+            .iter()
             .chain(self.profile_masks.iter())
             .map(|e| &e.atom)
             .collect()
@@ -107,11 +118,18 @@ impl MaskConfig {
     pub fn merge(&mut self, other: &MaskConfig) {
         self.masked.extend(other.masked.iter().cloned());
         self.unmasked.extend(other.unmasked.iter().cloned());
-        self.profile_masks.extend(other.profile_masks.iter().cloned());
+        self.profile_masks
+            .extend(other.profile_masks.iter().cloned());
     }
 
     // Helper to check if an atom matches
-    fn atom_matches(&self, atom: &PackageAtom, category: &str, name: &str, version: Option<&str>) -> bool {
+    fn atom_matches(
+        &self,
+        atom: &PackageAtom,
+        category: &str,
+        name: &str,
+        version: Option<&str>,
+    ) -> bool {
         if !atom.matches_cpn(category, name) {
             return false;
         }

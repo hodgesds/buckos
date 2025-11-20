@@ -20,9 +20,7 @@ pub struct ProtectConfig {
 impl Default for ProtectConfig {
     fn default() -> Self {
         Self {
-            protected_paths: vec![
-                PathBuf::from("/etc"),
-            ],
+            protected_paths: vec![PathBuf::from("/etc")],
             mask_paths: vec![
                 PathBuf::from("/etc/env.d"),
                 PathBuf::from("/etc/gconf"),
@@ -94,7 +92,9 @@ impl ConfigProtect {
     /// Check if a path is protected
     pub fn is_protected(&self, path: &Path) -> bool {
         // First check if it's in a protected path
-        let in_protected = self.config.protected_paths
+        let in_protected = self
+            .config
+            .protected_paths
             .iter()
             .any(|p| path.starts_with(p));
 
@@ -103,9 +103,7 @@ impl ConfigProtect {
         }
 
         // Check if it's masked (exempted)
-        !self.config.mask_paths
-            .iter()
-            .any(|p| path.starts_with(p))
+        !self.config.mask_paths.iter().any(|p| path.starts_with(p))
     }
 
     /// Protect a configuration file
@@ -154,7 +152,8 @@ impl ConfigProtect {
     /// Create a protected file path (._cfg0000_filename)
     fn create_protected_path(&self, path: &Path) -> Result<PathBuf> {
         let parent = path.parent().unwrap_or(Path::new("/"));
-        let filename = path.file_name()
+        let filename = path
+            .file_name()
             .ok_or_else(|| Error::InvalidPath(path.to_string_lossy().to_string()))?;
 
         // Find next available config number
@@ -257,7 +256,8 @@ impl ConfigProtect {
     /// Create a backup path for a file
     fn create_backup_path(&self, path: &Path) -> Result<PathBuf> {
         let mut backup = path.to_path_buf();
-        let filename = path.file_name()
+        let filename = path
+            .file_name()
             .ok_or_else(|| Error::InvalidPath(path.to_string_lossy().to_string()))?;
         backup.set_file_name(format!("{}.bak", filename.to_string_lossy()));
 

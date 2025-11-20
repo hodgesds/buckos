@@ -99,10 +99,7 @@ impl BacktrackResolver {
     /// Add available packages
     pub fn add_available(&mut self, packages: Vec<PackageInfo>) {
         for pkg in packages {
-            self.available
-                .entry(pkg.id.clone())
-                .or_default()
-                .push(pkg);
+            self.available.entry(pkg.id.clone()).or_default().push(pkg);
         }
 
         // Sort versions (newest first if preferred)

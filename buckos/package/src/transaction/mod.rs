@@ -73,7 +73,10 @@ impl Transaction {
             return Ok(());
         }
 
-        info!("Executing transaction with {} operations", self.operations.len());
+        info!(
+            "Executing transaction with {} operations",
+            self.operations.len()
+        );
 
         // Create backup directory
         std::fs::create_dir_all(&self.backup_dir)?;
@@ -165,11 +168,9 @@ impl Transaction {
         }
 
         // Get the built package
-        let output_path = build_result.output_path.ok_or_else(|| {
-            Error::BuildFailed {
-                package: pkg.id.name.clone(),
-                message: "No output produced".to_string(),
-            }
+        let output_path = build_result.output_path.ok_or_else(|| Error::BuildFailed {
+            package: pkg.id.name.clone(),
+            message: "No output produced".to_string(),
         })?;
 
         // Extract and install files
@@ -229,7 +230,11 @@ impl Transaction {
         Ok(())
     }
 
-    async fn install_files(&self, archive_path: &Path, pkg_id: &PackageId) -> Result<Vec<InstalledFile>> {
+    async fn install_files(
+        &self,
+        archive_path: &Path,
+        pkg_id: &PackageId,
+    ) -> Result<Vec<InstalledFile>> {
         let temp_dir = tempfile::tempdir()?;
         let extract_dir = temp_dir.path();
 

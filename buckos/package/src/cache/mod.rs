@@ -107,13 +107,10 @@ impl PackageCache {
             });
         }
 
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|e| Error::DownloadFailed {
-                url: url.to_string(),
-                message: e.to_string(),
-            })?;
+        let bytes = response.bytes().await.map_err(|e| Error::DownloadFailed {
+            url: url.to_string(),
+            message: e.to_string(),
+        })?;
 
         std::fs::write(&tmp_path, &bytes)?;
 

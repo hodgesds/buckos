@@ -7,13 +7,13 @@
 //! - Circular dependency detection
 //! - Version constraint checking
 
-use crate::types::{PackageId, PackageInfo, Dependency, VersionSpec};
 use crate::catalog::PackageCatalog;
 use crate::error::{Error, Result};
-use std::collections::{HashMap, HashSet};
-use petgraph::graph::{DiGraph, NodeIndex};
+use crate::types::{Dependency, PackageId, PackageInfo, VersionSpec};
 use petgraph::algo::is_cyclic_directed;
-use sha2::{Sha256, Digest};
+use petgraph::graph::{DiGraph, NodeIndex};
+use sha2::{Digest, Sha256};
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tokio::fs;
 use tracing::{info, warn};
@@ -102,7 +102,8 @@ impl PackageValidator {
 
         // Check for valid characters
         let valid_chars = |s: &str| {
-            s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '+')
+            s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '+')
         };
 
         if !valid_chars(&id.category) {
@@ -137,7 +138,8 @@ impl PackageValidator {
         let mut issues = Vec::new();
 
         // Check all dependency types
-        let all_deps: Vec<&Dependency> = pkg.dependencies
+        let all_deps: Vec<&Dependency> = pkg
+            .dependencies
             .iter()
             .chain(pkg.build_dependencies.iter())
             .chain(pkg.runtime_dependencies.iter())
@@ -168,19 +170,13 @@ impl PackageValidator {
     fn validate_source(&self, pkg: &PackageInfo) -> std::result::Result<(), String> {
         // If source URL is provided, hash should also be provided
         if pkg.source_url.is_some() && pkg.source_hash.is_none() {
-            return Err(format!(
-                "Package {} has source URL but no hash",
-                pkg.id
-            ));
+            return Err(format!("Package {} has source URL but no hash", pkg.id));
         }
 
         // Validate hash format (should be hex)
         if let Some(hash) = &pkg.source_hash {
             if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
-                return Err(format!(
-                    "Invalid hash format for {}: {}",
-                    pkg.id, hash
-                ));
+                return Err(format!("Invalid hash format for {}: {}", pkg.id, hash));
             }
 
             // SHA256 hash should be 64 characters
@@ -285,7 +281,7 @@ impl PackageValidator {
             // Return the cycles found
             // For simplicity, we just report that cycles exist
             // A more sophisticated implementation would identify specific cycles
-            vec![vec![]]  // Placeholder indicating cycles exist
+            vec![vec![]] // Placeholder indicating cycles exist
         } else {
             vec![]
         }
@@ -302,9 +298,8 @@ impl PackageValidator {
                         if let VersionSpec::Exact(required_version) = &dep.version {
                             // Check if the required version exists
                             if let Some(dep_versions) = self.catalog.get_package(&dep.package) {
-                                let exists = dep_versions
-                                    .iter()
-                                    .any(|v| &v.version == required_version);
+                                let exists =
+                                    dep_versions.iter().any(|v| &v.version == required_version);
 
                                 if !exists {
                                     issues.push(ValidationIssue::Error(format!(
@@ -371,12 +366,17 @@ pub struct ValidationResult {
 impl ValidationResult {
     /// Check if validation passed (no errors)
     pub fn is_ok(&self) -> bool {
-        !self.issues.iter().any(|i| matches!(i, ValidationIssue::Error(_)))
+        !self
+            .issues
+            .iter()
+            .any(|i| matches!(i, ValidationIssue::Error(_)))
     }
 
     /// Check if there are warnings
     pub fn has_warnings(&self) -> bool {
-        self.issues.iter().any(|i| matches!(i, ValidationIssue::Warning(_)))
+        self.issues
+            .iter()
+            .any(|i| matches!(i, ValidationIssue::Warning(_)))
     }
 
     /// Get all errors

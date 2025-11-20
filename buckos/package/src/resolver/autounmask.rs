@@ -69,10 +69,7 @@ pub enum AutounmaskChange {
         disable: Vec<String>,
     },
     /// Accept a license
-    AcceptLicense {
-        package: PackageId,
-        license: String,
-    },
+    AcceptLicense { package: PackageId, license: String },
 }
 
 /// Result of autounmask analysis
@@ -147,10 +144,7 @@ impl AutounmaskResolver {
             }
 
             if let Some(pkg_id) = PackageId::parse(parts[0]) {
-                let keywords: HashSet<String> = parts[1..]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect();
+                let keywords: HashSet<String> = parts[1..].iter().map(|s| s.to_string()).collect();
                 self.current_keywords.insert(pkg_id, keywords);
             }
         }
@@ -208,10 +202,7 @@ impl AutounmaskResolver {
 
         for pkg_id in requested {
             // Find best available version
-            let candidates: Vec<_> = available
-                .iter()
-                .filter(|p| p.id == *pkg_id)
-                .collect();
+            let candidates: Vec<_> = available.iter().filter(|p| p.id == *pkg_id).collect();
 
             if candidates.is_empty() {
                 satisfiable = false;
@@ -232,7 +223,9 @@ impl AutounmaskResolver {
 
                 // Check if keywords need to be accepted
                 if instability == InstabilityLevel::Testing {
-                    let needs_keyword = !pkg.keywords.iter()
+                    let needs_keyword = !pkg
+                        .keywords
+                        .iter()
                         .any(|k| k == arch || k == &format!("~{}", arch));
 
                     if needs_keyword || !self.has_accepted_keywords(pkg_id, arch) {
@@ -308,9 +301,9 @@ impl AutounmaskResolver {
 
     fn has_accepted_keywords(&self, pkg_id: &PackageId, arch: &str) -> bool {
         if let Some(keywords) = self.current_keywords.get(pkg_id) {
-            keywords.iter().any(|k| {
-                k == "**" || k == &format!("~{}", arch) || k == arch
-            })
+            keywords
+                .iter()
+                .any(|k| k == "**" || k == &format!("~{}", arch) || k == arch)
         } else {
             false
         }
@@ -327,7 +320,11 @@ impl AutounmaskResolver {
 
         for change in changes {
             match change {
-                AutounmaskChange::AcceptKeywords { package, version, keywords } => {
+                AutounmaskChange::AcceptKeywords {
+                    package,
+                    version,
+                    keywords,
+                } => {
                     let version_str = version
                         .as_ref()
                         .map(|v| format!("-{}", v))
@@ -350,7 +347,11 @@ impl AutounmaskResolver {
                         package, package, version_str
                     ));
                 }
-                AutounmaskChange::UseChange { package, enable, disable } => {
+                AutounmaskChange::UseChange {
+                    package,
+                    enable,
+                    disable,
+                } => {
                     let flags: Vec<String> = enable
                         .iter()
                         .map(|f| f.clone())
@@ -383,7 +384,11 @@ impl AutounmaskResolver {
 
         for change in changes {
             match change {
-                AutounmaskChange::AcceptKeywords { package, version, keywords } => {
+                AutounmaskChange::AcceptKeywords {
+                    package,
+                    version,
+                    keywords,
+                } => {
                     let atom = if let Some(v) = version {
                         format!("={}-{}", package, v)
                     } else {
@@ -399,7 +404,11 @@ impl AutounmaskResolver {
                     };
                     unmask_content.push_str(&format!("{}\n", atom));
                 }
-                AutounmaskChange::UseChange { package, enable, disable } => {
+                AutounmaskChange::UseChange {
+                    package,
+                    enable,
+                    disable,
+                } => {
                     let flags: Vec<String> = enable
                         .iter()
                         .map(|f| f.clone())
@@ -436,10 +445,7 @@ impl AutounmaskResolver {
             std::fs::create_dir_all(parent)?;
         }
 
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        let mut file = OpenOptions::new().create(true).append(true).open(path)?;
 
         writeln!(file, "\n# Added by buckos autounmask")?;
         write!(file, "{}", content)?;

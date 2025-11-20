@@ -100,15 +100,16 @@ impl Config {
 
     /// Save configuration to a path
     pub fn save_to(&self, path: &Path) -> Result<()> {
-        let content = toml::to_string_pretty(self)
-            .map_err(|e| Error::ConfigError(e.to_string()))?;
+        let content =
+            toml::to_string_pretty(self).map_err(|e| Error::ConfigError(e.to_string()))?;
         std::fs::write(path, content)?;
         Ok(())
     }
 
     /// Get the full path for a system path
     pub fn system_path(&self, path: impl AsRef<Path>) -> PathBuf {
-        self.root.join(path.as_ref().strip_prefix("/").unwrap_or(path.as_ref()))
+        self.root
+            .join(path.as_ref().strip_prefix("/").unwrap_or(path.as_ref()))
     }
 
     /// Get the download cache directory

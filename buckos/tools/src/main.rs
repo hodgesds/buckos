@@ -133,10 +133,7 @@ fn cmd_lsblk() -> Result<(), String> {
     println!("{}", "-".repeat(70));
 
     for disk in disks.list() {
-        let name = disk
-            .name()
-            .to_string_lossy()
-            .to_string();
+        let name = disk.name().to_string_lossy().to_string();
         let mount = disk.mount_point().to_string_lossy().to_string();
         let fs = disk.file_system().to_string_lossy().to_string();
         let total = format_bytes(disk.total_space());
@@ -172,7 +169,10 @@ fn cmd_hwinfo() -> Result<(), String> {
         println!("  Vendor: {}", cpu.vendor_id());
     }
     println!("  Cores: {}", sys.cpus().len());
-    println!("  Physical cores: {}", sys.physical_core_count().unwrap_or(0));
+    println!(
+        "  Physical cores: {}",
+        sys.physical_core_count().unwrap_or(0)
+    );
     println!();
 
     // Memory info
@@ -223,9 +223,7 @@ fn print_tree(
     let entries: Vec<_> = fs::read_dir(path)
         .map_err(|e| e.to_string())?
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            show_hidden || !e.file_name().to_string_lossy().starts_with('.')
-        })
+        .filter(|e| show_hidden || !e.file_name().to_string_lossy().starts_with('.'))
         .collect();
 
     let count = entries.len();
@@ -250,13 +248,7 @@ fn print_tree(
             )?;
         } else {
             let size = metadata.map(|m| m.len()).unwrap_or(0);
-            println!(
-                "{}{}{} ({})",
-                prefix,
-                connector,
-                name,
-                format_bytes(size)
-            );
+            println!("{}{}{} ({})", prefix, connector, name, format_bytes(size));
         }
     }
 
@@ -342,7 +334,11 @@ fn cmd_meminfo() -> Result<(), String> {
     println!("  {:<15} {}", style("Total:").cyan(), format_bytes(total));
     println!("  {:<15} {}", style("Used:").cyan(), format_bytes(used));
     println!("  {:<15} {}", style("Free:").cyan(), format_bytes(free));
-    println!("  {:<15} {}", style("Available:").cyan(), format_bytes(available));
+    println!(
+        "  {:<15} {}",
+        style("Available:").cyan(),
+        format_bytes(available)
+    );
     println!();
 
     // Memory usage bar
@@ -392,9 +388,7 @@ fn cmd_meminfo() -> Result<(), String> {
 }
 
 fn cmd_cpuinfo() -> Result<(), String> {
-    let sys = System::new_with_specifics(
-        RefreshKind::new().with_cpu(CpuRefreshKind::everything()),
-    );
+    let sys = System::new_with_specifics(RefreshKind::new().with_cpu(CpuRefreshKind::everything()));
 
     println!("{}", style("CPU Information").bold().underlined());
     println!();
@@ -420,9 +414,7 @@ fn cmd_cpuinfo() -> Result<(), String> {
 
     // Need to wait a bit for accurate CPU usage
     std::thread::sleep(std::time::Duration::from_millis(200));
-    let sys = System::new_with_specifics(
-        RefreshKind::new().with_cpu(CpuRefreshKind::everything()),
-    );
+    let sys = System::new_with_specifics(RefreshKind::new().with_cpu(CpuRefreshKind::everything()));
 
     for (i, cpu) in sys.cpus().iter().enumerate() {
         let usage = cpu.cpu_usage() as u32;
@@ -489,12 +481,7 @@ fn cmd_syscheck() -> Result<(), String> {
                 * 100.0;
             if usage > 90.0 {
                 issues.push(format!("Low disk space on {}: {:.1}% used", mount, usage));
-                println!(
-                    "  {} Disk {} usage: {:.1}%",
-                    style("✗").red(),
-                    mount,
-                    usage
-                );
+                println!("  {} Disk {} usage: {:.1}%", style("✗").red(), mount, usage);
             } else if usage > 80.0 {
                 println!(
                     "  {} Disk {} usage: {:.1}%",
@@ -558,10 +545,7 @@ fn cmd_syscheck() -> Result<(), String> {
 
     println!();
     if issues.is_empty() {
-        println!(
-            "{}",
-            style("System health: OK").green().bold()
-        );
+        println!("{}", style("System health: OK").green().bold());
     } else {
         println!(
             "{} {} issue(s) found",
@@ -626,19 +610,14 @@ fn cmd_ps(args: PsArgs) -> Result<(), String> {
     println!("{}", style("Process List").bold().underlined());
     println!();
 
-    println!(
-        "{:<8} {:<10} {:<10} {:<40}",
-        "PID", "CPU%", "MEM", "NAME"
-    );
+    println!("{:<8} {:<10} {:<10} {:<40}", "PID", "CPU%", "MEM", "NAME");
     println!("{}", "-".repeat(70));
 
     let mut processes: Vec<_> = sys.processes().iter().collect();
 
     // Sort based on argument
     match args.sort.as_str() {
-        "mem" => processes.sort_by(|a, b| {
-            b.1.memory().cmp(&a.1.memory())
-        }),
+        "mem" => processes.sort_by(|a, b| b.1.memory().cmp(&a.1.memory())),
         "pid" => processes.sort_by(|a, b| a.0.cmp(b.0)),
         _ => processes.sort_by(|a, b| {
             b.1.cpu_usage()
@@ -727,9 +706,19 @@ fn cmd_report(args: ReportArgs) -> Result<(), String> {
         report.push_str("=== System Report ===\n\n");
 
         report.push_str("System:\n");
-        report.push_str(&format!("  Hostname: {}\n", System::host_name().unwrap_or_default()));
-        report.push_str(&format!("  Kernel: {}\n", System::kernel_version().unwrap_or_default()));
-        report.push_str(&format!("  OS: {} {}\n", System::name().unwrap_or_default(), System::os_version().unwrap_or_default()));
+        report.push_str(&format!(
+            "  Hostname: {}\n",
+            System::host_name().unwrap_or_default()
+        ));
+        report.push_str(&format!(
+            "  Kernel: {}\n",
+            System::kernel_version().unwrap_or_default()
+        ));
+        report.push_str(&format!(
+            "  OS: {} {}\n",
+            System::name().unwrap_or_default(),
+            System::os_version().unwrap_or_default()
+        ));
         report.push_str("\n");
 
         report.push_str("Memory:\n");

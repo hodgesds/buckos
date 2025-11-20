@@ -6,8 +6,8 @@
 //! - OpenSSL
 //! - ca-certificates
 
-use crate::types::{PackageId, PackageInfo, Dependency, UseFlag, VersionSpec};
 use super::{dep, dep_build, dep_runtime, dep_use, use_flag};
+use crate::types::{Dependency, PackageId, PackageInfo, UseFlag, VersionSpec};
 use semver::Version;
 
 /// Get all network packages
@@ -16,39 +16,28 @@ pub fn get_packages() -> Vec<PackageInfo> {
         // OpenSSL
         openssl_3_2_1(),
         openssl_3_3_0(),
-
         // curl
         curl_8_6_0(),
         curl_8_7_1(),
-
         // wget
         wget_1_21_4(),
         wget_1_24_5(),
-
         // ca-certificates
         ca_certificates_20240203(),
-
         // nghttp2
         nghttp2_1_60_0(),
-
         // libssh2
         libssh2_1_11_0(),
-
         // GnuTLS
         gnutls_3_8_4(),
-
         // OpenSSH
         openssh_9_7(),
-
         // iproute2
         iproute2_6_7_0(),
-
         // iputils
         iputils_20240117(),
-
         // net-tools
         net_tools_2_10(),
-
         // bind-tools (dig, nslookup, host)
         bind_tools_9_18_24(),
     ]
@@ -74,17 +63,13 @@ fn openssl_3_2_1() -> PackageInfo {
             use_flag("tls-compression", "Enable TLS compression", false),
             use_flag("weak-ssl-ciphers", "Enable weak SSL ciphers", false),
         ],
-        dependencies: vec![
-            dep("sys-libs", "zlib"),
-        ],
-        build_dependencies: vec![
-            dep_build("dev-lang", "perl"),
-        ],
-        runtime_dependencies: vec![
-            dep_runtime("app-misc", "ca-certificates"),
-        ],
+        dependencies: vec![dep("sys-libs", "zlib")],
+        build_dependencies: vec![dep_build("dev-lang", "perl")],
+        runtime_dependencies: vec![dep_runtime("app-misc", "ca-certificates")],
         source_url: Some("https://www.openssl.org/source/openssl-3.2.1.tar.gz".to_string()),
-        source_hash: Some("83c7329fe52c850677d75e5d0b0ca245309b97e8ecbcfdc1dfdc4ab9fac35b39".to_string()),
+        source_hash: Some(
+            "83c7329fe52c850677d75e5d0b0ca245309b97e8ecbcfdc1dfdc4ab9fac35b39".to_string(),
+        ),
         buck_target: "//dev-libs/openssl:openssl-3.2.1".to_string(),
         size: 15_000_000,
         installed_size: 40_000_000,
@@ -99,7 +84,11 @@ fn openssl_3_3_0() -> PackageInfo {
         description: "Robust, full-featured SSL/TLS library".to_string(),
         homepage: Some("https://www.openssl.org/".to_string()),
         license: "Apache-2.0".to_string(),
-        keywords: vec!["~amd64".to_string(), "~arm64".to_string(), "~x86".to_string()],
+        keywords: vec![
+            "~amd64".to_string(),
+            "~arm64".to_string(),
+            "~x86".to_string(),
+        ],
         use_flags: vec![
             use_flag("asm", "Enable assembly optimizations", true),
             use_flag("fips", "Enable FIPS mode", false),
@@ -111,17 +100,13 @@ fn openssl_3_3_0() -> PackageInfo {
             use_flag("tls-compression", "Enable TLS compression", false),
             use_flag("weak-ssl-ciphers", "Enable weak SSL ciphers", false),
         ],
-        dependencies: vec![
-            dep("sys-libs", "zlib"),
-        ],
-        build_dependencies: vec![
-            dep_build("dev-lang", "perl"),
-        ],
-        runtime_dependencies: vec![
-            dep_runtime("app-misc", "ca-certificates"),
-        ],
+        dependencies: vec![dep("sys-libs", "zlib")],
+        build_dependencies: vec![dep_build("dev-lang", "perl")],
+        runtime_dependencies: vec![dep_runtime("app-misc", "ca-certificates")],
         source_url: Some("https://www.openssl.org/source/openssl-3.3.0.tar.gz".to_string()),
-        source_hash: Some("93c7329fe52c850677d75e5d0b0ca245309b97e8ecbcfdc1dfdc4ab9fac35b40".to_string()),
+        source_hash: Some(
+            "93c7329fe52c850677d75e5d0b0ca245309b97e8ecbcfdc1dfdc4ab9fac35b40".to_string(),
+        ),
         buck_target: "//dev-libs/openssl:openssl-3.3.0".to_string(),
         size: 15_500_000,
         installed_size: 42_000_000,
@@ -172,14 +157,12 @@ fn curl_8_6_0() -> PackageInfo {
             dep("app-arch", "zstd"),
             dep("app-arch", "brotli"),
         ],
-        build_dependencies: vec![
-            dep_build("dev-util", "pkgconf"),
-        ],
-        runtime_dependencies: vec![
-            dep_runtime("app-misc", "ca-certificates"),
-        ],
+        build_dependencies: vec![dep_build("dev-util", "pkgconf")],
+        runtime_dependencies: vec![dep_runtime("app-misc", "ca-certificates")],
         source_url: Some("https://curl.se/download/curl-8.6.0.tar.xz".to_string()),
-        source_hash: Some("3ccd55d91af9516539df80625f818c734dc6f2ecf9bada3343c01a5a97f7c7c0".to_string()),
+        source_hash: Some(
+            "3ccd55d91af9516539df80625f818c734dc6f2ecf9bada3343c01a5a97f7c7c0".to_string(),
+        ),
         buck_target: "//net-misc/curl:curl-8.6.0".to_string(),
         size: 2_600_000,
         installed_size: 8_000_000,
@@ -194,7 +177,11 @@ fn curl_8_7_1() -> PackageInfo {
         description: "A command line tool and library for transferring data with URLs".to_string(),
         homepage: Some("https://curl.se/".to_string()),
         license: "MIT".to_string(),
-        keywords: vec!["~amd64".to_string(), "~arm64".to_string(), "~x86".to_string()],
+        keywords: vec![
+            "~amd64".to_string(),
+            "~arm64".to_string(),
+            "~x86".to_string(),
+        ],
         use_flags: vec![
             use_flag("adns", "Enable async DNS support", false),
             use_flag("alt-svc", "Enable Alt-Svc support", true),
@@ -220,14 +207,12 @@ fn curl_8_7_1() -> PackageInfo {
             dep("app-arch", "zstd"),
             dep("app-arch", "brotli"),
         ],
-        build_dependencies: vec![
-            dep_build("dev-util", "pkgconf"),
-        ],
-        runtime_dependencies: vec![
-            dep_runtime("app-misc", "ca-certificates"),
-        ],
+        build_dependencies: vec![dep_build("dev-util", "pkgconf")],
+        runtime_dependencies: vec![dep_runtime("app-misc", "ca-certificates")],
         source_url: Some("https://curl.se/download/curl-8.7.1.tar.xz".to_string()),
-        source_hash: Some("4ccd55d91af9516539df80625f818c734dc6f2ecf9bada3343c01a5a97f7c7c1".to_string()),
+        source_hash: Some(
+            "4ccd55d91af9516539df80625f818c734dc6f2ecf9bada3343c01a5a97f7c7c1".to_string(),
+        ),
         buck_target: "//net-misc/curl:curl-8.7.1".to_string(),
         size: 2_700_000,
         installed_size: 8_500_000,
@@ -270,11 +255,11 @@ fn wget_1_21_4() -> PackageInfo {
             dep_build("sys-devel", "gettext"),
             dep_build("dev-util", "pkgconf"),
         ],
-        runtime_dependencies: vec![
-            dep_runtime("app-misc", "ca-certificates"),
-        ],
+        runtime_dependencies: vec![dep_runtime("app-misc", "ca-certificates")],
         source_url: Some("https://ftp.gnu.org/gnu/wget/wget-1.21.4.tar.gz".to_string()),
-        source_hash: Some("81542f5cefb8faacc39bbbc6c82ded80e3e4a88505ae72571b15dd21bf0a9919".to_string()),
+        source_hash: Some(
+            "81542f5cefb8faacc39bbbc6c82ded80e3e4a88505ae72571b15dd21bf0a9919".to_string(),
+        ),
         buck_target: "//net-misc/wget:wget-1.21.4".to_string(),
         size: 4_800_000,
         installed_size: 10_000_000,
@@ -289,7 +274,11 @@ fn wget_1_24_5() -> PackageInfo {
         description: "Network utility to retrieve files from the web".to_string(),
         homepage: Some("https://www.gnu.org/software/wget/".to_string()),
         license: "GPL-3+".to_string(),
-        keywords: vec!["~amd64".to_string(), "~arm64".to_string(), "~x86".to_string()],
+        keywords: vec![
+            "~amd64".to_string(),
+            "~arm64".to_string(),
+            "~x86".to_string(),
+        ],
         use_flags: vec![
             use_flag("gnutls", "Use GnuTLS instead of OpenSSL", false),
             use_flag("idn", "Enable IDN support", true),
@@ -310,11 +299,11 @@ fn wget_1_24_5() -> PackageInfo {
             dep_build("sys-devel", "gettext"),
             dep_build("dev-util", "pkgconf"),
         ],
-        runtime_dependencies: vec![
-            dep_runtime("app-misc", "ca-certificates"),
-        ],
+        runtime_dependencies: vec![dep_runtime("app-misc", "ca-certificates")],
         source_url: Some("https://ftp.gnu.org/gnu/wget/wget-1.24.5.tar.gz".to_string()),
-        source_hash: Some("91542f5cefb8faacc39bbbc6c82ded80e3e4a88505ae72571b15dd21bf0a991a".to_string()),
+        source_hash: Some(
+            "91542f5cefb8faacc39bbbc6c82ded80e3e4a88505ae72571b15dd21bf0a991a".to_string(),
+        ),
         buck_target: "//net-misc/wget:wget-1.24.5".to_string(),
         size: 5_000_000,
         installed_size: 11_000_000,
@@ -372,8 +361,13 @@ fn nghttp2_1_60_0() -> PackageInfo {
             dep_build("dev-util", "pkgconf"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://github.com/nghttp2/nghttp2/releases/download/v1.60.0/nghttp2-1.60.0.tar.xz".to_string()),
-        source_hash: Some("b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3".to_string()),
+        source_url: Some(
+            "https://github.com/nghttp2/nghttp2/releases/download/v1.60.0/nghttp2-1.60.0.tar.xz"
+                .to_string(),
+        ),
+        source_hash: Some(
+            "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3".to_string(),
+        ),
         buck_target: "//net-libs/nghttp2:nghttp2-1.60.0".to_string(),
         size: 1_600_000,
         installed_size: 4_000_000,
@@ -396,10 +390,7 @@ fn libssh2_1_11_0() -> PackageInfo {
             use_flag("test", "Build tests", false),
             use_flag("zlib", "Enable zlib compression", true),
         ],
-        dependencies: vec![
-            dep("dev-libs", "openssl"),
-            dep("sys-libs", "zlib"),
-        ],
+        dependencies: vec![dep("dev-libs", "openssl"), dep("sys-libs", "zlib")],
         build_dependencies: vec![
             dep_build("dev-util", "cmake"),
             dep_build("dev-util", "ninja"),
@@ -407,7 +398,9 @@ fn libssh2_1_11_0() -> PackageInfo {
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://www.libssh2.org/download/libssh2-1.11.0.tar.gz".to_string()),
-        source_hash: Some("c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4".to_string()),
+        source_hash: Some(
+            "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4".to_string(),
+        ),
         buck_target: "//net-libs/libssh2:libssh2-1.11.0".to_string(),
         size: 1_000_000,
         installed_size: 2_500_000,
@@ -457,8 +450,12 @@ fn gnutls_3_8_4() -> PackageInfo {
             dep_build("sys-devel", "gettext"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.4.tar.xz".to_string()),
-        source_hash: Some("d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5".to_string()),
+        source_url: Some(
+            "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.4.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5".to_string(),
+        ),
         buck_target: "//net-libs/gnutls:gnutls-3.8.4".to_string(),
         size: 6_000_000,
         installed_size: 15_000_000,
@@ -496,12 +493,14 @@ fn openssh_9_7() -> PackageInfo {
             dep("sys-libs", "pam"),
             dep("sys-libs", "zlib"),
         ],
-        build_dependencies: vec![
-            dep_build("dev-util", "pkgconf"),
-        ],
+        build_dependencies: vec![dep_build("dev-util", "pkgconf")],
         runtime_dependencies: vec![],
-        source_url: Some("https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.7p1.tar.gz".to_string()),
-        source_hash: Some("e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6".to_string()),
+        source_url: Some(
+            "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.7p1.tar.gz".to_string(),
+        ),
+        source_hash: Some(
+            "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6".to_string(),
+        ),
         buck_target: "//net-misc/openssh:openssh-9.7".to_string(),
         size: 1_800_000,
         installed_size: 5_000_000,
@@ -528,9 +527,7 @@ fn iproute2_6_7_0() -> PackageInfo {
             use_flag("nfs", "Enable NFS support", false),
             use_flag("selinux", "Enable SELinux support", false),
         ],
-        dependencies: vec![
-            dep("sys-libs", "libcap"),
-        ],
+        dependencies: vec![dep("sys-libs", "libcap")],
         build_dependencies: vec![
             dep_build("sys-devel", "gcc"),
             dep_build("sys-devel", "flex"),
@@ -538,8 +535,12 @@ fn iproute2_6_7_0() -> PackageInfo {
             dep_build("dev-util", "pkgconf"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://kernel.org/pub/linux/utils/net/iproute2/iproute2-6.7.0.tar.xz".to_string()),
-        source_hash: Some("f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7".to_string()),
+        source_url: Some(
+            "https://kernel.org/pub/linux/utils/net/iproute2/iproute2-6.7.0.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7".to_string(),
+        ),
         buck_target: "//sys-apps/iproute2:iproute2-6.7.0".to_string(),
         size: 1_000_000,
         installed_size: 3_000_000,
@@ -566,16 +567,16 @@ fn iputils_20240117() -> PackageInfo {
             use_flag("tracepath", "Build tracepath", true),
             use_flag("traceroute6", "Build traceroute6", true),
         ],
-        dependencies: vec![
-            dep("sys-libs", "libcap"),
-        ],
+        dependencies: vec![dep("sys-libs", "libcap")],
         build_dependencies: vec![
             dep_build("dev-util", "meson"),
             dep_build("dev-util", "ninja"),
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://github.com/iputils/iputils/archive/20240117.tar.gz".to_string()),
-        source_hash: Some("a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8".to_string()),
+        source_hash: Some(
+            "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8".to_string(),
+        ),
         buck_target: "//net-misc/iputils:iputils-20240117".to_string(),
         size: 350_000,
         installed_size: 800_000,
@@ -606,8 +607,12 @@ fn net_tools_2_10() -> PackageInfo {
             dep_build("sys-devel", "gettext"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://downloads.sourceforge.net/net-tools/net-tools-2.10.tar.xz".to_string()),
-        source_hash: Some("b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9".to_string()),
+        source_url: Some(
+            "https://downloads.sourceforge.net/net-tools/net-tools-2.10.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9".to_string(),
+        ),
         buck_target: "//sys-apps/net-tools:net-tools-2.10".to_string(),
         size: 350_000,
         installed_size: 1_000_000,
@@ -636,12 +641,14 @@ fn bind_tools_9_18_24() -> PackageInfo {
             dep("dev-libs", "userspace-rcu"),
             dep("sys-libs", "zlib"),
         ],
-        build_dependencies: vec![
-            dep_build("dev-util", "pkgconf"),
-        ],
+        build_dependencies: vec![dep_build("dev-util", "pkgconf")],
         runtime_dependencies: vec![],
-        source_url: Some("https://downloads.isc.org/isc/bind9/9.18.24/bind-9.18.24.tar.xz".to_string()),
-        source_hash: Some("c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0".to_string()),
+        source_url: Some(
+            "https://downloads.isc.org/isc/bind9/9.18.24/bind-9.18.24.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0".to_string(),
+        ),
         buck_target: "//net-dns/bind-tools:bind-tools-9.18.24".to_string(),
         size: 5_000_000,
         installed_size: 8_000_000,

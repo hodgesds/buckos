@@ -33,8 +33,8 @@ impl ConfigLoader {
 
     /// Create a loader for user configuration
     pub fn user() -> Result<Self> {
-        let home = std::env::var("HOME")
-            .map_err(|_| ConfigError::Invalid("HOME not set".to_string()))?;
+        let home =
+            std::env::var("HOME").map_err(|_| ConfigError::Invalid("HOME not set".to_string()))?;
         Ok(Self::new(PathBuf::from(home).join(".config/buckos")))
     }
 
@@ -172,7 +172,9 @@ fn validate_config(config: &PortageConfig) -> Result<()> {
 /// Merge overlay configuration into base
 fn merge_configs(base: &mut PortageConfig, overlay: &PortageConfig) {
     // Merge USE flags
-    base.make_conf.use_config.merge(&overlay.make_conf.use_config);
+    base.make_conf
+        .use_config
+        .merge(&overlay.make_conf.use_config);
     base.package_use.merge(&overlay.package_use);
 
     // Merge features
@@ -190,10 +192,14 @@ fn merge_configs(base: &mut PortageConfig, overlay: &PortageConfig) {
     }
 
     // Merge package keywords
-    base.package_keywords.package.extend(overlay.package_keywords.package.iter().cloned());
+    base.package_keywords
+        .package
+        .extend(overlay.package_keywords.package.iter().cloned());
 
     // Merge package licenses
-    base.package_license.package.extend(overlay.package_license.package.iter().cloned());
+    base.package_license
+        .package
+        .extend(overlay.package_license.package.iter().cloned());
 }
 
 /// Default configuration paths
@@ -283,8 +289,7 @@ pub fn load_user_config() -> Result<PortageConfig> {
     let user_root = paths::user_config()
         .ok_or_else(|| ConfigError::Invalid("Could not determine user config path".to_string()))?;
 
-    ConfigLoader::new(system_root)
-        .load_with_overlay(&user_root)
+    ConfigLoader::new(system_root).load_with_overlay(&user_root)
 }
 
 #[cfg(test)]

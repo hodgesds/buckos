@@ -6,8 +6,8 @@ pub mod buckconfig;
 
 pub use buckconfig::{BuckConfigFile, BuckConfigOptions, BuckConfigSection};
 
-use crate::{BuildOptions, BuildResult, Error, Result};
 use crate::config::Config;
+use crate::{BuildOptions, BuildResult, Error, Result};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
@@ -128,9 +128,10 @@ impl BuckIntegration {
 
         debug!("Running: {:?}", cmd);
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to execute Buck: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to execute Buck: {}", e)))?;
 
         let duration = start.elapsed();
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -209,9 +210,10 @@ impl BuckIntegration {
             cmd.arg(arg);
         }
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to execute Buck: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to execute Buck: {}", e)))?;
 
         let duration = start.elapsed();
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -250,9 +252,10 @@ impl BuckIntegration {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to query Buck: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to query Buck: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -272,9 +275,10 @@ impl BuckIntegration {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to query deps: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to query deps: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -294,9 +298,10 @@ impl BuckIntegration {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to query rdeps: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to query rdeps: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -317,9 +322,10 @@ impl BuckIntegration {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to clean: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to clean: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -339,9 +345,10 @@ impl BuckIntegration {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to get output path: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to get output path: {}", e)))?;
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -366,9 +373,10 @@ impl BuckIntegration {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to audit: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to audit: {}", e)))?;
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
@@ -381,13 +389,17 @@ impl BuckIntegration {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd.output().await.map_err(|e| {
-            Error::BuckError(format!("Failed to generate project: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| Error::BuckError(format!("Failed to generate project: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::BuckError(format!("Project generation failed: {}", stderr)));
+            return Err(Error::BuckError(format!(
+                "Project generation failed: {}",
+                stderr
+            )));
         }
 
         Ok(())

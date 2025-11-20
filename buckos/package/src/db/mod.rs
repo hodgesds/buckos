@@ -134,8 +134,8 @@ impl PackageDb {
 
         match pkg {
             Some((id, category, name, version, slot, installed_at, size, build_time, explicit)) => {
-                let version = semver::Version::parse(&version)
-                    .map_err(|_| Error::InvalidVersion(version))?;
+                let version =
+                    semver::Version::parse(&version).map_err(|_| Error::InvalidVersion(version))?;
                 let installed_at = chrono::DateTime::parse_from_rfc3339(&installed_at)
                     .map_err(|e| Error::DatabaseError(e.to_string()))?
                     .with_timezone(&chrono::Utc);
@@ -183,9 +183,10 @@ impl PackageDb {
 
         let mut packages = Vec::new();
         for row in rows {
-            let (id, category, name, version, slot, installed_at, size, build_time, explicit) = row?;
-            let version = semver::Version::parse(&version)
-                .map_err(|_| Error::InvalidVersion(version))?;
+            let (id, category, name, version, slot, installed_at, size, build_time, explicit) =
+                row?;
+            let version =
+                semver::Version::parse(&version).map_err(|_| Error::InvalidVersion(version))?;
             let installed_at = chrono::DateTime::parse_from_rfc3339(&installed_at)
                 .map_err(|e| Error::DatabaseError(e.to_string()))?
                 .with_timezone(&chrono::Utc);
@@ -248,10 +249,8 @@ impl PackageDb {
 
     /// Remove a package from the database
     pub fn remove_package(&mut self, name: &str) -> Result<()> {
-        self.conn.execute(
-            "DELETE FROM packages WHERE name = ?",
-            params![name],
-        )?;
+        self.conn
+            .execute("DELETE FROM packages WHERE name = ?", params![name])?;
         Ok(())
     }
 
@@ -411,9 +410,10 @@ impl PackageDb {
 
         let mut packages = Vec::new();
         for row in rows {
-            let (id, category, name, version, slot, installed_at, size, build_time, explicit) = row?;
-            let version = semver::Version::parse(&version)
-                .map_err(|_| Error::InvalidVersion(version))?;
+            let (id, category, name, version, slot, installed_at, size, build_time, explicit) =
+                row?;
+            let version =
+                semver::Version::parse(&version).map_err(|_| Error::InvalidVersion(version))?;
             let installed_at = chrono::DateTime::parse_from_rfc3339(&installed_at)
                 .map_err(|e| Error::DatabaseError(e.to_string()))?
                 .with_timezone(&chrono::Utc);

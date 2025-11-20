@@ -189,7 +189,8 @@ impl InstallerApp {
                 // If encryption selected, need passphrase
                 let enc_ok = self.ui_state.encryption_type == EncryptionType::None
                     || (!self.ui_state.encryption_passphrase.is_empty()
-                        && self.ui_state.encryption_passphrase == self.ui_state.confirm_encryption_passphrase);
+                        && self.ui_state.encryption_passphrase
+                            == self.ui_state.confirm_encryption_passphrase);
                 disk_ok && enc_ok
             }
             InstallStep::Bootloader => true,
@@ -227,8 +228,12 @@ impl InstallerApp {
             InstallStep::ProfileSelection => {
                 // Update config with selected profile and audio subsystem
                 self.config.profile = match &self.config.profile {
-                    InstallProfile::Desktop(_) => InstallProfile::Desktop(self.ui_state.selected_de.clone()),
-                    InstallProfile::Handheld(_) => InstallProfile::Handheld(self.ui_state.selected_handheld.clone()),
+                    InstallProfile::Desktop(_) => {
+                        InstallProfile::Desktop(self.ui_state.selected_de.clone())
+                    }
+                    InstallProfile::Handheld(_) => {
+                        InstallProfile::Handheld(self.ui_state.selected_handheld.clone())
+                    }
                     other => other.clone(),
                 };
                 self.config.audio_subsystem = self.ui_state.audio_subsystem.clone();
@@ -237,16 +242,21 @@ impl InstallerApp {
                 // Validate encryption passphrase
                 if self.ui_state.encryption_type != EncryptionType::None {
                     if self.ui_state.encryption_passphrase.is_empty() {
-                        self.ui_state.validation_error = Some("Encryption passphrase is required".to_string());
+                        self.ui_state.validation_error =
+                            Some("Encryption passphrase is required".to_string());
                         return false;
                     }
-                    if self.ui_state.encryption_passphrase != self.ui_state.confirm_encryption_passphrase {
-                        self.ui_state.validation_error = Some("Encryption passphrases do not match".to_string());
+                    if self.ui_state.encryption_passphrase
+                        != self.ui_state.confirm_encryption_passphrase
+                    {
+                        self.ui_state.validation_error =
+                            Some("Encryption passphrases do not match".to_string());
                         return false;
                     }
                     if self.ui_state.encryption_passphrase.len() < 8 {
-                        self.ui_state.validation_error =
-                            Some("Encryption passphrase should be at least 8 characters".to_string());
+                        self.ui_state.validation_error = Some(
+                            "Encryption passphrase should be at least 8 characters".to_string(),
+                        );
                         return false;
                     }
                 }
@@ -274,7 +284,8 @@ impl InstallerApp {
                     return false;
                 }
                 if self.ui_state.root_password != self.ui_state.confirm_root_password {
-                    self.ui_state.validation_error = Some("Root passwords do not match".to_string());
+                    self.ui_state.validation_error =
+                        Some("Root passwords do not match".to_string());
                     return false;
                 }
                 if self.ui_state.root_password.len() < 4 {
@@ -292,24 +303,39 @@ impl InstallerApp {
                 self.config.network.hostname = self.ui_state.hostname.clone();
             }
             InstallStep::Timezone => {
-                if let Some(tz) = self.ui_state.timezones.get(self.ui_state.selected_timezone_index) {
+                if let Some(tz) = self
+                    .ui_state
+                    .timezones
+                    .get(self.ui_state.selected_timezone_index)
+                {
                     self.config.timezone.timezone = tz.clone();
                 }
-                if let Some(locale) = self.ui_state.locales.get(self.ui_state.selected_locale_index) {
+                if let Some(locale) = self
+                    .ui_state
+                    .locales
+                    .get(self.ui_state.selected_locale_index)
+                {
                     self.config.locale.locale = locale.clone();
                 }
-                if let Some(kb) = self.ui_state.keyboards.get(self.ui_state.selected_keyboard_index) {
+                if let Some(kb) = self
+                    .ui_state
+                    .keyboards
+                    .get(self.ui_state.selected_keyboard_index)
+                {
                     self.config.locale.keyboard = kb.clone();
                 }
             }
             InstallStep::Summary => {
                 // Validate confirmation checkboxes
                 if !self.ui_state.confirm_install {
-                    self.ui_state.validation_error = Some("Please confirm installation".to_string());
+                    self.ui_state.validation_error =
+                        Some("Please confirm installation".to_string());
                     return false;
                 }
-                if self.config.disk.is_some() && !self.config.dry_run && !self.ui_state.confirm_wipe {
-                    self.ui_state.validation_error = Some("Please confirm data destruction".to_string());
+                if self.config.disk.is_some() && !self.config.dry_run && !self.ui_state.confirm_wipe
+                {
+                    self.ui_state.validation_error =
+                        Some("Please confirm data destruction".to_string());
                     return false;
                 }
             }
@@ -340,7 +366,8 @@ impl eframe::App for InstallerApp {
 
             // Progress bar
             ui.add_space(4.0);
-            let progress = self.current_step.index() as f32 / (InstallStep::total_steps() - 1) as f32;
+            let progress =
+                self.current_step.index() as f32 / (InstallStep::total_steps() - 1) as f32;
             ui.add(egui::ProgressBar::new(progress).show_percentage());
             ui.add_space(8.0);
         });
@@ -406,82 +433,83 @@ impl eframe::App for InstallerApp {
             ui.add_space(8.0);
 
             // Render current step
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                match self.current_step {
-                    InstallStep::Welcome => steps::render_welcome(ui, &self.system_info),
-                    InstallStep::HardwareDetection => steps::render_hardware_detection(
-                        ui,
-                        &self.ui_state.hardware_info,
-                        &mut self.ui_state.hardware_suggestions,
-                    ),
-                    InstallStep::ProfileSelection => steps::render_profile_selection(
-                        ui,
-                        &mut self.config.profile,
-                        &mut self.ui_state.selected_de,
-                        &mut self.ui_state.selected_handheld,
-                        &mut self.ui_state.audio_subsystem,
-                    ),
-                    InstallStep::DiskSetup => steps::render_disk_setup(
-                        ui,
-                        &self.available_disks,
-                        &mut self.ui_state.selected_disk_index,
-                        &mut self.ui_state.auto_partition,
-                        &mut self.ui_state.layout_preset,
-                        &mut self.ui_state.encryption_type,
-                        &mut self.ui_state.encryption_passphrase,
-                        &mut self.ui_state.confirm_encryption_passphrase,
-                    ),
-                    InstallStep::Bootloader => steps::render_bootloader(
-                        ui,
-                        &mut self.config.bootloader,
-                        system::is_efi_system(),
-                    ),
-                    InstallStep::UserSetup => steps::render_user_setup(
-                        ui,
-                        &mut self.config.users,
-                        &mut self.ui_state.new_username,
-                        &mut self.ui_state.new_fullname,
-                        &mut self.ui_state.new_password,
-                        &mut self.ui_state.confirm_password,
-                        &mut self.ui_state.new_user_admin,
-                        &mut self.ui_state.root_password,
-                        &mut self.ui_state.confirm_root_password,
-                    ),
-                    InstallStep::NetworkSetup => steps::render_network_setup(
-                        ui,
-                        &mut self.ui_state.hostname,
-                        &mut self.config.network.use_dhcp,
-                    ),
-                    InstallStep::Timezone => steps::render_timezone_setup(
-                        ui,
-                        &self.ui_state.timezones,
-                        &mut self.ui_state.selected_timezone_index,
-                        &self.ui_state.locales,
-                        &mut self.ui_state.selected_locale_index,
-                        &self.ui_state.keyboards,
-                        &mut self.ui_state.selected_keyboard_index,
-                    ),
-                    InstallStep::Summary => steps::render_summary(
-                        ui,
-                        &self.config,
-                        &self.available_disks,
-                        self.ui_state.selected_disk_index,
-                        &mut self.ui_state.confirm_wipe,
-                        &mut self.ui_state.confirm_install,
-                    ),
-                    InstallStep::Installing => {
-                        let progress = self.progress.lock().unwrap();
-                        steps::render_installing(ui, &progress)
-                    }
-                    InstallStep::Complete => steps::render_complete(ui, &self.config),
+            egui::ScrollArea::vertical().show(ui, |ui| match self.current_step {
+                InstallStep::Welcome => steps::render_welcome(ui, &self.system_info),
+                InstallStep::HardwareDetection => steps::render_hardware_detection(
+                    ui,
+                    &self.ui_state.hardware_info,
+                    &mut self.ui_state.hardware_suggestions,
+                ),
+                InstallStep::ProfileSelection => steps::render_profile_selection(
+                    ui,
+                    &mut self.config.profile,
+                    &mut self.ui_state.selected_de,
+                    &mut self.ui_state.selected_handheld,
+                    &mut self.ui_state.audio_subsystem,
+                ),
+                InstallStep::DiskSetup => steps::render_disk_setup(
+                    ui,
+                    &self.available_disks,
+                    &mut self.ui_state.selected_disk_index,
+                    &mut self.ui_state.auto_partition,
+                    &mut self.ui_state.layout_preset,
+                    &mut self.ui_state.encryption_type,
+                    &mut self.ui_state.encryption_passphrase,
+                    &mut self.ui_state.confirm_encryption_passphrase,
+                ),
+                InstallStep::Bootloader => steps::render_bootloader(
+                    ui,
+                    &mut self.config.bootloader,
+                    system::is_efi_system(),
+                ),
+                InstallStep::UserSetup => steps::render_user_setup(
+                    ui,
+                    &mut self.config.users,
+                    &mut self.ui_state.new_username,
+                    &mut self.ui_state.new_fullname,
+                    &mut self.ui_state.new_password,
+                    &mut self.ui_state.confirm_password,
+                    &mut self.ui_state.new_user_admin,
+                    &mut self.ui_state.root_password,
+                    &mut self.ui_state.confirm_root_password,
+                ),
+                InstallStep::NetworkSetup => steps::render_network_setup(
+                    ui,
+                    &mut self.ui_state.hostname,
+                    &mut self.config.network.use_dhcp,
+                ),
+                InstallStep::Timezone => steps::render_timezone_setup(
+                    ui,
+                    &self.ui_state.timezones,
+                    &mut self.ui_state.selected_timezone_index,
+                    &self.ui_state.locales,
+                    &mut self.ui_state.selected_locale_index,
+                    &self.ui_state.keyboards,
+                    &mut self.ui_state.selected_keyboard_index,
+                ),
+                InstallStep::Summary => steps::render_summary(
+                    ui,
+                    &self.config,
+                    &self.available_disks,
+                    self.ui_state.selected_disk_index,
+                    &mut self.ui_state.confirm_wipe,
+                    &mut self.ui_state.confirm_install,
+                ),
+                InstallStep::Installing => {
+                    let progress = self.progress.lock().unwrap();
+                    steps::render_installing(ui, &progress)
                 }
+                InstallStep::Complete => steps::render_complete(ui, &self.config),
             });
         });
     }
 }
 
 /// Create automatic partition configuration for a disk
-fn create_auto_partition_config(disk: &DiskInfo, layout: &DiskLayoutPreset) -> crate::types::DiskConfig {
+fn create_auto_partition_config(
+    disk: &DiskInfo,
+    layout: &DiskLayoutPreset,
+) -> crate::types::DiskConfig {
     let is_efi = system::is_efi_system();
     let mut partitions = Vec::new();
     let mut part_num = 1;

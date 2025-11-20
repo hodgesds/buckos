@@ -48,7 +48,9 @@ fn main() -> Result<()> {
     };
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| filter.into()))
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| filter.into()),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
@@ -102,13 +104,32 @@ fn run_gui_installer(args: &Args) -> Result<()> {
 fn run_text_installer(args: &Args) -> Result<()> {
     use console::style;
 
-    println!("\n{}", style("═══════════════════════════════════════").cyan());
-    println!("{}", style("       Buckos Text-Mode Installer       ").cyan().bold());
-    println!("{}", style("═══════════════════════════════════════").cyan());
+    println!(
+        "\n{}",
+        style("═══════════════════════════════════════").cyan()
+    );
+    println!(
+        "{}",
+        style("       Buckos Text-Mode Installer       ")
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        style("═══════════════════════════════════════").cyan()
+    );
     println!();
-    println!("Target installation directory: {}", style(&args.target).yellow());
+    println!(
+        "Target installation directory: {}",
+        style(&args.target).yellow()
+    );
     if args.dry_run {
-        println!("{}", style("DRY RUN MODE - No changes will be made").yellow().bold());
+        println!(
+            "{}",
+            style("DRY RUN MODE - No changes will be made")
+                .yellow()
+                .bold()
+        );
     }
     println!();
 
@@ -129,7 +150,10 @@ fn run_text_installer(args: &Args) -> Result<()> {
     }
     println!();
 
-    println!("{}", style("For manual installation, you can perform these steps yourself:").cyan());
+    println!(
+        "{}",
+        style("For manual installation, you can perform these steps yourself:").cyan()
+    );
     println!();
     println!("  1. Partition your disk:");
     println!("     # fdisk /dev/sdX  or  parted /dev/sdX");
@@ -146,14 +170,20 @@ fn run_text_installer(args: &Args) -> Result<()> {
     println!();
     println!("  5. Configure the bootloader:");
     println!("     # chroot {} grub-install /dev/sdX", args.target);
-    println!("     # chroot {} grub-mkconfig -o /boot/grub/grub.cfg", args.target);
+    println!(
+        "     # chroot {} grub-mkconfig -o /boot/grub/grub.cfg",
+        args.target
+    );
     println!();
     println!("  6. Set up users and finalize:");
     println!("     # chroot {} passwd root", args.target);
     println!("     # chroot {} useradd -m -G wheel username", args.target);
     println!();
 
-    println!("{}", style("Text-mode interactive installer coming soon!").yellow());
+    println!(
+        "{}",
+        style("Text-mode interactive installer coming soon!").yellow()
+    );
     println!("For now, please use the GUI installer or follow the manual steps above.");
 
     Ok(())

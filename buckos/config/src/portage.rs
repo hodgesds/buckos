@@ -4,8 +4,8 @@
 //! unified system configuration that mirrors /etc/portage structure.
 
 use crate::{
-    EnvConfig, KeywordConfig, LicenseConfig, MakeConf, MaskConfig,
-    PackageAtom, ProfileConfig, ReposConfig, Result, SetsConfig, UseConfig,
+    EnvConfig, KeywordConfig, LicenseConfig, MakeConf, MaskConfig, PackageAtom, ProfileConfig,
+    ReposConfig, Result, SetsConfig, UseConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -189,30 +189,35 @@ impl PortageConfig {
     }
 
     /// Check if a package is keyword-acceptable
-    pub fn is_keyword_acceptable(
-        &self,
-        category: &str,
-        name: &str,
-        keywords: &[&str],
-    ) -> bool {
+    pub fn is_keyword_acceptable(&self, category: &str, name: &str, keywords: &[&str]) -> bool {
         // First check global keywords from make.conf
-        if self.make_conf.keywords.is_acceptable(category, name, keywords) {
+        if self
+            .make_conf
+            .keywords
+            .is_acceptable(category, name, keywords)
+        {
             return true;
         }
 
         // Then check per-package keywords
-        self.package_keywords.is_acceptable(category, name, keywords)
+        self.package_keywords
+            .is_acceptable(category, name, keywords)
     }
 
     /// Check if a license is acceptable for a package
     pub fn is_license_acceptable(&self, category: &str, name: &str, license: &str) -> bool {
         // First check global license from make.conf
-        if self.make_conf.license.is_accepted_for(category, name, license) {
+        if self
+            .make_conf
+            .license
+            .is_accepted_for(category, name, license)
+        {
             return true;
         }
 
         // Then check per-package license
-        self.package_license.is_accepted_for(category, name, license)
+        self.package_license
+            .is_accepted_for(category, name, license)
     }
 
     /// Check if a package is masked
@@ -220,9 +225,12 @@ impl PortageConfig {
         // Check profile masks
         if self.profile.mask_config.is_masked(category, name, version) {
             // But allow user unmask
-            if self.package_mask.unmasked.iter().any(|e| {
-                e.atom.matches_cpn(category, name)
-            }) {
+            if self
+                .package_mask
+                .unmasked
+                .iter()
+                .any(|e| e.atom.matches_cpn(category, name))
+            {
                 return false;
             }
             return true;
@@ -266,10 +274,8 @@ impl PortageConfig {
     /// Accept testing keywords for a package
     pub fn accept_testing(&mut self, atom: PackageAtom) {
         let arch = self.make_conf.arch.clone();
-        self.package_keywords.add_package_keywords(
-            atom,
-            vec![crate::keywords::Keyword::testing(arch)],
-        );
+        self.package_keywords
+            .add_package_keywords(atom, vec![crate::keywords::Keyword::testing(arch)]);
     }
 
     /// Unmask a package
@@ -377,9 +383,7 @@ fn read_config_path(path: &Path) -> Result<String> {
     if path.is_dir() {
         // Read all files in directory
         let mut content = String::new();
-        let mut entries: Vec<_> = std::fs::read_dir(path)?
-            .filter_map(|e| e.ok())
-            .collect();
+        let mut entries: Vec<_> = std::fs::read_dir(path)?.filter_map(|e| e.ok()).collect();
         entries.sort_by_key(|e| e.file_name());
 
         for entry in entries {
@@ -493,10 +497,9 @@ mod tests {
         config.make_conf.use_config.add_global("X");
 
         let atom = PackageAtom::new("app-editors", "vim");
-        config.package_use.add_package_use(
-            atom,
-            vec![crate::use_flags::UseFlag::disabled("X")],
-        );
+        config
+            .package_use
+            .add_package_use(atom, vec![crate::use_flags::UseFlag::disabled("X")]);
 
         let flags = config.effective_use("app-editors", "vim");
         assert!(!flags.contains("X"));

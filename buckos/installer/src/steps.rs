@@ -4,9 +4,9 @@ use egui::{self, RichText, Ui};
 
 use crate::system::{self, SystemInfo};
 use crate::types::{
-    AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset,
-    EncryptionType, HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig,
-    InstallProfile, InstallProgress, NetworkInterfaceType, UserConfig,
+    AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType,
+    HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig, InstallProfile,
+    InstallProgress, NetworkInterfaceType, UserConfig,
 };
 
 /// Render the welcome step
@@ -38,10 +38,7 @@ pub fn render_welcome(ui: &mut Ui, system_info: &SystemInfo) {
                 ui.label(format!(
                     "{} cores - {}",
                     system_info.cpu_count,
-                    system_info
-                        .cpu_brand
-                        .as_deref()
-                        .unwrap_or("Unknown")
+                    system_info.cpu_brand.as_deref().unwrap_or("Unknown")
                 ));
                 ui.end_row();
 
@@ -203,7 +200,9 @@ pub fn render_disk_setup(
         );
         ui.label("Please ensure your disk is properly connected.");
         ui.add_space(8.0);
-        ui.label("For manual installation, you can partition the disk yourself and skip this step.");
+        ui.label(
+            "For manual installation, you can partition the disk yourself and skip this step.",
+        );
         *auto_partition = false;
         return;
     }
@@ -351,11 +350,7 @@ pub fn render_disk_setup(
 }
 
 /// Render the bootloader selection step
-pub fn render_bootloader(
-    ui: &mut Ui,
-    bootloader: &mut BootloaderType,
-    is_efi: bool,
-) {
+pub fn render_bootloader(ui: &mut Ui, bootloader: &mut BootloaderType, is_efi: bool) {
     ui.label("Select a bootloader to boot your system.");
 
     ui.add_space(16.0);
@@ -370,9 +365,11 @@ pub fn render_bootloader(
 
     if !is_efi {
         ui.label(
-            RichText::new("Note: Some bootloaders require UEFI and are not available in BIOS mode.")
-                .color(egui::Color32::YELLOW)
-                .small(),
+            RichText::new(
+                "Note: Some bootloaders require UEFI and are not available in BIOS mode.",
+            )
+            .color(egui::Color32::YELLOW)
+            .small(),
         );
         ui.add_space(8.0);
     }
@@ -388,10 +385,7 @@ pub fn render_bootloader(
 
     for bl in available_bootloaders {
         let is_selected = *bootloader == bl;
-        let response = ui.selectable_label(
-            is_selected,
-            RichText::new(bl.as_str()).strong(),
-        );
+        let response = ui.selectable_label(is_selected, RichText::new(bl.as_str()).strong());
         if response.clicked() {
             *bootloader = bl;
         }
@@ -400,11 +394,7 @@ pub fn render_bootloader(
             ui.label(RichText::new(bl.description()).small());
 
             if bl.requires_uefi() {
-                ui.label(
-                    RichText::new("Requires UEFI")
-                        .small()
-                        .weak(),
-                );
+                ui.label(RichText::new("Requires UEFI").small().weak());
             }
         });
         ui.add_space(4.0);
@@ -528,10 +518,8 @@ pub fn render_profile_selection(
                 .show(ui, |ui| {
                     for de in DesktopEnvironment::all() {
                         let is_selected = selected_de == &de;
-                        let response = ui.selectable_label(
-                            is_selected,
-                            RichText::new(de.name()).strong(),
-                        );
+                        let response =
+                            ui.selectable_label(is_selected, RichText::new(de.name()).strong());
                         if response.clicked() {
                             *selected_de = de.clone();
                             *profile = InstallProfile::Desktop(de.clone());
@@ -555,10 +543,8 @@ pub fn render_profile_selection(
 
             for device in HandheldDevice::all() {
                 let is_selected = selected_handheld == &device;
-                let response = ui.selectable_label(
-                    is_selected,
-                    RichText::new(device.name()).strong(),
-                );
+                let response =
+                    ui.selectable_label(is_selected, RichText::new(device.name()).strong());
                 if response.clicked() {
                     *selected_handheld = device.clone();
                     *profile = InstallProfile::Handheld(device.clone());
@@ -604,7 +590,10 @@ pub fn render_profile_selection(
     }
 
     // Audio subsystem selection for desktop/handheld profiles
-    if matches!(profile, InstallProfile::Desktop(_) | InstallProfile::Handheld(_)) {
+    if matches!(
+        profile,
+        InstallProfile::Desktop(_) | InstallProfile::Handheld(_)
+    ) {
         ui.add_space(16.0);
         ui.separator();
         ui.add_space(8.0);
@@ -753,7 +742,10 @@ pub fn render_user_setup(
             && !new_password.is_empty()
             && new_password == confirm_password;
 
-        if ui.add_enabled(can_add, egui::Button::new("Add User")).clicked() {
+        if ui
+            .add_enabled(can_add, egui::Button::new("Add User"))
+            .clicked()
+        {
             users.push(UserConfig {
                 username: new_username.clone(),
                 full_name: new_fullname.clone(),
@@ -939,7 +931,10 @@ pub fn render_summary(
                 ui.end_row();
 
                 // Audio subsystem for desktop/handheld
-                if matches!(config.profile, InstallProfile::Desktop(_) | InstallProfile::Handheld(_)) {
+                if matches!(
+                    config.profile,
+                    InstallProfile::Desktop(_) | InstallProfile::Handheld(_)
+                ) {
                     ui.label(RichText::new("Audio:").strong());
                     ui.label(config.audio_subsystem.name());
                     ui.end_row();
@@ -949,7 +944,11 @@ pub fn render_summary(
                 if let Some(disk_config) = &config.disk {
                     ui.label(RichText::new("Disk:").strong());
                     if let Some(disk) = disks.get(selected_disk) {
-                        ui.label(format!("{} ({})", disk.device, system::format_size(disk.size)));
+                        ui.label(format!(
+                            "{} ({})",
+                            disk.device,
+                            system::format_size(disk.size)
+                        ));
                     } else {
                         ui.label(&disk_config.device);
                     }
@@ -1016,7 +1015,10 @@ pub fn render_summary(
                 ui.label(format!("• {}", pkg_set));
             }
             // Add audio subsystem package set
-            if matches!(config.profile, InstallProfile::Desktop(_) | InstallProfile::Handheld(_)) {
+            if matches!(
+                config.profile,
+                InstallProfile::Desktop(_) | InstallProfile::Handheld(_)
+            ) {
                 ui.label(format!("• {}", config.audio_subsystem.package_set()));
             }
         });
@@ -1033,7 +1035,11 @@ pub fn render_summary(
             ui.label(RichText::new("Hardware-Specific Packages:").strong());
             ui.indent("hw_packages", |ui| {
                 for suggestion in selected_hw_packages {
-                    ui.label(format!("• {} ({})", suggestion.category, suggestion.packages.join(", ")));
+                    ui.label(format!(
+                        "• {} ({})",
+                        suggestion.category,
+                        suggestion.packages.join(", ")
+                    ));
                 }
             });
         }
@@ -1072,8 +1078,10 @@ pub fn render_summary(
 
                     if config.encryption.encryption_type != crate::types::EncryptionType::None {
                         ui.label(
-                            RichText::new("• Encryption will be applied (requires passphrase on every boot)")
-                                .color(egui::Color32::from_rgb(255, 200, 200)),
+                            RichText::new(
+                                "• Encryption will be applied (requires passphrase on every boot)",
+                            )
+                            .color(egui::Color32::from_rgb(255, 200, 200)),
                         );
                     }
 
@@ -1117,10 +1125,7 @@ pub fn render_summary(
                     .weak(),
             );
         } else {
-            ui.label(
-                RichText::new("Click 'Install' to begin the installation process.")
-                    .strong(),
-            );
+            ui.label(RichText::new("Click 'Install' to begin the installation process.").strong());
         }
     });
 }
@@ -1168,17 +1173,9 @@ pub fn render_installing(ui: &mut Ui, progress: &InstallProgress) {
     // Show errors if any
     if !progress.errors.is_empty() {
         ui.add_space(8.0);
-        ui.label(
-            RichText::new("Errors:")
-                .strong()
-                .color(egui::Color32::RED),
-        );
+        ui.label(RichText::new("Errors:").strong().color(egui::Color32::RED));
         for err in &progress.errors {
-            ui.label(
-                RichText::new(err)
-                    .color(egui::Color32::RED)
-                    .small(),
-            );
+            ui.label(RichText::new(err).color(egui::Color32::RED).small());
         }
     }
 }
@@ -1228,8 +1225,5 @@ pub fn render_complete(ui: &mut Ui, config: &InstallConfig) {
 
     ui.add_space(16.0);
 
-    ui.label(
-        RichText::new("Thank you for choosing Buckos!")
-            .strong(),
-    );
+    ui.label(RichText::new("Thank you for choosing Buckos!").strong());
 }

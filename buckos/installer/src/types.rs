@@ -155,9 +155,17 @@ impl InstallProfile {
     pub fn package_sets(&self) -> Vec<&'static str> {
         match self {
             InstallProfile::Minimal => vec!["@system"],
-            InstallProfile::Desktop(de) => vec!["@system", "@desktop", "@audio", "@network", de.package_set()],
+            InstallProfile::Desktop(de) => vec![
+                "@system",
+                "@desktop",
+                "@audio",
+                "@network",
+                de.package_set(),
+            ],
             InstallProfile::Server => vec!["@system", "@server", "@network"],
-            InstallProfile::Handheld(_) => vec!["@system", "@desktop", "@audio", "@network", "@gaming", "@steam"],
+            InstallProfile::Handheld(_) => vec![
+                "@system", "@desktop", "@audio", "@network", "@gaming", "@steam",
+            ],
             InstallProfile::Custom => vec!["@system"],
         }
     }
@@ -576,7 +584,10 @@ impl BootloaderType {
     }
 
     pub fn requires_uefi(&self) -> bool {
-        matches!(self, BootloaderType::Systemdboot | BootloaderType::Refind | BootloaderType::Efistub)
+        matches!(
+            self,
+            BootloaderType::Systemdboot | BootloaderType::Refind | BootloaderType::Efistub
+        )
     }
 
     pub fn all() -> Vec<BootloaderType> {

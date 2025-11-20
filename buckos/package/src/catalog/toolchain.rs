@@ -6,8 +6,8 @@
 //! - Binutils
 //! - Assemblers and linkers
 
-use crate::types::{PackageId, PackageInfo, Dependency, UseFlag, VersionSpec};
 use super::{dep, dep_build, dep_runtime, dep_use, use_flag};
+use crate::types::{Dependency, PackageId, PackageInfo, UseFlag, VersionSpec};
 use semver::Version;
 
 /// Get all toolchain packages
@@ -16,45 +16,34 @@ pub fn get_packages() -> Vec<PackageInfo> {
         // GCC - GNU Compiler Collection
         gcc_13_2_0(),
         gcc_14_1_0(),
-
         // Clang/LLVM
         llvm_17_0_6(),
         llvm_18_1_0(),
         clang_17_0_6(),
         clang_18_1_0(),
-
         // Binutils
         binutils_2_41(),
         binutils_2_42(),
-
         // GNU Make
         make_4_4_1(),
-
         // Autotools
         autoconf_2_72(),
         automake_1_16_5(),
         libtool_2_4_7(),
-
         // M4
         m4_1_4_19(),
-
         // Bison & Flex
         bison_3_8_2(),
         flex_2_6_4(),
-
         // Gettext
         gettext_0_22_5(),
-
         // pkg-config
         pkgconf_2_1_1(),
-
         // Rust toolchain
         rust_1_77_0(),
         rust_1_79_0(),
-
         // Go toolchain
         go_1_22_0(),
-
         // Python
         python_3_11_9(),
         python_3_12_3(),
@@ -69,7 +58,11 @@ fn gcc_13_2_0() -> PackageInfo {
         description: "The GNU Compiler Collection".to_string(),
         homepage: Some("https://gcc.gnu.org/".to_string()),
         license: "GPL-3+ LGPL-3+ || ( GPL-3+ libgcc libstdc++ ) FDL-1.3+".to_string(),
-        keywords: vec!["~amd64".to_string(), "~arm64".to_string(), "~x86".to_string()],
+        keywords: vec![
+            "~amd64".to_string(),
+            "~arm64".to_string(),
+            "~x86".to_string(),
+        ],
         use_flags: vec![
             use_flag("ada", "Build Ada frontend", false),
             use_flag("cxx", "Build C++ support", true),
@@ -101,11 +94,11 @@ fn gcc_13_2_0() -> PackageInfo {
             dep_build("sys-devel", "flex"),
             dep_build("sys-devel", "bison"),
         ],
-        runtime_dependencies: vec![
-            dep_runtime("sys-libs", "libgcc"),
-        ],
+        runtime_dependencies: vec![dep_runtime("sys-libs", "libgcc")],
         source_url: Some("https://ftp.gnu.org/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz".to_string()),
-        source_hash: Some("e275e76442a6067341a27f04c5c6b83d8613144004c0413f2aec5a48a0cadc30".to_string()),
+        source_hash: Some(
+            "e275e76442a6067341a27f04c5c6b83d8613144004c0413f2aec5a48a0cadc30".to_string(),
+        ),
         buck_target: "//sys-devel/gcc:gcc-13.2.0".to_string(),
         size: 85_000_000,
         installed_size: 350_000_000,
@@ -152,11 +145,11 @@ fn gcc_14_1_0() -> PackageInfo {
             dep_build("sys-devel", "flex"),
             dep_build("sys-devel", "bison"),
         ],
-        runtime_dependencies: vec![
-            dep_runtime("sys-libs", "libgcc"),
-        ],
+        runtime_dependencies: vec![dep_runtime("sys-libs", "libgcc")],
         source_url: Some("https://ftp.gnu.org/gnu/gcc/gcc-14.1.0/gcc-14.1.0.tar.xz".to_string()),
-        source_hash: Some("e283c654987afe3de9d8080bc0bd79534b5ca0d681a73a11ff2b5d3767426840".to_string()),
+        source_hash: Some(
+            "e283c654987afe3de9d8080bc0bd79534b5ca0d681a73a11ff2b5d3767426840".to_string(),
+        ),
         buck_target: "//sys-devel/gcc:gcc-14.1.0".to_string(),
         size: 88_000_000,
         installed_size: 360_000_000,
@@ -339,16 +332,16 @@ fn binutils_2_41() -> PackageInfo {
             use_flag("static-libs", "Build static libraries", false),
             use_flag("zstd", "Enable zstd compression", true),
         ],
-        dependencies: vec![
-            dep("sys-libs", "zlib"),
-        ],
+        dependencies: vec![dep("sys-libs", "zlib")],
         build_dependencies: vec![
             dep_build("sys-devel", "flex"),
             dep_build("sys-devel", "bison"),
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/binutils/binutils-2.41.tar.xz".to_string()),
-        source_hash: Some("ae9a5789e23459e59606e6714723f2d3ffc31c03174191ef0d015bdf06007450".to_string()),
+        source_hash: Some(
+            "ae9a5789e23459e59606e6714723f2d3ffc31c03174191ef0d015bdf06007450".to_string(),
+        ),
         buck_target: "//sys-devel/binutils:binutils-2.41".to_string(),
         size: 25_000_000,
         installed_size: 95_000_000,
@@ -363,7 +356,11 @@ fn binutils_2_42() -> PackageInfo {
         description: "Tools necessary to build programs".to_string(),
         homepage: Some("https://sourceware.org/binutils/".to_string()),
         license: "GPL-3+".to_string(),
-        keywords: vec!["~amd64".to_string(), "~arm64".to_string(), "~x86".to_string()],
+        keywords: vec![
+            "~amd64".to_string(),
+            "~arm64".to_string(),
+            "~x86".to_string(),
+        ],
         use_flags: vec![
             use_flag("cet", "Enable Control-flow Enforcement Technology", false),
             use_flag("default-gold", "Use gold as default linker", false),
@@ -377,16 +374,16 @@ fn binutils_2_42() -> PackageInfo {
             use_flag("static-libs", "Build static libraries", false),
             use_flag("zstd", "Enable zstd compression", true),
         ],
-        dependencies: vec![
-            dep("sys-libs", "zlib"),
-        ],
+        dependencies: vec![dep("sys-libs", "zlib")],
         build_dependencies: vec![
             dep_build("sys-devel", "flex"),
             dep_build("sys-devel", "bison"),
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.xz".to_string()),
-        source_hash: Some("f6e4d41fd5fc778b06b7891457b3620da5ecea1006c6a4f0018e9ab15d5b9820".to_string()),
+        source_hash: Some(
+            "f6e4d41fd5fc778b06b7891457b3620da5ecea1006c6a4f0018e9ab15d5b9820".to_string(),
+        ),
         buck_target: "//sys-devel/binutils:binutils-2.42".to_string(),
         size: 26_000_000,
         installed_size: 98_000_000,
@@ -408,12 +405,12 @@ fn make_4_4_1() -> PackageInfo {
             use_flag("static", "Build static binary", false),
         ],
         dependencies: vec![],
-        build_dependencies: vec![
-            dep_build("sys-devel", "gettext"),
-        ],
+        build_dependencies: vec![dep_build("sys-devel", "gettext")],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz".to_string()),
-        source_hash: Some("dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3".to_string()),
+        source_hash: Some(
+            "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3".to_string(),
+        ),
         buck_target: "//sys-devel/make:make-4.4.1".to_string(),
         size: 2_300_000,
         installed_size: 3_500_000,
@@ -429,17 +426,14 @@ fn autoconf_2_72() -> PackageInfo {
         homepage: Some("https://www.gnu.org/software/autoconf/".to_string()),
         license: "GPL-3+ GPL-2+".to_string(),
         keywords: vec!["amd64".to_string(), "arm64".to_string(), "x86".to_string()],
-        use_flags: vec![
-            use_flag("emacs", "Install Emacs support files", false),
-        ],
-        dependencies: vec![
-            dep("sys-devel", "m4"),
-            dep("dev-lang", "perl"),
-        ],
+        use_flags: vec![use_flag("emacs", "Install Emacs support files", false)],
+        dependencies: vec![dep("sys-devel", "m4"), dep("dev-lang", "perl")],
         build_dependencies: vec![],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz".to_string()),
-        source_hash: Some("ba885c1319578d6c94d46e9b0dceb4014caafe2490e437a0dbca3f270a223f5a".to_string()),
+        source_hash: Some(
+            "ba885c1319578d6c94d46e9b0dceb4014caafe2490e437a0dbca3f270a223f5a".to_string(),
+        ),
         buck_target: "//sys-devel/autoconf:autoconf-2.72".to_string(),
         size: 1_300_000,
         installed_size: 3_500_000,
@@ -456,14 +450,13 @@ fn automake_1_16_5() -> PackageInfo {
         license: "GPL-2+".to_string(),
         keywords: vec!["amd64".to_string(), "arm64".to_string(), "x86".to_string()],
         use_flags: vec![],
-        dependencies: vec![
-            dep("sys-devel", "autoconf"),
-            dep("dev-lang", "perl"),
-        ],
+        dependencies: vec![dep("sys-devel", "autoconf"), dep("dev-lang", "perl")],
         build_dependencies: vec![],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.xz".to_string()),
-        source_hash: Some("f01d58cd6d9d77fbdca9eb4bbd5ead1988228fdb73d6f7a201f5f8d6b118b469".to_string()),
+        source_hash: Some(
+            "f01d58cd6d9d77fbdca9eb4bbd5ead1988228fdb73d6f7a201f5f8d6b118b469".to_string(),
+        ),
         buck_target: "//sys-devel/automake:automake-1.16.5".to_string(),
         size: 1_500_000,
         installed_size: 4_000_000,
@@ -479,9 +472,7 @@ fn libtool_2_4_7() -> PackageInfo {
         homepage: Some("https://www.gnu.org/software/libtool/".to_string()),
         license: "GPL-2+".to_string(),
         keywords: vec!["amd64".to_string(), "arm64".to_string(), "x86".to_string()],
-        use_flags: vec![
-            use_flag("vanilla", "Don't apply Gentoo patches", false),
-        ],
+        use_flags: vec![use_flag("vanilla", "Don't apply Gentoo patches", false)],
         dependencies: vec![],
         build_dependencies: vec![
             dep_build("sys-devel", "autoconf"),
@@ -489,7 +480,9 @@ fn libtool_2_4_7() -> PackageInfo {
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.xz".to_string()),
-        source_hash: Some("4f7f217f057ce655ff22559ad221a0fd8ef84ad1fc5fcb6990cecc333aa1635d".to_string()),
+        source_hash: Some(
+            "4f7f217f057ce655ff22559ad221a0fd8ef84ad1fc5fcb6990cecc333aa1635d".to_string(),
+        ),
         buck_target: "//sys-devel/libtool:libtool-2.4.7".to_string(),
         size: 1_000_000,
         installed_size: 2_500_000,
@@ -513,7 +506,9 @@ fn m4_1_4_19() -> PackageInfo {
         build_dependencies: vec![],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.xz".to_string()),
-        source_hash: Some("63aede5c6d33b6d9b13511cd0be2cac046f2e70fd0a07aa9573a04a82783af96".to_string()),
+        source_hash: Some(
+            "63aede5c6d33b6d9b13511cd0be2cac046f2e70fd0a07aa9573a04a82783af96".to_string(),
+        ),
         buck_target: "//sys-devel/m4:m4-1.4.19".to_string(),
         size: 1_600_000,
         installed_size: 2_000_000,
@@ -534,15 +529,13 @@ fn bison_3_8_2() -> PackageInfo {
             use_flag("nls", "Enable Native Language Support", true),
             use_flag("static", "Build static binary", false),
         ],
-        dependencies: vec![
-            dep("sys-devel", "m4"),
-        ],
-        build_dependencies: vec![
-            dep_build("sys-devel", "gettext"),
-        ],
+        dependencies: vec![dep("sys-devel", "m4")],
+        build_dependencies: vec![dep_build("sys-devel", "gettext")],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/bison/bison-3.8.2.tar.xz".to_string()),
-        source_hash: Some("9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd82f6a6b8cd7dc".to_string()),
+        source_hash: Some(
+            "9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd82f6a6b8cd7dc".to_string(),
+        ),
         buck_target: "//sys-devel/bison:bison-3.8.2".to_string(),
         size: 2_800_000,
         installed_size: 6_000_000,
@@ -562,16 +555,18 @@ fn flex_2_6_4() -> PackageInfo {
             use_flag("nls", "Enable Native Language Support", true),
             use_flag("static", "Build static binary", false),
         ],
-        dependencies: vec![
-            dep("sys-devel", "m4"),
-        ],
+        dependencies: vec![dep("sys-devel", "m4")],
         build_dependencies: vec![
             dep_build("sys-devel", "bison"),
             dep_build("sys-devel", "gettext"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz".to_string()),
-        source_hash: Some("e87aae032bf07c26f85ac0ed3250998c37621d95f8bd748b31f15b33c45ee995".to_string()),
+        source_url: Some(
+            "https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz".to_string(),
+        ),
+        source_hash: Some(
+            "e87aae032bf07c26f85ac0ed3250998c37621d95f8bd748b31f15b33c45ee995".to_string(),
+        ),
         buck_target: "//sys-devel/flex:flex-2.6.4".to_string(),
         size: 1_400_000,
         installed_size: 2_500_000,
@@ -599,13 +594,13 @@ fn gettext_0_22_5() -> PackageInfo {
             use_flag("openmp", "Enable OpenMP support", false),
             use_flag("static-libs", "Build static libraries", false),
         ],
-        dependencies: vec![
-            dep("sys-libs", "ncurses"),
-        ],
+        dependencies: vec![dep("sys-libs", "ncurses")],
         build_dependencies: vec![],
         runtime_dependencies: vec![],
         source_url: Some("https://ftp.gnu.org/gnu/gettext/gettext-0.22.5.tar.xz".to_string()),
-        source_hash: Some("fe10c37353213d78a5b83d48af231e005c4da84db5ce88037d88355938259640".to_string()),
+        source_hash: Some(
+            "fe10c37353213d78a5b83d48af231e005c4da84db5ce88037d88355938259640".to_string(),
+        ),
         buck_target: "//sys-devel/gettext:gettext-0.22.5".to_string(),
         size: 10_000_000,
         installed_size: 25_000_000,
@@ -621,17 +616,19 @@ fn pkgconf_2_1_1() -> PackageInfo {
         homepage: Some("https://gitea.treehouse.systems/ariadne/pkgconf".to_string()),
         license: "ISC".to_string(),
         keywords: vec!["amd64".to_string(), "arm64".to_string(), "x86".to_string()],
-        use_flags: vec![
-            use_flag("pkg-config", "Provide pkg-config symlink", true),
-        ],
+        use_flags: vec![use_flag("pkg-config", "Provide pkg-config symlink", true)],
         dependencies: vec![],
         build_dependencies: vec![
             dep_build("dev-util", "meson"),
             dep_build("dev-util", "ninja"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://distfiles.ariadne.space/pkgconf/pkgconf-2.1.1.tar.xz".to_string()),
-        source_hash: Some("1a00b7fa08c5b6da4c0d2a41badc9b8f73e5a0fc56c3132e08e50b2b0f4eb6b2".to_string()),
+        source_url: Some(
+            "https://distfiles.ariadne.space/pkgconf/pkgconf-2.1.1.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "1a00b7fa08c5b6da4c0d2a41badc9b8f73e5a0fc56c3132e08e50b2b0f4eb6b2".to_string(),
+        ),
         buck_target: "//dev-util/pkgconf:pkgconf-2.1.1".to_string(),
         size: 300_000,
         installed_size: 600_000,
@@ -661,10 +658,7 @@ fn rust_1_77_0() -> PackageInfo {
             use_flag("system-llvm", "Use system LLVM", false),
             use_flag("wasm", "Build wasm target", false),
         ],
-        dependencies: vec![
-            dep("sys-libs", "zlib"),
-            dep("dev-libs", "openssl"),
-        ],
+        dependencies: vec![dep("sys-libs", "zlib"), dep("dev-libs", "openssl")],
         build_dependencies: vec![
             dep_build("dev-util", "cmake"),
             dep_build("dev-util", "ninja"),
@@ -672,7 +666,9 @@ fn rust_1_77_0() -> PackageInfo {
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://static.rust-lang.org/dist/rustc-1.77.0-src.tar.xz".to_string()),
-        source_hash: Some("c1e8b2ab3a1e08c0bb4e2ffc57d5e5e1e5c5c5a5a5a5a5a5a5a5a5a5a5a5a5a5".to_string()),
+        source_hash: Some(
+            "c1e8b2ab3a1e08c0bb4e2ffc57d5e5e1e5c5c5a5a5a5a5a5a5a5a5a5a5a5a5a5".to_string(),
+        ),
         buck_target: "//dev-lang/rust:rust-1.77.0".to_string(),
         size: 200_000_000,
         installed_size: 800_000_000,
@@ -702,10 +698,7 @@ fn rust_1_79_0() -> PackageInfo {
             use_flag("system-llvm", "Use system LLVM", false),
             use_flag("wasm", "Build wasm target", false),
         ],
-        dependencies: vec![
-            dep("sys-libs", "zlib"),
-            dep("dev-libs", "openssl"),
-        ],
+        dependencies: vec![dep("sys-libs", "zlib"), dep("dev-libs", "openssl")],
         build_dependencies: vec![
             dep_build("dev-util", "cmake"),
             dep_build("dev-util", "ninja"),
@@ -713,7 +706,9 @@ fn rust_1_79_0() -> PackageInfo {
         ],
         runtime_dependencies: vec![],
         source_url: Some("https://static.rust-lang.org/dist/rustc-1.79.0-src.tar.xz".to_string()),
-        source_hash: Some("d2e8b2ab3a1e08c0bb4e2ffc57d5e5e1e5c5c5a5a5a5a5a5a5a5a5a5a5a5a5a5".to_string()),
+        source_hash: Some(
+            "d2e8b2ab3a1e08c0bb4e2ffc57d5e5e1e5c5c5a5a5a5a5a5a5a5a5a5a5a5a5a5".to_string(),
+        ),
         buck_target: "//dev-lang/rust:rust-1.79.0".to_string(),
         size: 210_000_000,
         installed_size: 850_000_000,
@@ -734,7 +729,9 @@ fn go_1_22_0() -> PackageInfo {
         build_dependencies: vec![],
         runtime_dependencies: vec![],
         source_url: Some("https://go.dev/dl/go1.22.0.src.tar.gz".to_string()),
-        source_hash: Some("4d196c3d41a0d6c1dfc64d04e3cc1f608b0c436bd87b7060ce3e23234e1f4d5c".to_string()),
+        source_hash: Some(
+            "4d196c3d41a0d6c1dfc64d04e3cc1f608b0c436bd87b7060ce3e23234e1f4d5c".to_string(),
+        ),
         buck_target: "//dev-lang/go:go-1.22.0".to_string(),
         size: 27_000_000,
         installed_size: 450_000_000,
@@ -746,7 +743,8 @@ fn python_3_11_9() -> PackageInfo {
         id: PackageId::new("dev-lang", "python"),
         version: Version::new(3, 11, 9),
         slot: "3.11".to_string(),
-        description: "An interpreted, interactive, object-oriented programming language".to_string(),
+        description: "An interpreted, interactive, object-oriented programming language"
+            .to_string(),
         homepage: Some("https://www.python.org/".to_string()),
         license: "PSF-2".to_string(),
         keywords: vec!["amd64".to_string(), "arm64".to_string(), "x86".to_string()],
@@ -776,8 +774,12 @@ fn python_3_11_9() -> PackageInfo {
             dep_build("dev-util", "pkgconf"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tar.xz".to_string()),
-        source_hash: Some("9b1e896523fc510691126c864406d9360a3d1e986acbda59e0e0c0f3c0c3a3a3".to_string()),
+        source_url: Some(
+            "https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "9b1e896523fc510691126c864406d9360a3d1e986acbda59e0e0c0f3c0c3a3a3".to_string(),
+        ),
         buck_target: "//dev-lang/python:python-3.11.9".to_string(),
         size: 20_000_000,
         installed_size: 100_000_000,
@@ -789,10 +791,15 @@ fn python_3_12_3() -> PackageInfo {
         id: PackageId::new("dev-lang", "python"),
         version: Version::new(3, 12, 3),
         slot: "3.12".to_string(),
-        description: "An interpreted, interactive, object-oriented programming language".to_string(),
+        description: "An interpreted, interactive, object-oriented programming language"
+            .to_string(),
         homepage: Some("https://www.python.org/".to_string()),
         license: "PSF-2".to_string(),
-        keywords: vec!["~amd64".to_string(), "~arm64".to_string(), "~x86".to_string()],
+        keywords: vec![
+            "~amd64".to_string(),
+            "~arm64".to_string(),
+            "~x86".to_string(),
+        ],
         use_flags: vec![
             use_flag("bluetooth", "Build bluetooth support", false),
             use_flag("build", "Build CPython from source", true),
@@ -819,8 +826,12 @@ fn python_3_12_3() -> PackageInfo {
             dep_build("dev-util", "pkgconf"),
         ],
         runtime_dependencies: vec![],
-        source_url: Some("https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tar.xz".to_string()),
-        source_hash: Some("a2e896523fc510691126c864406d9360a3d1e986acbda59e0e0c0f3c0c3b4b4".to_string()),
+        source_url: Some(
+            "https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tar.xz".to_string(),
+        ),
+        source_hash: Some(
+            "a2e896523fc510691126c864406d9360a3d1e986acbda59e0e0c0f3c0c3b4b4".to_string(),
+        ),
         buck_target: "//dev-lang/python:python-3.12.3".to_string(),
         size: 21_000_000,
         installed_size: 105_000_000,
@@ -845,16 +856,13 @@ fn perl_5_38_2() -> PackageInfo {
             use_flag("minimal", "Build minimal perl", false),
             use_flag("quadmath", "Enable quadmath support", false),
         ],
-        dependencies: vec![
-            dep("sys-libs", "gdbm"),
-            dep("sys-libs", "zlib"),
-        ],
-        build_dependencies: vec![
-            dep_build("sys-devel", "gcc"),
-        ],
+        dependencies: vec![dep("sys-libs", "gdbm"), dep("sys-libs", "zlib")],
+        build_dependencies: vec![dep_build("sys-devel", "gcc")],
         runtime_dependencies: vec![],
         source_url: Some("https://www.cpan.org/src/5.0/perl-5.38.2.tar.xz".to_string()),
-        source_hash: Some("a0a31534451a43e2d66b44f7e43e7b4a2c7bba5a5c0e1f8a3b5c7d9e0f1a2b3c".to_string()),
+        source_hash: Some(
+            "a0a31534451a43e2d66b44f7e43e7b4a2c7bba5a5c0e1f8a3b5c7d9e0f1a2b3c".to_string(),
+        ),
         buck_target: "//dev-lang/perl:perl-5.38.2".to_string(),
         size: 12_500_000,
         installed_size: 55_000_000,

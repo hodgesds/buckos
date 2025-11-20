@@ -3,11 +3,11 @@
 //! These tests verify that the PackageManager API works correctly.
 //! Tests use temporary directories for isolation.
 
+use buckos_package::config::{RepositoryConfig, SyncType};
 use buckos_package::{
     BuildOptions, CleanOptions, Config, InstallOptions, PackageManager, RemoveOptions,
     UpdateOptions,
 };
-use buckos_package::config::{RepositoryConfig, SyncType};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tempfile::TempDir;

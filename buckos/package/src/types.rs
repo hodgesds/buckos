@@ -120,12 +120,8 @@ impl UseCondition {
             UseCondition::Always => true,
             UseCondition::IfEnabled(flag) => enabled_flags.contains(flag),
             UseCondition::IfDisabled(flag) => !enabled_flags.contains(flag),
-            UseCondition::And(conditions) => {
-                conditions.iter().all(|c| c.evaluate(enabled_flags))
-            }
-            UseCondition::Or(conditions) => {
-                conditions.iter().any(|c| c.evaluate(enabled_flags))
-            }
+            UseCondition::And(conditions) => conditions.iter().all(|c| c.evaluate(enabled_flags)),
+            UseCondition::Or(conditions) => conditions.iter().any(|c| c.evaluate(enabled_flags)),
         }
     }
 }
@@ -354,7 +350,12 @@ impl PackageSpec {
             let mut last_dash = None;
             for (i, c) in name_version.char_indices() {
                 if c == '-' {
-                    if name_version[i + 1..].chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                    if name_version[i + 1..]
+                        .chars()
+                        .next()
+                        .map(|c| c.is_ascii_digit())
+                        .unwrap_or(false)
+                    {
                         last_dash = Some(i);
                     }
                 }
@@ -447,7 +448,11 @@ impl BuckTarget {
     }
 
     /// Create a target in a specific cell
-    pub fn in_cell(cell: impl Into<String>, path: impl Into<String>, name: impl Into<String>) -> Self {
+    pub fn in_cell(
+        cell: impl Into<String>,
+        path: impl Into<String>,
+        name: impl Into<String>,
+    ) -> Self {
         Self {
             cell: cell.into(),
             path: path.into(),
@@ -621,22 +626,26 @@ impl PackageBuildMeta {
             BuckTarget::parse(&info.buck_target).unwrap_or_else(|| BuckTarget::from(&info.id))
         };
 
-        let deps: Vec<BuckTarget> = info.dependencies
+        let deps: Vec<BuckTarget> = info
+            .dependencies
             .iter()
             .map(|d| BuckTarget::from(&d.package))
             .collect();
 
-        let build_deps: Vec<BuckTarget> = info.build_dependencies
+        let build_deps: Vec<BuckTarget> = info
+            .build_dependencies
             .iter()
             .map(|d| BuckTarget::from(&d.package))
             .collect();
 
-        let runtime_deps: Vec<BuckTarget> = info.runtime_dependencies
+        let runtime_deps: Vec<BuckTarget> = info
+            .runtime_dependencies
             .iter()
             .map(|d| BuckTarget::from(&d.package))
             .collect();
 
-        let features: HashSet<String> = info.use_flags
+        let features: HashSet<String> = info
+            .use_flags
             .iter()
             .filter(|f| f.default)
             .map(|f| f.name.clone())

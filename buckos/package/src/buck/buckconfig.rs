@@ -76,8 +76,10 @@ impl BuckConfigFile {
 
             // Check for section header
             if line.starts_with('[') && line.ends_with(']') {
-                current_section = line[1..line.len()-1].trim().to_string();
-                config.sections.entry(current_section.clone())
+                current_section = line[1..line.len() - 1].trim().to_string();
+                config
+                    .sections
+                    .entry(current_section.clone())
                     .or_insert_with(BuckConfigSection::default);
                 continue;
             }
@@ -90,11 +92,13 @@ impl BuckConfigFile {
                 if current_section.is_empty() {
                     return Err(Error::ConfigError(format!(
                         "Line {}: Key-value pair outside of section: {}",
-                        line_num + 1, line
+                        line_num + 1,
+                        line
                     )));
                 }
 
-                config.sections
+                config
+                    .sections
                     .get_mut(&current_section)
                     .unwrap()
                     .values
@@ -102,7 +106,8 @@ impl BuckConfigFile {
             } else {
                 return Err(Error::ConfigError(format!(
                     "Line {}: Invalid line in .buckconfig: {}",
-                    line_num + 1, line
+                    line_num + 1,
+                    line
                 )));
             }
         }
@@ -130,7 +135,8 @@ impl BuckConfigFile {
     /// Merge another config into this one (other takes precedence)
     pub fn merge(&mut self, other: &BuckConfigFile) {
         for (section_name, section) in &other.sections {
-            let target_section = self.sections
+            let target_section = self
+                .sections
                 .entry(section_name.clone())
                 .or_insert_with(BuckConfigSection::default);
 
@@ -143,8 +149,9 @@ impl BuckConfigFile {
     /// Write the config to a file
     pub fn write(&self, path: &Path) -> Result<()> {
         let content = self.to_string();
-        std::fs::write(path, content)
-            .map_err(|e| Error::ConfigError(format!("Failed to write {}: {}", path.display(), e)))?;
+        std::fs::write(path, content).map_err(|e| {
+            Error::ConfigError(format!("Failed to write {}: {}", path.display(), e))
+        })?;
         Ok(())
     }
 
@@ -203,7 +210,8 @@ impl BuckConfigOptions {
 
     /// Add a configuration override
     pub fn set_override(&mut self, section: &str, key: &str, value: &str) -> &mut Self {
-        self.overrides.insert(format!("{}.{}", section, key), value.to_string());
+        self.overrides
+            .insert(format!("{}.{}", section, key), value.to_string());
         self
     }
 
@@ -395,7 +403,10 @@ default_edition = 2021
 
         assert_eq!(config.get("cells", "root"), Some("."));
         assert_eq!(config.get("cells", "prelude"), Some("prelude"));
-        assert_eq!(config.get("build", "execution_platforms"), Some("root//platforms:default"));
+        assert_eq!(
+            config.get("build", "execution_platforms"),
+            Some("root//platforms:default")
+        );
         assert_eq!(config.get("rust", "default_edition"), Some("2021"));
     }
 

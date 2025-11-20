@@ -227,7 +227,8 @@ impl Keyword {
                 KeywordStability::Masked => other.starts_with('-'),
             }
         } else {
-            self.value == other || (self.stability == KeywordStability::Testing && other == self.arch)
+            self.value == other
+                || (self.stability == KeywordStability::Testing && other == self.arch)
         }
     }
 }
@@ -342,7 +343,10 @@ impl std::str::FromStr for Arch {
             "s390" => Ok(Arch::S390),
             "sparc" => Ok(Arch::Sparc),
             "mips" => Ok(Arch::Mips),
-            _ => Err(ConfigError::InvalidKeyword(format!("unknown architecture: {}", s))),
+            _ => Err(ConfigError::InvalidKeyword(format!(
+                "unknown architecture: {}",
+                s
+            ))),
         }
     }
 }

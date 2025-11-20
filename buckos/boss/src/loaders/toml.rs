@@ -11,9 +11,8 @@ pub struct TomlLoader;
 
 impl super::ServiceLoader for TomlLoader {
     fn load(&self, path: &Path) -> Result<ServiceDefinition> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            Error::ConfigError(format!("Failed to read {}: {}", path.display(), e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| Error::ConfigError(format!("Failed to read {}: {}", path.display(), e)))?;
 
         let def: ServiceDefinition = toml::from_str(&content).map_err(|e| {
             Error::ConfigError(format!("Failed to parse TOML {}: {}", path.display(), e))
