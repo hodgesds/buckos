@@ -34,6 +34,7 @@ pub mod types;
 pub mod validation;
 pub mod r#virtual;
 
+pub use buck::{BuckConfigFile, BuckConfigOptions, BuckConfigSection};
 pub use config::Config;
 pub use error::{Error, Result};
 pub use types::*;
@@ -77,8 +78,8 @@ impl PackageManager {
         let repos = repository::RepositoryManager::new(&config)?;
         let repos = Arc::new(repos);
 
-        // Initialize Buck integration
-        let buck = buck::BuckIntegration::new(&config)?;
+        // Initialize Buck integration with custom config options
+        let buck = buck::BuckIntegration::with_config_options(&config, config.buck_config.clone())?;
         let buck = Arc::new(buck);
 
         // Initialize parallel executor
@@ -1164,6 +1165,8 @@ pub struct BuildOptions {
     pub release: bool,
     /// Additional Buck arguments
     pub buck_args: Vec<String>,
+    /// Custom Buck configuration options for this build
+    pub config_options: Option<BuckConfigOptions>,
 }
 
 /// Options for clean command

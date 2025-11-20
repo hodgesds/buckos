@@ -1,5 +1,6 @@
 //! Package manager configuration
 
+use crate::buck::BuckConfigOptions;
 use crate::{Error, Result, UseConfig, WorldSet};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -44,6 +45,9 @@ pub struct Config {
     pub accept_keywords: HashSet<String>,
     /// License acceptance
     pub accept_license: String,
+    /// Custom Buck configuration options
+    #[serde(default)]
+    pub buck_config: BuckConfigOptions,
 }
 
 impl Default for Config {
@@ -71,6 +75,7 @@ impl Default for Config {
             features: default_features(),
             accept_keywords: HashSet::new(),
             accept_license: "@FREE".to_string(),
+            buck_config: BuckConfigOptions::default(),
         }
     }
 }
