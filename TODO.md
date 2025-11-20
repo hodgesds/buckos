@@ -18,14 +18,15 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 **Database & Querying:** 4/4 complete
 - SQLite VDB, file collision detection, file ownership, reverse dependencies
 
-**Security:** 1/2 high priority complete, 0/1 medium priority complete
+**Security:** 2/2 high priority complete, 0/1 medium priority complete
 - GLSA support implemented
-- Missing: Package signing, hardened support
+- Package signing implemented (GPG key management, Manifest signing, repository signing)
+- Missing: Hardened support
 
 **User Interface:** 4/4 complete
 - Emerge output formatting, pretend mode, interactive mode all implemented
 
-**CLI Commands:** ~25 Portage-compatible commands implemented (including revdep-rebuild)
+**CLI Commands:** ~26 Portage-compatible commands implemented (including revdep-rebuild and package signing)
 
 ---
 
@@ -245,10 +246,12 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - Affected package detection
   - Location: `buckos/package/src/security/glsa.rs`
 
-- [ ] **Package Signing** - Verify package authenticity
+- [x] **Package Signing** - Verify package authenticity
   - Manifest signing (GPGKEY)
   - Repository signing
   - gemato support
+  - GPG key management (import/export/trust)
+  - CLI: `buckos sign` with list-keys/import-key/sign-manifest/verify-manifest/sign-repo/verify-repo subcommands
   - Location: `buckos/package/src/security/signing.rs`
 
 ### Medium Priority
@@ -312,6 +315,8 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - `buckos clean --all/--downloads/--builds`
 - [x] `glsa-check` - Security advisory checks
   - `buckos audit` - check for vulnerabilities
+- [x] Package signing and verification
+  - `buckos sign` - manage keys, sign/verify manifests and repositories
 - [x] `emerge --depclean` - Remove unused packages
   - `buckos depclean`
 - [x] `emerge --resume` - Resume interrupted operations

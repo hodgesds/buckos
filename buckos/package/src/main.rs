@@ -161,6 +161,9 @@ enum Commands {
 
     /// Rebuild packages with broken library dependencies (revdep-rebuild)
     Revdep(RevdepArgs),
+
+    /// Manage package signing and verification
+    Sign(SignArgs),
 }
 
 #[derive(Args)]
@@ -619,6 +622,92 @@ struct RevdepArgs {
     ignore: Vec<String>,
 }
 
+#[derive(Args)]
+struct SignArgs {
+    /// Signing subcommand
+    #[command(subcommand)]
+    subcommand: SignCommand,
+}
+
+#[derive(Subcommand)]
+enum SignCommand {
+    /// List available signing keys
+    ListKeys {
+        /// Show only secret keys
+        #[arg(short, long)]
+        secret: bool,
+    },
+    /// Import a signing key
+    ImportKey {
+        /// Key source (file path, URL, or key ID)
+        source: String,
+    },
+    /// Export a signing key
+    ExportKey {
+        /// Key ID or fingerprint
+        key_id: String,
+        /// Output file
+        output: String,
+        /// ASCII armor output
+        #[arg(short, long)]
+        armor: bool,
+    },
+    /// Sign a package manifest
+    SignManifest {
+        /// Package directory
+        package_dir: String,
+        /// Key ID to use (defaults to default key)
+        #[arg(short, long)]
+        key: Option<String>,
+    },
+    /// Verify a package manifest signature
+    VerifyManifest {
+        /// Path to Manifest file
+        manifest: String,
+    },
+    /// Sign a repository
+    SignRepo {
+        /// Repository directory
+        repo_dir: String,
+        /// Key ID to use
+        #[arg(short, long)]
+        key: Option<String>,
+    },
+    /// Verify a repository signature
+    VerifyRepo {
+        /// Repository directory
+        repo_dir: String,
+    },
+    /// Sign a file
+    SignFile {
+        /// File to sign
+        file: String,
+        /// Key ID to use
+        #[arg(short, long)]
+        key: Option<String>,
+    },
+    /// Verify a file signature
+    VerifyFile {
+        /// File to verify
+        file: String,
+        /// Signature file (defaults to file.asc)
+        #[arg(short, long)]
+        signature: Option<String>,
+    },
+    /// Show key information
+    KeyInfo {
+        /// Key ID or fingerprint
+        key_id: String,
+    },
+    /// Set trust level for a key
+    SetTrust {
+        /// Key ID or fingerprint
+        key_id: String,
+        /// Trust level (unknown, never, marginal, full, ultimate)
+        trust: String,
+    },
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -706,6 +795,7 @@ async fn main() -> ExitCode {
         Commands::Profile(args) => cmd_profile(args).await,
         Commands::Export(args) => cmd_export(args).await,
         Commands::Revdep(args) => cmd_revdep(&pkg_manager, args, &emerge_opts).await,
+        Commands::Sign(args) => cmd_sign(args).await,
     };
 
     match result {
@@ -3558,6 +3648,312 @@ async fn cmd_revdep(
         style(">>>").green().bold(),
         to_rebuild.len()
     );
+
+    Ok(())
+}
+
+/// Package signing management
+async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
+    use buckos_package::security::signing::{
+        SigningManager, TrustLevel, format_key, format_verification,
+    };
+
+    let mut manager = SigningManager::new()?;
+
+    // Check if GPG is available
+    if !manager.is_gpg_available() {
+        return Err(buckos_package::Error::Signing(
+            "GPG is not available. Please install gnupg.".to_string()
+        ));
+    }
+
+    match args.subcommand {
+        SignCommand::ListKeys { secret } => {
+            println!("{}", style("Available Signing Keys").bold().underlined());
+            println!();
+
+            let keys = manager.list_keys(secret)?;
+
+            if keys.is_empty() {
+                println!("  No keys found");
+                if secret {
+                    println!("\n  To create a new key: gpg --gen-key");
+                }
+            } else {
+                for key in keys {
+                    let key_type = if key.is_secret { "sec" } else { "pub" };
+                    println!(
+                        "  {} {}/{} {}",
+                        style(key_type).dim(),
+                        key.algorithm,
+                        key.key_size,
+                        key.created
+                    );
+                    println!("        {} {}", style("Key ID:").bold(), key.key_id);
+                    println!("        {} {}", style("User:").bold(), key.user_id);
+                    println!("        {} {}", style("Trust:").bold(), key.trust);
+                    if let Some(ref expires) = key.expires {
+                        println!("        {} {}", style("Expires:").bold(), expires);
+                    }
+                    println!();
+                }
+            }
+        }
+
+        SignCommand::ImportKey { source } => {
+            println!(
+                "{} Importing key from {}...",
+                style(">>>").blue().bold(),
+                source
+            );
+
+            let result = manager.import_key(&source)?;
+            println!("{}", result);
+
+            println!(
+                "{} Key imported successfully",
+                style(">>>").green().bold()
+            );
+        }
+
+        SignCommand::ExportKey { key_id, output, armor } => {
+            println!(
+                "{} Exporting key {} to {}...",
+                style(">>>").blue().bold(),
+                key_id,
+                output
+            );
+
+            manager.export_key(&key_id, std::path::Path::new(&output), armor)?;
+
+            println!(
+                "{} Key exported successfully",
+                style(">>>").green().bold()
+            );
+        }
+
+        SignCommand::SignManifest { package_dir, key } => {
+            println!(
+                "{} Signing manifest in {}...",
+                style(">>>").blue().bold(),
+                package_dir
+            );
+
+            let path = std::path::Path::new(&package_dir);
+            if !path.exists() {
+                return Err(buckos_package::Error::Signing(
+                    format!("Directory not found: {}", package_dir)
+                ));
+            }
+
+            // Extract package ID from directory name
+            let pkg_name = path.file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown");
+            let category = path.parent()
+                .and_then(|p| p.file_name())
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown");
+
+            let package_id = buckos_package::PackageId::new(category, pkg_name);
+
+            // Generate manifest
+            let mut manifest = manager.generate_manifest(path, &package_id)?;
+
+            // Sign it
+            manager.sign_manifest(&mut manifest, key.as_deref())?;
+
+            // Write to file
+            let manifest_path = path.join("Manifest");
+            manager.write_manifest(&manifest, &manifest_path)?;
+
+            println!(
+                "{} Manifest signed and written to {}",
+                style(">>>").green().bold(),
+                manifest_path.display()
+            );
+        }
+
+        SignCommand::VerifyManifest { manifest } => {
+            println!(
+                "{} Verifying manifest {}...",
+                style(">>>").blue().bold(),
+                manifest
+            );
+
+            let path = std::path::Path::new(&manifest);
+            let pkg_manifest = manager.read_manifest(path)?;
+
+            let verification = manager.verify_manifest(&pkg_manifest)?;
+            println!("\n{}", format_verification(&verification));
+
+            if verification.valid {
+                // Also verify files
+                if let Some(parent) = path.parent() {
+                    let file_results = manager.verify_manifest_files(&pkg_manifest, parent)?;
+                    let failed: Vec<_> = file_results.iter()
+                        .filter(|r| r.status != buckos_package::security::signing::ManifestVerifyStatus::Ok)
+                        .collect();
+
+                    if failed.is_empty() {
+                        println!(
+                            "{} All {} files verified",
+                            style(">>>").green().bold(),
+                            file_results.len()
+                        );
+                    } else {
+                        println!(
+                            "{} {} file(s) failed verification:",
+                            style(">>>").red().bold(),
+                            failed.len()
+                        );
+                        for result in failed {
+                            println!("  {} {}: {}",
+                                style("!").red(),
+                                result.path,
+                                result.message
+                            );
+                        }
+                    }
+                }
+            } else {
+                println!(
+                    "{} Signature verification failed",
+                    style(">>>").red().bold()
+                );
+            }
+        }
+
+        SignCommand::SignRepo { repo_dir, key } => {
+            println!(
+                "{} Signing repository {}...",
+                style(">>>").blue().bold(),
+                repo_dir
+            );
+
+            let path = std::path::Path::new(&repo_dir);
+            manager.sign_repository(path, key.as_deref())?;
+
+            println!(
+                "{} Repository signed successfully",
+                style(">>>").green().bold()
+            );
+        }
+
+        SignCommand::VerifyRepo { repo_dir } => {
+            println!(
+                "{} Verifying repository {}...",
+                style(">>>").blue().bold(),
+                repo_dir
+            );
+
+            let path = std::path::Path::new(&repo_dir);
+            let verification = manager.verify_repository(path)?;
+
+            println!("\n{}", format_verification(&verification));
+
+            if verification.valid {
+                println!(
+                    "{} Repository signature verified",
+                    style(">>>").green().bold()
+                );
+            } else {
+                println!(
+                    "{} Repository signature verification failed",
+                    style(">>>").red().bold()
+                );
+            }
+        }
+
+        SignCommand::SignFile { file, key } => {
+            println!(
+                "{} Signing file {}...",
+                style(">>>").blue().bold(),
+                file
+            );
+
+            let path = std::path::Path::new(&file);
+            let sig_path = manager.sign_file(path, key.as_deref())?;
+
+            println!(
+                "{} File signed: {}",
+                style(">>>").green().bold(),
+                sig_path.display()
+            );
+        }
+
+        SignCommand::VerifyFile { file, signature } => {
+            println!(
+                "{} Verifying file {}...",
+                style(">>>").blue().bold(),
+                file
+            );
+
+            let path = std::path::Path::new(&file);
+            let sig_path = signature.map(|s| std::path::PathBuf::from(s));
+
+            let verification = manager.verify_file(path, sig_path.as_deref())?;
+            println!("\n{}", format_verification(&verification));
+
+            if verification.valid {
+                println!(
+                    "{} Signature verified",
+                    style(">>>").green().bold()
+                );
+            } else {
+                println!(
+                    "{} Signature verification failed",
+                    style(">>>").red().bold()
+                );
+            }
+        }
+
+        SignCommand::KeyInfo { key_id } => {
+            match manager.get_key(&key_id)? {
+                Some(key) => {
+                    println!("{}", style("Key Information").bold().underlined());
+                    println!();
+                    print!("{}", format_key(&key));
+                }
+                None => {
+                    println!(
+                        "{} Key not found: {}",
+                        style(">>>").yellow().bold(),
+                        key_id
+                    );
+                }
+            }
+        }
+
+        SignCommand::SetTrust { key_id, trust } => {
+            let trust_level = match trust.to_lowercase().as_str() {
+                "unknown" => TrustLevel::Unknown,
+                "never" => TrustLevel::Never,
+                "marginal" => TrustLevel::Marginal,
+                "full" => TrustLevel::Full,
+                "ultimate" => TrustLevel::Ultimate,
+                _ => {
+                    return Err(buckos_package::Error::Signing(
+                        format!("Invalid trust level: {}. Use: unknown, never, marginal, full, ultimate", trust)
+                    ));
+                }
+            };
+
+            println!(
+                "{} Setting trust level for {} to {}...",
+                style(">>>").blue().bold(),
+                key_id,
+                trust
+            );
+
+            manager.set_key_trust(&key_id, trust_level)?;
+
+            println!(
+                "{} Trust level updated",
+                style(">>>").green().bold()
+            );
+        }
+    }
 
     Ok(())
 }

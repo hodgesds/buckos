@@ -212,7 +212,7 @@ impl DistfileManager {
             }
         }
 
-        Err(Error::DownloadFailed {
+        Err(Error::DistfileDownloadFailed {
             filename: source.filename.clone(),
             reason: last_error.unwrap_or_else(|| "All download attempts failed".to_string()),
         })
