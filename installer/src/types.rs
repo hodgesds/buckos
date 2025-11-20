@@ -877,3 +877,29 @@ impl Default for InstallProgress {
         }
     }
 }
+
+impl InstallProgress {
+    /// Maximum number of log lines to keep in buffer
+    const MAX_LOG_LINES: usize = 1000;
+
+    /// Add a log message, maintaining the 1000-line buffer limit
+    pub fn add_log(&mut self, message: impl Into<String>) {
+        self.log.push(message.into());
+        // Keep only the last 1000 lines
+        if self.log.len() > Self::MAX_LOG_LINES {
+            self.log.drain(0..(self.log.len() - Self::MAX_LOG_LINES));
+        }
+    }
+
+    /// Add an error message
+    pub fn add_error(&mut self, error: impl Into<String>) {
+        self.errors.push(error.into());
+    }
+
+    /// Update operation and progress
+    pub fn update(&mut self, operation: impl Into<String>, overall: f32, step: f32) {
+        self.operation = operation.into();
+        self.overall_progress = overall;
+        self.step_progress = step;
+    }
+}
