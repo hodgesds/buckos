@@ -279,9 +279,18 @@ buckos-tools report      # Generate system report
 
 ## Build Definition System
 
-### Core Definition Files
+### Overview
 
-Buckos uses Starlark (`.bzl`) files to define build rules and metadata. These are located in the `defs/` directory:
+The Buckos build system consists of two complementary components:
+
+1. **buckos** (this repository) - Package manager with basic build definition support
+2. **buckos-build** - Complete build system with package definitions
+
+The package manager includes a basic `defs/` directory for build integration, while the full-featured build system resides in the [buckos-build](https://github.com/hodgesds/buckos-build) repository.
+
+### Core Definition Files (buckos)
+
+The package manager includes these core definition files in `defs/`:
 
 | File | Purpose |
 |------|---------|
@@ -296,6 +305,19 @@ Buckos uses Starlark (`.bzl`) files to define build rules and metadata. These ar
 | `maintainers.bzl` | Maintainer registry |
 | `package_customize.bzl` | Per-package customization |
 | `tooling.bzl` | External tool integration and profiles |
+
+### Extended Definition Files (buckos-build)
+
+The [buckos-build](https://github.com/hodgesds/buckos-build) repository includes all core files plus these additional advanced features:
+
+| File | Purpose |
+|------|---------|
+| `advanced_deps.bzl` | Package blockers, SRC_URI advanced features, REQUIRED_USE, package environment |
+| `config_protect.bzl` | Configuration file protection (CONFIG_PROTECT) |
+| `overlays.bzl` | Overlay/repository system with priorities |
+| `platform_defs.bzl` | Platform targeting (Linux, BSD, macOS, Windows) |
+| `use_expand.bzl` | USE_EXPAND variables (PYTHON_TARGETS, CPU_FLAGS_X86, VIDEO_CARDS, etc.) |
+| `vdb.bzl` | VDB (installed package database) integration |
 
 ### Eclasses
 
@@ -372,7 +394,7 @@ if eapi_has_feature("subslots"):
 
 ### Subslot System
 
-ABI tracking for libraries:
+ABI tracking for libraries (implemented in buckos-build):
 
 ```python
 load("//defs:versions.bzl", "subslot_dep", "multi_version_package_with_subslots")
@@ -393,31 +415,49 @@ multi_version_package_with_subslots(
 )
 ```
 
+**Note**: The package manager tracks subslot changes and can trigger rebuilds of dependent packages when ABI compatibility breaks. Full implementation details are in the [buckos-build VERSIONING.md](https://github.com/hodgesds/buckos-build/blob/main/docs/VERSIONING.md).
+
 ## Package Ecosystem
 
-### Build Repository
+### Build Repository (buckos-build)
 
-Package definitions (Buck targets) are maintained in a separate repository:
+Package definitions (Buck targets) are maintained in the separate [buckos-build](https://github.com/hodgesds/buckos-build) repository, which provides:
 
-**Repository**: [buckos-build](https://github.com/hodgesds/buckos-build)
+**Build System Features:**
+- Complete Starlark (`.bzl`) build definition system
+- Extended `defs/` directory with advanced features
+- Package definitions equivalent to Gentoo's ebuilds
+- Comprehensive documentation for package management integration
 
-This repository contains the equivalent of Gentoo's ebuilds as Buck build targets. Each package definition includes:
-- Source URLs and checksums
-- Dependencies and build requirements
-- USE flag definitions and conditional dependencies
-- Build instructions and phases
-- Installation rules
+**What buckos-build Provides:**
+- **Package Definitions**: Each package includes source URLs, checksums, dependencies, USE flags, build phases, and installation rules
+- **Advanced Dependencies**: Package blockers (soft/hard), SRC_URI features (rename, mirrors), REQUIRED_USE constraints, per-package environment variables
+- **Platform Support**: Platform-specific targeting for Linux, BSD, macOS, and Windows
+- **Configuration Protection**: CONFIG_PROTECT system for managing configuration files
+- **Overlay System**: Layered repository system with priorities
+- **USE_EXPAND Variables**: Extended USE flag categories (PYTHON_TARGETS, CPU_FLAGS_X86, VIDEO_CARDS, INPUT_DEVICES, L10N)
+- **VDB Integration**: Installed package database with file ownership tracking
+- **EAPI 6-8 Support**: Full implementation of Gentoo's EAPI versions
+- **11 Built-in Eclasses**: cmake, meson, autotools, python, cargo, go-module, xdg, linux-mod, systemd, qt5
+- **License System**: 60+ licenses with groups (@FREE, @OSI-APPROVED, etc.)
+- **Subslot Support**: ABI tracking and automatic rebuild triggering
+- **Patch System**: Multiple patch sources with precedence ordering
 
 ### Package Categories
 
-Packages are organized into categories similar to Portage:
-- `core/` - Core system utilities
+Packages in buckos-build are organized into categories similar to Gentoo Portage:
+- `core/` - Core system utilities (bash, busybox, musl, glibc, coreutils)
 - `build/` - Build tools and compilers
 - `compression/` - Compression libraries and tools
-- `network/` - Networking tools and libraries
-- `toolchain/` - Compiler toolchains
+- `network/` - Networking tools and libraries (curl, wget, openssh)
+- `toolchain/` - Compiler toolchains (gcc, clang, rust)
 - `services/` - System services and daemons
 - `utils/` - General utilities
+- `kernel/` - Linux kernel and modules
+- `dev-libs/` - Development libraries (openssl, zlib, boost)
+- `www/` - Web servers and related tools (nginx, apache)
+
+See the [buckos-build repository](https://github.com/hodgesds/buckos-build) for the complete package tree.
 
 ## Configuration
 
@@ -812,6 +852,81 @@ boss logs nginx
 └─────────────────────────────────────────────────────────┘
 ```
 
+## Advanced Features (buckos-build)
+
+The buckos-build repository provides additional advanced features beyond the core package manager:
+
+### Advanced Dependencies
+
+- **Package Blockers**: Soft (`!package`) and hard (`!!package`) blockers to prevent conflicting packages
+- **SRC_URI Features**: File renaming (`-> newname`), mirror support (`mirror://`), fetch restrictions
+- **REQUIRED_USE**: Complex constraint syntax (`^^` exactly-one-of, `??` at-most-one-of, `||` at-least-one-of)
+- **Package Environment**: Per-package CFLAGS, LDFLAGS, and features via `/etc/portage/package.env`
+
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#advanced-dependencies-advanced_depsbzl)
+
+### Configuration Protection
+
+- CONFIG_PROTECT system for managing configuration file updates
+- Automatic detection of modified configs
+- Interactive merge tool support
+- Protection directory specification
+
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#patch-system)
+
+### Overlay System
+
+- Layered repository support with priorities
+- Local overlay management
+- Repository composition
+- Overlay-specific patches
+
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#integration-with-multi-version-support)
+
+### USE_EXPAND Variables
+
+Extended USE flag categories for hardware and software targeting:
+- `CPU_FLAGS_X86`: CPU instruction set extensions (aes, avx, avx2, sse4_2, etc.)
+- `VIDEO_CARDS`: Graphics drivers (intel, nvidia, amdgpu, nouveau, etc.)
+- `INPUT_DEVICES`: Input device support (libinput, evdev, synaptics, etc.)
+- `PYTHON_TARGETS`: Python version support (python3_11, python3_12, etc.)
+- `RUBY_TARGETS`: Ruby version support (ruby31, ruby32, etc.)
+- `L10N`: Language/locale support
+
+See [buckos-build docs/USE_FLAGS.md](https://github.com/hodgesds/buckos-build/blob/main/docs/USE_FLAGS.md)
+
+### Platform Support
+
+Multi-platform targeting for:
+- Linux (primary)
+- BSD (FreeBSD, OpenBSD, NetBSD)
+- macOS / Darwin
+- Windows
+
+Packages can specify platform-specific dependencies, patches, and build configurations.
+
+### VDB Integration
+
+The installed package database (VDB) provides:
+- File ownership tracking with checksums
+- Package metadata persistence
+- Atomic transaction support
+- Configuration file protection
+- Reverse dependency queries
+
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#metadata-structures)
+
+### Patch System
+
+Comprehensive patch management with:
+- Multiple patch sources (package, distribution, profile, USE flag, user)
+- Clear precedence ordering
+- Version-specific patches
+- Platform-specific patches
+- USE flag conditional patches
+
+See [buckos-build docs/PATCHES.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PATCHES.md)
+
 ## Technical Details
 
 ### Dependency Resolution
@@ -932,9 +1047,64 @@ cargo fmt --check
 
 ## Related Projects
 
-- [Buck2](https://buck2.build/) - Build system
-- [Gentoo Linux](https://gentoo.org/) - Inspiration for package management
-- [buckos-build](https://github.com/hodgesds/buckos-build) - Package definitions repository
+- [Buck2](https://buck2.build/) - Fast, scalable build system by Meta
+- [Gentoo Linux](https://gentoo.org/) - Inspiration for package management approach
+- [buckos-build](https://github.com/hodgesds/buckos-build) - Package definitions and build system repository
+
+## Architecture Relationship
+
+```
+┌────────────────────────────────────────────────────┐
+│                  User Interface                    │
+│  ┌─────────────────────────────────────────────┐   │
+│  │         buckos CLI (this repo)              │   │
+│  │  - Package manager operations               │   │
+│  │  - Dependency resolution (SAT solver)       │   │
+│  │  - USE flag management                      │   │
+│  │  - Transaction support                      │   │
+│  │  - VDB tracking                             │   │
+│  └────────┬────────────────────────────────────┘   │
+└───────────┼────────────────────────────────────────┘
+            │
+            │ Integrates with
+            ▼
+┌────────────────────────────────────────────────────┐
+│            Build System (buckos-build)             │
+│  ┌─────────────────────────────────────────────┐   │
+│  │  Advanced defs/ directory                   │   │
+│  │  - advanced_deps.bzl (blockers, REQUIRED_USE) │
+│  │  - config_protect.bzl (CONFIG_PROTECT)      │   │
+│  │  - overlays.bzl (repository layers)         │   │
+│  │  - platform_defs.bzl (multi-platform)       │   │
+│  │  - use_expand.bzl (USE_EXPAND variables)    │   │
+│  │  - vdb.bzl (package database)               │   │
+│  │  + All core defs from buckos                │   │
+│  └────────┬────────────────────────────────────┘   │
+│           │                                        │
+│  ┌────────▼────────────────────────────────────┐   │
+│  │  Package Definitions                        │   │
+│  │  packages/linux/                            │   │
+│  │  - core/ kernel/ dev-libs/ www/ etc.        │   │
+│  └─────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────┘
+            │
+            │ Invokes
+            ▼
+┌────────────────────────────────────────────────────┐
+│                   Buck2                            │
+│  - Hermetic builds                                 │
+│  - Remote caching                                  │
+│  - Parallel execution                              │
+└────────────────────────────────────────────────────┘
+```
+
+**Key Integration Points:**
+1. The `buckos` CLI reads package metadata from buckos-build
+2. Buck2 queries resolve package definitions and dependencies
+3. Configuration is generated by `buckos` and consumed by buckos-build
+4. Built packages are tracked in the VDB by `buckos`
+
+For detailed integration specifications, see [buckos-build PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md).
 
 ## License
 
