@@ -163,6 +163,17 @@ pub enum Error {
     #[error("Profile inheritance cycle detected: {0}")]
     ProfileCycle(String),
 
+    #[error("Binary package not found: {0}")]
+    BinaryPackageNotFound(String),
+
+    #[error("Binary package verification failed for {package}: {message}")]
+    BinaryPackageVerificationFailed { package: String, message: String },
+
+    #[error("Binary package creation failed for {package}: {message}")]
+    BinaryPackageCreationFailed { package: String, message: String },
+
+    #[error("Binary package server error: {0}")]
+    BinaryPackageServerError(String),
     #[error("Package masked: {package} ({reason})")]
     PackageMasked {
         package: String,

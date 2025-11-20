@@ -98,7 +98,7 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - ._cfg0000_ file management
   - Location: `buckos/package/src/config_protect/`
 
-- [ ] **Binary Package Support** - Pre-built binary packages
+- [x] **Binary Package Support** - Pre-built binary packages
   - PKGDIR for binary package storage
   - binpkg-multi-instance support
   - Binary package signing
