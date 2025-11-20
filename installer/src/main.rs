@@ -24,6 +24,10 @@ struct Args {
     #[arg(long, default_value = "/mnt/buckos")]
     target: String,
 
+    /// Path to buckos-build repository (auto-detected if not specified)
+    #[arg(long)]
+    buckos_build_path: Option<String>,
+
     /// Skip system requirements check
     #[arg(long)]
     skip_checks: bool,
@@ -130,6 +134,10 @@ fn main() -> Result<()> {
         check_display_environment()?;
     }
 
+    // Detect or validate buckos-build path
+    let buckos_build_path = system::detect_buckos_build_path(args.buckos_build_path.as_deref())?;
+    tracing::info!("Using buckos-build at: {}", buckos_build_path.display());
+
     // Check system requirements
     if !args.skip_checks {
         if let Err(e) = system::check_requirements() {
@@ -144,14 +152,14 @@ fn main() -> Result<()> {
 
     if args.text_mode {
         // Run text-based installer
-        run_text_installer(&args)
+        run_text_installer(&args, buckos_build_path)
     } else {
         // Run graphical installer
-        run_gui_installer(&args)
+        run_gui_installer(&args, buckos_build_path)
     }
 }
 
-fn run_gui_installer(args: &Args) -> Result<()> {
+fn run_gui_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([900.0, 650.0])
@@ -169,13 +177,13 @@ fn run_gui_installer(args: &Args) -> Result<()> {
         Box::new(move |cc| {
             // Setup custom fonts and styles
             setup_custom_styles(&cc.egui_ctx);
-            Ok(Box::new(app::InstallerApp::new(cc, target, dry_run)))
+            Ok(Box::new(app::InstallerApp::new(cc, target, dry_run, buckos_build_path)))
         }),
     )
     .map_err(|e| anyhow::anyhow!("GUI error: {}", e))
 }
 
-fn run_text_installer(args: &Args) -> Result<()> {
+fn run_text_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Result<()> {
     use console::style;
 
     println!(
@@ -196,6 +204,10 @@ fn run_text_installer(args: &Args) -> Result<()> {
     println!(
         "Target installation directory: {}",
         style(&args.target).yellow()
+    );
+    println!(
+        "Buckos-build repository: {}",
+        style(buckos_build_path.display()).yellow()
     );
     if args.dry_run {
         println!(

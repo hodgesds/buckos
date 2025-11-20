@@ -134,9 +134,28 @@ sudo buckos-installer --text-mode
 |--------|-------------|---------|
 | `--text-mode` | Run in text-only mode (no GUI) | false |
 | `--target <PATH>` | Target root directory for installation | /mnt/buckos |
+| `--buckos-build-path <PATH>` | Path to buckos-build repository | Auto-detected |
 | `--skip-checks` | Skip system requirements check | false |
 | `--debug` | Enable debug logging | false |
 | `--dry-run` | Perform a dry run without making changes | false |
+
+### Buckos-Build Repository Detection
+
+The installer needs the buckos-build repository for package definitions. It will automatically search for it in these locations (in order):
+
+1. `/var/db/repos/buckos-build` - Standard Gentoo-style repository location
+2. `/usr/share/buckos-build` - System-wide read-only location (typical for live USB)
+3. `/opt/buckos-build` - Alternative system location
+4. `~/buckos-build` - User home directory
+5. `./buckos-build` - Current directory (for development)
+
+If buckos-build is not found in any of these locations, or you want to use a specific version, you can specify the path manually:
+
+```bash
+sudo buckos-installer --buckos-build-path /path/to/buckos-build
+```
+
+**For Live USB systems**: The buckos-build repository should be pre-installed at `/usr/share/buckos-build` for optimal performance.
 
 ### Examples
 
@@ -144,14 +163,20 @@ sudo buckos-installer --text-mode
 # Run installer with custom target directory
 sudo buckos-installer --target /mnt/myroot
 
+# Specify custom buckos-build repository location
+sudo buckos-installer --buckos-build-path /path/to/buckos-build
+
 # Dry run to preview installation
 sudo buckos-installer --dry-run
 
-# Debug mode with custom target
-sudo buckos-installer --debug --target /mnt/buckos
+# Debug mode with custom target and build repo
+sudo buckos-installer --debug --target /mnt/buckos --buckos-build-path /opt/buckos-build
 
 # Skip system checks (advanced users)
 sudo buckos-installer --skip-checks
+
+# For development with local buckos-build
+sudo buckos-installer --buckos-build-path ./buckos-build
 ```
 
 ## Installation Wizard Steps

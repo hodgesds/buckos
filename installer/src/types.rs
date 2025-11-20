@@ -663,6 +663,8 @@ pub struct LocaleConfig {
 pub struct InstallConfig {
     /// Target installation directory
     pub target_root: PathBuf,
+    /// Path to buckos-build repository
+    pub buckos_build_path: PathBuf,
     /// Installation profile
     pub profile: InstallProfile,
     /// Disk configuration
@@ -699,6 +701,7 @@ impl Default for InstallConfig {
     fn default() -> Self {
         Self {
             target_root: PathBuf::from("/mnt/buckos"),
+            buckos_build_path: PathBuf::from("/var/db/repos/buckos-build"),
             profile: InstallProfile::default(),
             disk: None,
             disk_layout: DiskLayoutPreset::Standard,

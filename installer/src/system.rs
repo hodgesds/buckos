@@ -732,6 +732,114 @@ pub fn detect_touchscreen() -> bool {
     false
 }
 
+/// Detect buckos-build repository path
+///
+/// Standard locations checked (in order):
+/// 1. User-specified path (if provided)
+/// 2. /var/db/repos/buckos-build (standard Gentoo-style location)
+/// 3. /usr/share/buckos-build (system-wide, read-only - typical for live USB)
+/// 4. /opt/buckos-build (alternative system location)
+/// 5. ~/buckos-build (user directory)
+/// 6. ./buckos-build (current directory - for development)
+pub fn detect_buckos_build_path(custom_path: Option<&str>) -> Result<std::path::PathBuf> {
+    // If user provided a path, validate it
+    if let Some(path_str) = custom_path {
+        let path = std::path::PathBuf::from(path_str);
+        return validate_buckos_build_path(&path);
+    }
+
+    // Standard locations to check
+    let candidate_paths = vec![
+        std::path::PathBuf::from("/var/db/repos/buckos-build"),
+        std::path::PathBuf::from("/usr/share/buckos-build"),
+        std::path::PathBuf::from("/opt/buckos-build"),
+    ];
+
+    // Add user home directory path if available
+    let mut all_paths = candidate_paths;
+    if let Ok(home) = std::env::var("HOME") {
+        all_paths.push(std::path::PathBuf::from(home).join("buckos-build"));
+    }
+
+    // Add current directory as last resort
+    all_paths.push(std::path::PathBuf::from("./buckos-build"));
+
+    // Try each path
+    for path in &all_paths {
+        if path.exists() {
+            match validate_buckos_build_path(path) {
+                Ok(p) => {
+                    tracing::info!("Found buckos-build at: {}", p.display());
+                    return Ok(p);
+                }
+                Err(e) => {
+                    tracing::debug!("Path {} exists but validation failed: {}", path.display(), e);
+                    continue;
+                }
+            }
+        }
+    }
+
+    // No valid path found
+    bail!(
+        "Could not find buckos-build repository.\n\
+        Searched locations:\n{}\n\n\
+        Please specify the path with --buckos-build-path <PATH>\n\
+        or ensure buckos-build is installed in one of the standard locations.",
+        all_paths
+            .iter()
+            .map(|p| format!("  - {}", p.display()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
+}
+
+/// Validate that a path contains a valid buckos-build repository
+fn validate_buckos_build_path(path: &std::path::Path) -> Result<std::path::PathBuf> {
+    let path = path.canonicalize().with_context(|| {
+        format!("Failed to resolve path: {}", path.display())
+    })?;
+
+    if !path.exists() {
+        bail!("Path does not exist: {}", path.display());
+    }
+
+    if !path.is_dir() {
+        bail!("Path is not a directory: {}", path.display());
+    }
+
+    // Check for essential buckos-build components
+    let required_dirs = vec!["defs", "packages"];
+    let required_files = vec!["defs/package_defs.bzl", "defs/use_flags.bzl"];
+
+    // Check directories
+    for dir in &required_dirs {
+        let dir_path = path.join(dir);
+        if !dir_path.exists() || !dir_path.is_dir() {
+            bail!(
+                "Invalid buckos-build repository: missing required directory '{}' in {}",
+                dir,
+                path.display()
+            );
+        }
+    }
+
+    // Check files
+    for file in &required_files {
+        let file_path = path.join(file);
+        if !file_path.exists() || !file_path.is_file() {
+            bail!(
+                "Invalid buckos-build repository: missing required file '{}' in {}",
+                file,
+                path.display()
+            );
+        }
+    }
+
+    tracing::debug!("Validated buckos-build repository at: {}", path.display());
+    Ok(path)
+}
+
 /// Get CPU vendor and flags
 pub fn get_cpu_info() -> (String, Vec<String>) {
     let mut vendor = String::new();

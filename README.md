@@ -612,12 +612,70 @@ buckos install ripgrep --use="pcre2"
 buck2 build //packages/ripgrep:ripgrep --config //config:use_pcre2=True
 ```
 
+## Repository Location
+
+### Buckos-Build Repository
+
+The buckos package manager requires the buckos-build repository containing package definitions and build rules. The package manager automatically searches for buckos-build in these locations (in order):
+
+1. **User-specified path** - Via `--repo-path` flag or `BUCKOS_BUILD_PATH` environment variable
+2. **`/var/db/repos/buckos-build`** - Standard Gentoo-style repository location (recommended)
+3. **`/usr/share/buckos-build`** - System-wide read-only location (typical for live USB)
+4. **`/opt/buckos-build`** - Alternative system location
+5. **`~/buckos-build`** - User home directory
+6. **`./buckos-build`** - Current directory (for development)
+
+### Specifying Repository Location
+
+You can specify the repository location in three ways:
+
+```bash
+# 1. Via command-line flag (highest priority)
+buckos --repo-path /path/to/buckos-build info
+
+# 2. Via environment variable
+export BUCKOS_BUILD_PATH=/path/to/buckos-build
+buckos info
+
+# 3. Install to standard location (auto-detected)
+# Repository at /var/db/repos/buckos-build will be found automatically
+buckos info
+```
+
+### Repository Information
+
+To see which repository location is being used:
+
+```bash
+buckos info
+```
+
+This will display:
+- Current repository location
+- All standard search locations
+- Environment variable status
+
 ## Quick Start
 
 ```bash
-# Install buckos from source
-git clone https://github.com/hodgesds/buckos.git && cd buckos
-cargo install --path buckos/package
+# Clone the repositories
+git clone https://github.com/hodgesds/buckos.git
+git clone https://github.com/hodgesds/buckos-build.git
+
+# Install buckos-build to standard location (recommended)
+sudo mkdir -p /var/db/repos
+sudo cp -r buckos-build /var/db/repos/
+
+# Or use a custom location
+export BUCKOS_BUILD_PATH=/path/to/buckos-build
+
+# Build and install buckos
+cd buckos
+cargo build --release
+sudo cp target/release/buckos /usr/local/bin/
+
+# Verify repository is detected
+buckos info
 
 # Initialize and sync
 sudo mkdir -p /etc/buckos

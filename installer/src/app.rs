@@ -127,12 +127,13 @@ impl Default for UiState {
 }
 
 impl InstallerApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>, target: String, dry_run: bool) -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>, target: String, dry_run: bool, buckos_build_path: PathBuf) -> Self {
         let available_disks = system::get_available_disks().unwrap_or_default();
         let system_info = system::get_system_info();
 
         let mut config = InstallConfig::default();
         config.target_root = PathBuf::from(target);
+        config.buckos_build_path = buckos_build_path;
         config.dry_run = dry_run;
 
         // Perform hardware detection
