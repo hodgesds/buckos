@@ -140,6 +140,24 @@ enum Commands {
 
     /// Generate system configuration
     Configure(ConfigureArgs),
+
+    /// Manage package sets
+    Set(SetArgs),
+
+    /// Manage patches
+    Patch(PatchArgs),
+
+    /// Show package dependencies (shortcut for query deps)
+    Deps(DepsArgs),
+
+    /// Show reverse dependencies (shortcut for query rdeps)
+    Rdeps(RdepsArgs),
+
+    /// Manage system profiles
+    Profile(ProfileArgs),
+
+    /// Export configuration in various formats
+    Export(ExportArgs),
 }
 
 #[derive(Args)]
@@ -443,6 +461,146 @@ struct ConfigureArgs {
     auto_detect: bool,
 }
 
+#[derive(Args)]
+struct SetArgs {
+    /// Set subcommand
+    #[command(subcommand)]
+    subcommand: SetCommand,
+}
+
+#[derive(Subcommand)]
+enum SetCommand {
+    /// List available package sets
+    List {
+        /// Filter by set type (system, task, desktop)
+        #[arg(short, long)]
+        r#type: Option<String>,
+    },
+    /// Show contents of a package set
+    Show {
+        /// Set name
+        set_name: String,
+    },
+    /// Install all packages in a set
+    Install {
+        /// Set name
+        set_name: String,
+    },
+    /// Compare two package sets
+    Compare {
+        /// First set name
+        set1: String,
+        /// Second set name
+        set2: String,
+    },
+}
+
+#[derive(Args)]
+struct PatchArgs {
+    /// Patch subcommand
+    #[command(subcommand)]
+    subcommand: PatchCommand,
+}
+
+#[derive(Subcommand)]
+enum PatchCommand {
+    /// List patches for a package
+    List {
+        /// Package name
+        package: String,
+    },
+    /// Show patch information
+    Info {
+        /// Package name
+        package: String,
+        /// Patch name
+        patch_name: String,
+    },
+    /// Add a user patch
+    Add {
+        /// Package name
+        package: String,
+        /// Path to patch file
+        patch_file: String,
+    },
+    /// Remove a user patch
+    Remove {
+        /// Package name
+        package: String,
+        /// Patch name
+        patch_name: String,
+    },
+    /// Check if patches apply cleanly
+    Check {
+        /// Package name
+        package: String,
+    },
+    /// Show patch application order
+    Order {
+        /// Package name
+        package: String,
+    },
+}
+
+#[derive(Args)]
+struct DepsArgs {
+    /// Package name
+    package: String,
+    /// Show as tree
+    #[arg(short, long)]
+    tree: bool,
+    /// Output format (text, json)
+    #[arg(short, long, default_value = "text")]
+    format: String,
+}
+
+#[derive(Args)]
+struct RdepsArgs {
+    /// Package name
+    package: String,
+    /// Output format (text, json)
+    #[arg(short, long, default_value = "text")]
+    format: String,
+}
+
+#[derive(Args)]
+struct ProfileArgs {
+    /// Profile subcommand
+    #[command(subcommand)]
+    subcommand: ProfileCommand,
+}
+
+#[derive(Subcommand)]
+enum ProfileCommand {
+    /// List available profiles
+    List,
+    /// Show profile information
+    Show {
+        /// Profile name
+        profile: String,
+    },
+    /// Set the active profile
+    Set {
+        /// Profile name
+        profile: String,
+    },
+    /// Show current profile
+    Current,
+}
+
+#[derive(Args)]
+struct ExportArgs {
+    /// Output format (json, toml, shell, buck)
+    #[arg(short, long, default_value = "json")]
+    format: String,
+    /// Output file (stdout if not specified)
+    #[arg(short, long)]
+    output: Option<String>,
+    /// Include package list
+    #[arg(long)]
+    with_packages: bool,
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -523,6 +681,12 @@ async fn main() -> ExitCode {
         Commands::Useflags(args) => cmd_useflags(&pkg_manager, args).await,
         Commands::Detect(args) => cmd_detect(args).await,
         Commands::Configure(args) => cmd_configure(args).await,
+        Commands::Set(args) => cmd_set(&pkg_manager, args, &emerge_opts).await,
+        Commands::Patch(args) => cmd_patch(args).await,
+        Commands::Deps(args) => cmd_deps(&pkg_manager, args).await,
+        Commands::Rdeps(args) => cmd_rdeps(&pkg_manager, args).await,
+        Commands::Profile(args) => cmd_profile(args).await,
+        Commands::Export(args) => cmd_export(args).await,
     };
 
     match result {
@@ -2452,4 +2616,839 @@ export BUCKOS_PROFILE ARCH USE
         arch,
         flags.join(" ")
     )
+}
+
+/// Package set management command
+async fn cmd_set(
+    pm: &PackageManager,
+    args: SetArgs,
+    emerge_opts: &EmergeOptions,
+) -> buckos_package::Result<()> {
+    match args.subcommand {
+        SetCommand::List { r#type } => cmd_set_list(r#type).await,
+        SetCommand::Show { set_name } => cmd_set_show(&set_name).await,
+        SetCommand::Install { set_name } => cmd_set_install(pm, &set_name, emerge_opts).await,
+        SetCommand::Compare { set1, set2 } => cmd_set_compare(&set1, &set2).await,
+    }
+}
+
+/// List available package sets
+async fn cmd_set_list(set_type: Option<String>) -> buckos_package::Result<()> {
+    println!("{}", style("Available Package Sets").bold().underlined());
+    println!();
+
+    let sets = get_package_sets();
+
+    if let Some(t) = set_type {
+        // Filter by type
+        if let Some(type_sets) = sets.get(&t) {
+            println!("{}:", style(&t).cyan().bold());
+            for (name, info) in type_sets {
+                println!("  {} - {}", style(name).green(), info);
+            }
+        } else {
+            println!("{} Unknown set type: {}", style(">>>").yellow().bold(), t);
+            println!("\nAvailable types: system, task, desktop");
+        }
+    } else {
+        // Show all sets
+        for (set_type, type_sets) in &sets {
+            println!("{}:", style(set_type).cyan().bold());
+            for (name, description) in type_sets {
+                println!("  {} - {}", style(name).green(), description);
+            }
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+/// Get package sets organized by type
+fn get_package_sets() -> HashMap<String, Vec<(&'static str, &'static str)>> {
+    let mut sets = HashMap::new();
+
+    sets.insert("system".to_string(), vec![
+        ("minimal", "Minimal bootable system"),
+        ("server", "Server base system"),
+        ("desktop", "Desktop base system"),
+        ("developer", "Development environment"),
+        ("hardened", "Security-hardened system"),
+    ]);
+
+    sets.insert("task".to_string(), vec![
+        ("web-server", "Web server packages"),
+        ("database", "Database packages"),
+        ("container", "Container runtime packages"),
+        ("virtualization", "Virtualization packages"),
+        ("monitoring", "System monitoring packages"),
+    ]);
+
+    sets.insert("desktop".to_string(), vec![
+        ("gnome", "GNOME desktop environment"),
+        ("kde", "KDE Plasma desktop environment"),
+        ("xfce", "Xfce desktop environment"),
+        ("sway", "Sway Wayland compositor"),
+    ]);
+
+    sets
+}
+
+/// Show contents of a package set
+async fn cmd_set_show(set_name: &str) -> buckos_package::Result<()> {
+    let packages = get_set_packages(set_name);
+
+    if packages.is_empty() {
+        println!("{} Unknown set: {}", style(">>>").yellow().bold(), set_name);
+        return Ok(());
+    }
+
+    println!("{}", style(format!("Package Set: {}", set_name)).bold().underlined());
+    println!();
+
+    for pkg in &packages {
+        println!("  {}", style(pkg).green());
+    }
+
+    println!();
+    println!("Total: {} packages", packages.len());
+
+    Ok(())
+}
+
+/// Get packages in a set
+fn get_set_packages(set_name: &str) -> Vec<String> {
+    match set_name {
+        "minimal" => vec![
+            "core/bash".to_string(),
+            "core/busybox".to_string(),
+            "core/musl".to_string(),
+            "core/linux-headers".to_string(),
+        ],
+        "server" => vec![
+            "core/bash".to_string(),
+            "core/openssl".to_string(),
+            "core/zlib".to_string(),
+            "core/glibc".to_string(),
+            "network/openssh".to_string(),
+            "system/systemd".to_string(),
+        ],
+        "desktop" => vec![
+            "core/bash".to_string(),
+            "core/openssl".to_string(),
+            "graphics/mesa".to_string(),
+            "graphics/xorg-server".to_string(),
+            "audio/pipewire".to_string(),
+            "desktop/dbus".to_string(),
+        ],
+        "developer" => vec![
+            "core/bash".to_string(),
+            "dev-tools/gcc".to_string(),
+            "dev-tools/clang".to_string(),
+            "dev-tools/cmake".to_string(),
+            "dev-tools/git".to_string(),
+            "dev-tools/gdb".to_string(),
+        ],
+        "hardened" => vec![
+            "core/bash".to_string(),
+            "core/openssl".to_string(),
+            "security/audit".to_string(),
+            "security/libcap".to_string(),
+        ],
+        "web-server" => vec![
+            "www/nginx".to_string(),
+            "www/apache".to_string(),
+            "network/curl".to_string(),
+        ],
+        "database" => vec![
+            "database/postgresql".to_string(),
+            "database/mariadb".to_string(),
+            "database/sqlite".to_string(),
+        ],
+        "container" => vec![
+            "app-containers/docker".to_string(),
+            "app-containers/podman".to_string(),
+            "app-containers/containerd".to_string(),
+        ],
+        "gnome" => vec![
+            "desktop/gnome-shell".to_string(),
+            "desktop/gnome-terminal".to_string(),
+            "desktop/nautilus".to_string(),
+        ],
+        "kde" => vec![
+            "desktop/plasma-desktop".to_string(),
+            "desktop/konsole".to_string(),
+            "desktop/dolphin".to_string(),
+        ],
+        "xfce" => vec![
+            "desktop/xfce4-panel".to_string(),
+            "desktop/xfce4-terminal".to_string(),
+            "desktop/thunar".to_string(),
+        ],
+        "sway" => vec![
+            "desktop/sway".to_string(),
+            "desktop/foot".to_string(),
+            "desktop/waybar".to_string(),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Install all packages in a set
+async fn cmd_set_install(
+    pm: &PackageManager,
+    set_name: &str,
+    emerge_opts: &EmergeOptions,
+) -> buckos_package::Result<()> {
+    let packages = get_set_packages(set_name);
+
+    if packages.is_empty() {
+        println!("{} Unknown set: {}", style(">>>").yellow().bold(), set_name);
+        return Ok(());
+    }
+
+    println!(
+        "{} Installing set: {} ({} packages)",
+        style(">>>").blue().bold(),
+        set_name,
+        packages.len()
+    );
+
+    let opts = InstallOptions {
+        force: false,
+        no_deps: false,
+        build: true,
+        use_flags: Vec::new(),
+        oneshot: emerge_opts.oneshot,
+        fetch_only: emerge_opts.fetch_only,
+        deep: emerge_opts.deep,
+        newuse: emerge_opts.newuse,
+        empty_tree: false,
+        no_replace: true,
+    };
+
+    // Resolve dependencies
+    let resolution = pm.resolve_packages(&packages, &opts).await?;
+
+    if resolution.packages.is_empty() {
+        println!(
+            "\n{} All packages in set are already installed",
+            style(">>>").green().bold()
+        );
+        return Ok(());
+    }
+
+    // Display package list
+    print_emerge_list(&resolution, emerge_opts, "install")?;
+
+    // Pretend mode
+    if emerge_opts.pretend {
+        return Ok(());
+    }
+
+    // Ask mode
+    if emerge_opts.ask {
+        if !Confirm::new()
+            .with_prompt("Would you like to merge these packages?")
+            .default(true)
+            .interact()?
+        {
+            println!("{}", style(">>> Exiting.").yellow().bold());
+            return Ok(());
+        }
+        println!();
+    }
+
+    pm.install(&packages, opts).await?;
+
+    println!(
+        "\n{} Set '{}' installed successfully",
+        style(">>>").green().bold(),
+        set_name
+    );
+
+    Ok(())
+}
+
+/// Compare two package sets
+async fn cmd_set_compare(set1: &str, set2: &str) -> buckos_package::Result<()> {
+    let packages1: HashSet<String> = get_set_packages(set1).into_iter().collect();
+    let packages2: HashSet<String> = get_set_packages(set2).into_iter().collect();
+
+    if packages1.is_empty() {
+        println!("{} Unknown set: {}", style(">>>").yellow().bold(), set1);
+        return Ok(());
+    }
+    if packages2.is_empty() {
+        println!("{} Unknown set: {}", style(">>>").yellow().bold(), set2);
+        return Ok(());
+    }
+
+    let added: Vec<_> = packages2.difference(&packages1).collect();
+    let removed: Vec<_> = packages1.difference(&packages2).collect();
+    let common: Vec<_> = packages1.intersection(&packages2).collect();
+
+    println!(
+        "{} vs {}",
+        style(set1).cyan().bold(),
+        style(set2).cyan().bold()
+    );
+    println!();
+
+    if !added.is_empty() {
+        println!("{}:", style("Added in second set").green());
+        for pkg in &added {
+            println!("  + {}", pkg);
+        }
+        println!();
+    }
+
+    if !removed.is_empty() {
+        println!("{}:", style("Removed from first set").red());
+        for pkg in &removed {
+            println!("  - {}", pkg);
+        }
+        println!();
+    }
+
+    println!(
+        "Common packages: {}",
+        style(common.len()).bold()
+    );
+
+    Ok(())
+}
+
+/// Patch management command
+async fn cmd_patch(args: PatchArgs) -> buckos_package::Result<()> {
+    match args.subcommand {
+        PatchCommand::List { package } => cmd_patch_list(&package).await,
+        PatchCommand::Info { package, patch_name } => cmd_patch_info(&package, &patch_name).await,
+        PatchCommand::Add { package, patch_file } => cmd_patch_add(&package, &patch_file).await,
+        PatchCommand::Remove { package, patch_name } => cmd_patch_remove(&package, &patch_name).await,
+        PatchCommand::Check { package } => cmd_patch_check(&package).await,
+        PatchCommand::Order { package } => cmd_patch_order(&package).await,
+    }
+}
+
+/// List patches for a package
+async fn cmd_patch_list(package: &str) -> buckos_package::Result<()> {
+    println!("{}", style(format!("Patches for {}", package)).bold().underlined());
+    println!();
+
+    // Check for patches in standard locations
+    let patch_dirs = vec![
+        format!("/etc/portage/patches/{}", package),
+        format!("/var/db/buckos/patches/{}", package),
+    ];
+
+    let mut found_patches = Vec::new();
+
+    for dir in &patch_dirs {
+        let path = std::path::Path::new(dir);
+        if path.exists() {
+            if let Ok(entries) = fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    if entry.path().extension().map_or(false, |e| e == "patch") {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        found_patches.push((name, dir.clone()));
+                    }
+                }
+            }
+        }
+    }
+
+    if found_patches.is_empty() {
+        println!("No patches found for {}", package);
+        println!();
+        println!("Patch locations checked:");
+        for dir in &patch_dirs {
+            println!("  {}", dir);
+        }
+    } else {
+        for (patch, source) in &found_patches {
+            println!("  {} ({})", style(patch).green(), source);
+        }
+        println!();
+        println!("Total: {} patches", found_patches.len());
+    }
+
+    Ok(())
+}
+
+/// Show patch information
+async fn cmd_patch_info(package: &str, patch_name: &str) -> buckos_package::Result<()> {
+    let patch_path = format!("/etc/portage/patches/{}/{}", package, patch_name);
+
+    if !std::path::Path::new(&patch_path).exists() {
+        println!("{} Patch not found: {}", style(">>>").yellow().bold(), patch_path);
+        return Ok(());
+    }
+
+    println!("{}", style("Patch Information").bold().underlined());
+    println!();
+    println!("  {}: {}", style("Name").bold(), patch_name);
+    println!("  {}: {}", style("Package").bold(), package);
+    println!("  {}: {}", style("Path").bold(), patch_path);
+
+    // Read first few lines of patch to show description
+    if let Ok(content) = fs::read_to_string(&patch_path) {
+        let lines: Vec<&str> = content.lines().take(10).collect();
+        if !lines.is_empty() {
+            println!();
+            println!("{}:", style("Header").bold());
+            for line in lines {
+                println!("  {}", line);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Add a user patch
+async fn cmd_patch_add(package: &str, patch_file: &str) -> buckos_package::Result<()> {
+    let patch_dir = format!("/etc/portage/patches/{}", package);
+    let patch_path = std::path::Path::new(&patch_dir);
+
+    // Create directory if it doesn't exist
+    fs::create_dir_all(&patch_dir)?;
+
+    // Copy patch file
+    let source = std::path::Path::new(patch_file);
+    let file_name = source.file_name().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid patch file name")
+    })?;
+    let dest = patch_path.join(file_name);
+
+    fs::copy(source, &dest)?;
+
+    println!(
+        "{} Added patch: {}",
+        style(">>>").green().bold(),
+        dest.display()
+    );
+    println!();
+    println!("The patch will be applied during the next build of {}", package);
+
+    Ok(())
+}
+
+/// Remove a user patch
+async fn cmd_patch_remove(package: &str, patch_name: &str) -> buckos_package::Result<()> {
+    let patch_path = format!("/etc/portage/patches/{}/{}", package, patch_name);
+
+    if !std::path::Path::new(&patch_path).exists() {
+        println!("{} Patch not found: {}", style(">>>").yellow().bold(), patch_path);
+        return Ok(());
+    }
+
+    fs::remove_file(&patch_path)?;
+
+    println!(
+        "{} Removed patch: {}",
+        style(">>>").green().bold(),
+        patch_path
+    );
+
+    Ok(())
+}
+
+/// Check if patches apply cleanly
+async fn cmd_patch_check(package: &str) -> buckos_package::Result<()> {
+    println!(
+        "{} Checking patches for {}...",
+        style(">>>").blue().bold(),
+        package
+    );
+
+    let patch_dir = format!("/etc/portage/patches/{}", package);
+    let path = std::path::Path::new(&patch_dir);
+
+    if !path.exists() {
+        println!("{} No patches to check", style(">>>").green().bold());
+        return Ok(());
+    }
+
+    // In a real implementation, this would:
+    // 1. Download and extract the source
+    // 2. Apply patches with --dry-run
+    // 3. Report any failures
+
+    println!(
+        "{} Patch check completed (dry-run not implemented yet)",
+        style(">>>").yellow().bold()
+    );
+
+    Ok(())
+}
+
+/// Show patch application order
+async fn cmd_patch_order(package: &str) -> buckos_package::Result<()> {
+    println!(
+        "{}",
+        style(format!("Patch Order for {}", package)).bold().underlined()
+    );
+    println!();
+
+    let patch_dir = format!("/etc/portage/patches/{}", package);
+    let series_file = format!("{}/series", patch_dir);
+
+    if std::path::Path::new(&series_file).exists() {
+        // Use series file if it exists
+        if let Ok(content) = fs::read_to_string(&series_file) {
+            let mut idx = 1;
+            for line in content.lines() {
+                let line = line.trim();
+                if !line.is_empty() && !line.starts_with('#') {
+                    println!("  {}. {}", idx, line);
+                    idx += 1;
+                }
+            }
+        }
+    } else {
+        // List patches alphabetically
+        let path = std::path::Path::new(&patch_dir);
+        if path.exists() {
+            let mut patches: Vec<_> = fs::read_dir(path)?
+                .flatten()
+                .filter(|e| e.path().extension().map_or(false, |e| e == "patch"))
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect();
+            patches.sort();
+
+            for (idx, patch) in patches.iter().enumerate() {
+                println!("  {}. {}", idx + 1, patch);
+            }
+
+            if patches.is_empty() {
+                println!("  No patches found");
+            }
+        } else {
+            println!("  No patches found");
+        }
+    }
+
+    Ok(())
+}
+
+/// Show package dependencies
+async fn cmd_deps(pm: &PackageManager, args: DepsArgs) -> buckos_package::Result<()> {
+    if let Some(pkg) = pm.info(&args.package).await? {
+        if args.format == "json" {
+            let output = serde_json::json!({
+                "package": args.package,
+                "dependencies": pkg.dependencies.iter().map(|d| &d.package).collect::<Vec<_>>(),
+                "runtime_dependencies": pkg.runtime_dependencies.iter().map(|d| &d.package).collect::<Vec<_>>(),
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        } else {
+            println!("{}", style(format!("Dependencies of {}", args.package)).bold().underlined());
+            println!();
+
+            if !pkg.dependencies.is_empty() {
+                println!("{}:", style("Build Dependencies").cyan());
+                for dep in &pkg.dependencies {
+                    println!("  {}", dep.package);
+                }
+            }
+
+            if !pkg.runtime_dependencies.is_empty() {
+                println!();
+                println!("{}:", style("Runtime Dependencies").cyan());
+                for dep in &pkg.runtime_dependencies {
+                    println!("  {}", dep.package);
+                }
+            }
+
+            if pkg.dependencies.is_empty() && pkg.runtime_dependencies.is_empty() {
+                println!("  No dependencies");
+            }
+        }
+    } else {
+        println!("{} Package '{}' not found", style(">>>").yellow().bold(), args.package);
+    }
+
+    Ok(())
+}
+
+/// Show reverse dependencies
+async fn cmd_rdeps(pm: &PackageManager, args: RdepsArgs) -> buckos_package::Result<()> {
+    let rdeps = pm.get_reverse_dependencies(&args.package).await?;
+
+    if args.format == "json" {
+        let output = serde_json::json!({
+            "package": args.package,
+            "reverse_dependencies": rdeps,
+        });
+        println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+    } else {
+        println!(
+            "{}",
+            style(format!("Reverse Dependencies of {}", args.package)).bold().underlined()
+        );
+        println!();
+
+        if rdeps.is_empty() {
+            println!("  No packages depend on {}", args.package);
+        } else {
+            for rdep in &rdeps {
+                println!("  {}", rdep);
+            }
+            println!();
+            println!("Total: {} packages", rdeps.len());
+        }
+    }
+
+    Ok(())
+}
+
+/// Profile management command
+async fn cmd_profile(args: ProfileArgs) -> buckos_package::Result<()> {
+    match args.subcommand {
+        ProfileCommand::List => cmd_profile_list().await,
+        ProfileCommand::Show { profile } => cmd_profile_show(&profile).await,
+        ProfileCommand::Set { profile } => cmd_profile_set(&profile).await,
+        ProfileCommand::Current => cmd_profile_current().await,
+    }
+}
+
+/// List available profiles
+async fn cmd_profile_list() -> buckos_package::Result<()> {
+    println!("{}", style("Available Profiles").bold().underlined());
+    println!();
+
+    let profiles = vec![
+        ("minimal", "Absolute minimum system", vec!["ipv6"]),
+        ("server", "Server systems", vec!["ssl", "ipv6", "threads", "caps"]),
+        ("desktop", "Desktop systems", vec!["X", "dbus", "pulseaudio", "gtk", "ssl", "ipv6"]),
+        ("developer", "Development environment", vec!["debug", "doc", "test", "ssl", "ipv6"]),
+        ("hardened", "Security-focused systems", vec!["hardened", "pie", "ssp", "caps"]),
+        ("embedded", "Embedded systems", vec!["static", "-ipv6"]),
+        ("container", "Container environments", vec!["static", "-pam", "-systemd"]),
+    ];
+
+    for (name, description, flags) in &profiles {
+        println!("  {} - {}", style(name).green().bold(), description);
+        println!("    USE: {}", flags.join(" "));
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Show profile information
+async fn cmd_profile_show(profile: &str) -> buckos_package::Result<()> {
+    let profiles: HashMap<&str, (&str, Vec<&str>)> = vec![
+        ("minimal", ("Absolute minimum system", vec!["ipv6"])),
+        ("server", ("Server systems", vec!["ssl", "ipv6", "threads", "caps"])),
+        ("desktop", ("Desktop systems", vec!["X", "dbus", "pulseaudio", "gtk", "ssl", "ipv6"])),
+        ("developer", ("Development environment", vec!["debug", "doc", "test", "ssl", "ipv6"])),
+        ("hardened", ("Security-focused systems", vec!["hardened", "pie", "ssp", "caps"])),
+        ("embedded", ("Embedded systems", vec!["static", "-ipv6"])),
+        ("container", ("Container environments", vec!["static", "-pam", "-systemd"])),
+    ].into_iter().collect();
+
+    if let Some((description, flags)) = profiles.get(profile) {
+        println!("{}", style(format!("Profile: {}", profile)).bold().underlined());
+        println!();
+        println!("  {}: {}", style("Description").bold(), description);
+        println!("  {}: {}", style("USE flags").bold(), flags.join(" "));
+
+        // Show package set for this profile
+        let set_name = match profile {
+            "minimal" | "embedded" | "container" => "minimal",
+            "server" | "hardened" => "server",
+            "desktop" | "developer" => "desktop",
+            _ => "server",
+        };
+
+        let packages = get_set_packages(set_name);
+        println!();
+        println!("  {}:", style("Base packages").bold());
+        for pkg in packages.iter().take(5) {
+            println!("    {}", pkg);
+        }
+        if packages.len() > 5 {
+            println!("    ... and {} more", packages.len() - 5);
+        }
+    } else {
+        println!("{} Unknown profile: {}", style(">>>").yellow().bold(), profile);
+    }
+
+    Ok(())
+}
+
+/// Set the active profile
+async fn cmd_profile_set(profile: &str) -> buckos_package::Result<()> {
+    let valid_profiles = ["minimal", "server", "desktop", "developer", "hardened", "embedded", "container"];
+
+    if !valid_profiles.contains(&profile) {
+        println!("{} Unknown profile: {}", style(">>>").yellow().bold(), profile);
+        println!("Valid profiles: {}", valid_profiles.join(", "));
+        return Ok(());
+    }
+
+    let config_path = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/etc/buckos"))
+        .join("buckos")
+        .join("profile");
+
+    // Create config directory
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+
+    // Write profile
+    fs::write(&config_path, profile)?;
+
+    println!(
+        "{} Profile set to: {}",
+        style(">>>").green().bold(),
+        profile
+    );
+    println!();
+    println!("Run 'buckos update @world' to apply profile changes");
+
+    Ok(())
+}
+
+/// Show current profile
+async fn cmd_profile_current() -> buckos_package::Result<()> {
+    let config_path = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/etc/buckos"))
+        .join("buckos")
+        .join("profile");
+
+    let profile = if config_path.exists() {
+        fs::read_to_string(&config_path).unwrap_or_else(|_| "default".to_string())
+    } else {
+        "default".to_string()
+    };
+
+    println!("{}: {}", style("Current profile").bold(), style(profile.trim()).green());
+
+    Ok(())
+}
+
+/// Export configuration in various formats
+async fn cmd_export(args: ExportArgs) -> buckos_package::Result<()> {
+    let config = Config::default();
+
+    // Build configuration structure
+    let use_flags: Vec<String> = vec![
+        "ssl".to_string(),
+        "http2".to_string(),
+        "ipv6".to_string(),
+        "zstd".to_string(),
+        "dbus".to_string(),
+    ];
+
+    let output = match args.format.as_str() {
+        "json" => {
+            let mut export = serde_json::json!({
+                "profile": "default",
+                "arch": config.arch,
+                "use_flags": {
+                    "global": use_flags,
+                    "package": {}
+                },
+                "env": {
+                    "CFLAGS": config.cflags,
+                    "CXXFLAGS": config.cxxflags,
+                    "LDFLAGS": config.ldflags,
+                    "MAKEOPTS": config.makeopts
+                },
+                "accept_keywords": [],
+                "package_mask": [],
+                "package_unmask": []
+            });
+
+            if args.with_packages {
+                // Would include installed packages here
+                export["packages"] = serde_json::json!({
+                    "installed": []
+                });
+            }
+
+            serde_json::to_string_pretty(&export).unwrap_or_default()
+        }
+        "toml" => {
+            let mut output = String::new();
+            output.push_str("# BuckOS Configuration Export\n\n");
+            output.push_str("[profile]\n");
+            output.push_str("name = \"default\"\n");
+            output.push_str(&format!("arch = \"{}\"\n\n", config.arch));
+
+            output.push_str("[use_flags]\n");
+            output.push_str(&format!("global = {:?}\n\n", use_flags));
+
+            output.push_str("[env]\n");
+            output.push_str(&format!("CFLAGS = \"{}\"\n", config.cflags));
+            output.push_str(&format!("CXXFLAGS = \"{}\"\n", config.cxxflags));
+            output.push_str(&format!("LDFLAGS = \"{}\"\n", config.ldflags));
+            output.push_str(&format!("MAKEOPTS = \"{}\"\n", config.makeopts));
+
+            output
+        }
+        "shell" => {
+            let mut output = String::new();
+            output.push_str("#!/bin/bash\n");
+            output.push_str("# BuckOS Configuration Export\n\n");
+
+            output.push_str("export PROFILE=\"default\"\n");
+            output.push_str(&format!("export ARCH=\"{}\"\n\n", config.arch));
+
+            output.push_str("# USE flags\n");
+            output.push_str(&format!("export USE=\"{}\"\n\n", use_flags.join(" ")));
+
+            output.push_str("# Environment\n");
+            output.push_str(&format!("export CFLAGS=\"{}\"\n", config.cflags));
+            output.push_str(&format!("export CXXFLAGS=\"{}\"\n", config.cxxflags));
+            output.push_str(&format!("export LDFLAGS=\"{}\"\n", config.ldflags));
+            output.push_str(&format!("export MAKEOPTS=\"{}\"\n", config.makeopts));
+
+            output
+        }
+        "buck" => {
+            let mut output = String::new();
+            output.push_str("# BuckOS Configuration Export\n\n");
+
+            output.push_str("PROFILE = \"default\"\n");
+            output.push_str(&format!("ARCH = \"{}\"\n\n", config.arch));
+
+            output.push_str(&format!("USE_FLAGS = {:?}\n\n", use_flags));
+
+            output.push_str("PACKAGE_USE = {}\n\n");
+
+            output.push_str("ENV = {\n");
+            output.push_str(&format!("    \"CFLAGS\": \"{}\",\n", config.cflags));
+            output.push_str(&format!("    \"CXXFLAGS\": \"{}\",\n", config.cxxflags));
+            output.push_str(&format!("    \"LDFLAGS\": \"{}\",\n", config.ldflags));
+            output.push_str(&format!("    \"MAKEOPTS\": \"{}\",\n", config.makeopts));
+            output.push_str("}\n");
+
+            output
+        }
+        _ => {
+            return Err(buckos_package::Error::Configuration(format!(
+                "Unknown format: {}. Use json, toml, shell, or buck",
+                args.format
+            )));
+        }
+    };
+
+    // Write to file or stdout
+    if let Some(path) = args.output {
+        fs::write(&path, &output)?;
+        println!(
+            "{} Configuration exported to: {}",
+            style(">>>").green().bold(),
+            path
+        );
+    } else {
+        println!("{}", output);
+    }
+
+    Ok(())
 }
