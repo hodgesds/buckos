@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 # GUI framework
-eframe = "0.31"
+eframe = { version = "0.31", features = ["wayland", "x11"] }
 egui = "0.31"
 egui_extras = { version = "0.31", features = ["all_loaders"] }
 
