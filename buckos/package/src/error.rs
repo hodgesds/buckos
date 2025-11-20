@@ -112,6 +112,48 @@ pub enum Error {
     #[error("Slot conflict: {0}")]
     SlotConflict(String),
 
+    #[error("Invalid provider {provider} for virtual package {virtual_pkg}")]
+    InvalidProvider {
+        virtual_pkg: String,
+        provider: String,
+    },
+
+    #[error("Invalid blocker: {0}")]
+    InvalidBlocker(String),
+
+    #[error("Sandbox error: {0}")]
+    SandboxError(String),
+
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
+    #[error("Fetch restricted: {filename} - {message}")]
+    FetchRestricted {
+        filename: String,
+        message: String,
+    },
+
+    #[error("Download failed for {filename}: {reason}")]
+    DownloadFailed {
+        filename: String,
+        reason: String,
+    },
+
+    #[error("Invalid path: {0}")]
+    InvalidPath(String),
+
+    #[error("Too many config files for: {0}")]
+    TooManyConfigFiles(std::path::PathBuf),
+
+    #[error("Parse error: {0}")]
+    ParseError(String),
+
+    #[error("File not found: {0}")]
+    FileNotFound(std::path::PathBuf),
+
+    #[error("News not found: {0}")]
+    NewsNotFound(String),
+
     #[error("{0}")]
     Other(String),
 }
