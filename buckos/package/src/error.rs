@@ -174,6 +174,31 @@ pub enum Error {
 
     #[error("Binary package server error: {0}")]
     BinaryPackageServerError(String),
+    #[error("Package masked: {package} ({reason})")]
+    PackageMasked {
+        package: String,
+        reason: String,
+    },
+
+    #[error("Package keyword masked: {package} has keywords {keywords:?}, but only {accepted:?} are accepted")]
+    KeywordMasked {
+        package: String,
+        keywords: Vec<String>,
+        accepted: Vec<String>,
+    },
+
+    #[error("License not accepted: {package} has license '{license}', accepted: {accepted:?}")]
+    LicenseNotAccepted {
+        package: String,
+        license: String,
+        accepted: Vec<String>,
+    },
+
+    #[error("Invalid keyword: {0}")]
+    InvalidKeyword(String),
+
+    #[error("Invalid license: {0}")]
+    InvalidLicense(String),
 
     #[error("{0}")]
     Other(String),
