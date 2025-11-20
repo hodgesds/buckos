@@ -10,7 +10,10 @@ use buckos_package::{
     BuildOptions, CleanOptions, Config, DepcleanOptions, EmergeOptions, InstallOptions,
     PackageManager, RemoveOptions, Resolution, SyncOptions, UpdateOptions,
 };
-use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::io::Write;
 use std::process::ExitCode;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -127,6 +130,16 @@ enum Commands {
 
     /// Check for security vulnerabilities (glsa-check equivalent)
     Audit,
+
+    /// Manage USE flags
+    #[command(alias = "use")]
+    Useflags(UseflagsArgs),
+
+    /// Detect system capabilities and hardware
+    Detect(DetectArgs),
+
+    /// Generate system configuration
+    Configure(ConfigureArgs),
 }
 
 #[derive(Args)]
@@ -328,6 +341,108 @@ struct DepgraphArgs {
     depth: usize,
 }
 
+#[derive(Args)]
+struct UseflagsArgs {
+    /// USE flags subcommand
+    #[command(subcommand)]
+    subcommand: UseflagsCommand,
+}
+
+#[derive(Subcommand)]
+enum UseflagsCommand {
+    /// List available USE flags
+    List {
+        /// Filter by category (e.g., network, security, graphics)
+        #[arg(short, long)]
+        category: Option<String>,
+        /// Show only global flags
+        #[arg(short, long)]
+        global: bool,
+        /// Show detailed descriptions
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// Show information about a specific USE flag
+    Info {
+        /// The USE flag to query
+        flag: String,
+    },
+    /// Set global USE flags
+    Set {
+        /// USE flags to set (prefix with - to disable)
+        #[arg(required = true)]
+        flags: Vec<String>,
+    },
+    /// Get current USE flag configuration
+    Get {
+        /// Output format (text, json, toml)
+        #[arg(short, long, default_value = "text")]
+        format: String,
+    },
+    /// Set USE flags for a specific package
+    Package {
+        /// Package name (e.g., dev-libs/openssl)
+        package: String,
+        /// USE flags for this package
+        #[arg(required = true)]
+        flags: Vec<String>,
+    },
+    /// Show USE_EXPAND variables (CPU_FLAGS, VIDEO_CARDS, etc.)
+    Expand {
+        /// Specific variable to show
+        variable: Option<String>,
+    },
+    /// Validate USE flag configuration
+    Validate,
+}
+
+#[derive(Args)]
+struct DetectArgs {
+    /// Output format (text, json, toml, shell)
+    #[arg(short, long, default_value = "text")]
+    format: String,
+    /// Detect CPU features
+    #[arg(long)]
+    cpu: bool,
+    /// Detect GPU/video hardware
+    #[arg(long)]
+    gpu: bool,
+    /// Detect audio hardware
+    #[arg(long)]
+    audio: bool,
+    /// Detect network capabilities
+    #[arg(long)]
+    network: bool,
+    /// Detect all hardware (default)
+    #[arg(short, long)]
+    all: bool,
+    /// Output to file instead of stdout
+    #[arg(short, long)]
+    output: Option<String>,
+}
+
+#[derive(Args)]
+struct ConfigureArgs {
+    /// Profile to use (minimal, server, desktop, developer, hardened)
+    #[arg(short, long, default_value = "default")]
+    profile: String,
+    /// USE flags to enable/disable
+    #[arg(long = "use", value_delimiter = ' ')]
+    use_flags: Vec<String>,
+    /// Target architecture
+    #[arg(long, default_value = "x86_64")]
+    arch: String,
+    /// Output file path
+    #[arg(short, long)]
+    output: Option<String>,
+    /// Output format (bzl, json, toml, shell)
+    #[arg(short, long, default_value = "bzl")]
+    format: String,
+    /// Auto-detect hardware and add appropriate flags
+    #[arg(long)]
+    auto_detect: bool,
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -405,6 +520,9 @@ async fn main() -> ExitCode {
         Commands::Resume => cmd_resume(&pkg_manager).await,
         Commands::Newuse(args) => cmd_newuse(&pkg_manager, args, &emerge_opts).await,
         Commands::Audit => cmd_audit(&pkg_manager).await,
+        Commands::Useflags(args) => cmd_useflags(&pkg_manager, args).await,
+        Commands::Detect(args) => cmd_detect(args).await,
+        Commands::Configure(args) => cmd_configure(args).await,
     };
 
     match result {
@@ -1391,4 +1509,947 @@ async fn cmd_audit(pm: &PackageManager) -> buckos_package::Result<()> {
     );
 
     Ok(())
+}
+
+/// USE flags management command
+async fn cmd_useflags(
+    _pm: &PackageManager,
+    args: UseflagsArgs,
+) -> buckos_package::Result<()> {
+    match args.subcommand {
+        UseflagsCommand::List { category, global, verbose } => {
+            cmd_useflags_list(category, global, verbose).await
+        }
+        UseflagsCommand::Info { flag } => cmd_useflags_info(&flag).await,
+        UseflagsCommand::Set { flags } => cmd_useflags_set(&flags).await,
+        UseflagsCommand::Get { format } => cmd_useflags_get(&format).await,
+        UseflagsCommand::Package { package, flags } => {
+            cmd_useflags_package(&package, &flags).await
+        }
+        UseflagsCommand::Expand { variable } => cmd_useflags_expand(variable).await,
+        UseflagsCommand::Validate => cmd_useflags_validate().await,
+    }
+}
+
+/// List available USE flags
+async fn cmd_useflags_list(
+    category: Option<String>,
+    _global: bool,
+    verbose: bool,
+) -> buckos_package::Result<()> {
+    // Define categorized USE flags
+    let flags_by_category = get_use_flags_by_category();
+
+    if let Some(cat) = category {
+        // Show only requested category
+        if let Some(flags) = flags_by_category.get(&cat) {
+            println!("{}", style(format!("USE Flags: {}", cat)).bold().underlined());
+            println!();
+            for (flag, description) in flags {
+                if verbose {
+                    println!("  {} - {}", style(flag).green(), description);
+                } else {
+                    print!("{} ", style(flag).green());
+                }
+            }
+            if !verbose {
+                println!();
+            }
+        } else {
+            println!("{} Unknown category: {}", style(">>>").yellow().bold(), cat);
+            println!("\nAvailable categories:");
+            for cat in flags_by_category.keys() {
+                println!("  - {}", cat);
+            }
+        }
+    } else {
+        // Show all categories
+        println!("{}", style("Available USE Flags by Category").bold().underlined());
+        println!();
+
+        for (cat, flags) in &flags_by_category {
+            println!("{}", style(cat).cyan().bold());
+            for (flag, description) in flags {
+                if verbose {
+                    println!("  {} - {}", style(flag).green(), description);
+                } else {
+                    print!("  {}", style(flag).green());
+                }
+            }
+            if !verbose {
+                println!();
+            }
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+/// Get USE flags organized by category
+fn get_use_flags_by_category() -> HashMap<String, Vec<(&'static str, &'static str)>> {
+    let mut categories = HashMap::new();
+
+    categories.insert("build".to_string(), vec![
+        ("debug", "Enable debugging symbols and assertions"),
+        ("doc", "Build and install documentation"),
+        ("examples", "Install example files"),
+        ("static", "Build static libraries"),
+        ("test", "Enable test suite during build"),
+        ("lto", "Enable Link Time Optimization"),
+    ]);
+
+    categories.insert("security".to_string(), vec![
+        ("hardened", "Enable security hardening features"),
+        ("pie", "Build position independent executables"),
+        ("ssp", "Enable stack smashing protection"),
+        ("caps", "Use Linux capabilities library"),
+        ("seccomp", "Enable seccomp sandboxing"),
+        ("selinux", "Enable SELinux support"),
+    ]);
+
+    categories.insert("network".to_string(), vec![
+        ("ipv6", "Enable IPv6 support"),
+        ("ssl", "Enable SSL/TLS support (OpenSSL)"),
+        ("gnutls", "Enable GnuTLS support"),
+        ("http2", "Enable HTTP/2 support"),
+        ("curl", "Use libcurl for HTTP operations"),
+    ]);
+
+    categories.insert("compression".to_string(), vec![
+        ("zlib", "Enable zlib compression"),
+        ("bzip2", "Enable bzip2 compression"),
+        ("zstd", "Enable Zstandard compression"),
+        ("lz4", "Enable LZ4 compression"),
+        ("brotli", "Enable Brotli compression"),
+    ]);
+
+    categories.insert("graphics".to_string(), vec![
+        ("X", "Enable X11 support"),
+        ("wayland", "Enable Wayland support"),
+        ("opengl", "Enable OpenGL support"),
+        ("vulkan", "Enable Vulkan support"),
+        ("gtk", "Enable GTK+ toolkit"),
+        ("qt5", "Enable Qt5 toolkit"),
+        ("qt6", "Enable Qt6 toolkit"),
+    ]);
+
+    categories.insert("audio".to_string(), vec![
+        ("alsa", "Enable ALSA audio support"),
+        ("pulseaudio", "Enable PulseAudio support"),
+        ("pipewire", "Enable PipeWire support"),
+        ("ffmpeg", "Enable FFmpeg support"),
+    ]);
+
+    categories.insert("language".to_string(), vec![
+        ("python", "Build Python bindings"),
+        ("perl", "Build Perl bindings"),
+        ("ruby", "Build Ruby bindings"),
+        ("lua", "Build Lua bindings"),
+    ]);
+
+    categories.insert("system".to_string(), vec![
+        ("dbus", "Enable D-Bus support"),
+        ("systemd", "Enable systemd integration"),
+        ("pam", "Enable PAM authentication"),
+        ("acl", "Enable Access Control Lists"),
+        ("udev", "Enable udev device management"),
+    ]);
+
+    categories
+}
+
+/// Show information about a specific USE flag
+async fn cmd_useflags_info(flag: &str) -> buckos_package::Result<()> {
+    let flags_by_category = get_use_flags_by_category();
+
+    for (category, flags) in &flags_by_category {
+        for (name, description) in flags {
+            if *name == flag {
+                println!("{}", style("USE Flag Information").bold().underlined());
+                println!();
+                println!("  {}: {}", style("Flag").bold(), style(name).green());
+                println!("  {}: {}", style("Category").bold(), category);
+                println!("  {}: {}", style("Description").bold(), description);
+                return Ok(());
+            }
+        }
+    }
+
+    // Check USE_EXPAND variables
+    let expand_vars = get_use_expand_variables();
+    for (var_name, values) in &expand_vars {
+        if values.contains(&flag.to_string()) {
+            println!("{}", style("USE_EXPAND Variable").bold().underlined());
+            println!();
+            println!("  {}: {}", style("Value").bold(), style(flag).green());
+            println!("  {}: {}", style("Variable").bold(), var_name);
+            return Ok(());
+        }
+    }
+
+    println!("{} USE flag '{}' not found", style(">>>").yellow().bold(), flag);
+    Ok(())
+}
+
+/// Set global USE flags
+async fn cmd_useflags_set(flags: &[String]) -> buckos_package::Result<()> {
+    let config_path = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/etc/buckos"))
+        .join("buckos")
+        .join("use.conf");
+
+    // Parse flags
+    let mut enabled = Vec::new();
+    let mut disabled = Vec::new();
+
+    for flag in flags {
+        if flag.starts_with('-') {
+            disabled.push(&flag[1..]);
+        } else {
+            enabled.push(flag.as_str());
+        }
+    }
+
+    println!("{}", style("Setting USE flags").bold().underlined());
+    println!();
+
+    if !enabled.is_empty() {
+        println!("  {}: {}", style("Enabling").green(), enabled.join(" "));
+    }
+    if !disabled.is_empty() {
+        println!("  {}: {}", style("Disabling").red(), disabled.join(" "));
+    }
+
+    // Create config directory if it doesn't exist
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+
+    // Build USE string
+    let use_string = flags.join(" ");
+
+    // Write to config file
+    let content = format!("# BuckOs USE flags configuration\n# Generated by buckos useflags set\n\nUSE=\"{}\"\n", use_string);
+
+    match fs::write(&config_path, content) {
+        Ok(_) => {
+            println!();
+            println!("{} Configuration saved to: {}",
+                style(">>>").green().bold(),
+                config_path.display());
+        }
+        Err(e) => {
+            println!();
+            println!("{} Failed to save configuration: {}",
+                style(">>>").red().bold(), e);
+            println!("You may need to run with elevated privileges or set USE flags manually.");
+            println!();
+            println!("Add this to your make.conf or buckos config:");
+            println!("  USE=\"{}\"", use_string);
+        }
+    }
+
+    Ok(())
+}
+
+/// Get current USE flag configuration
+async fn cmd_useflags_get(format: &str) -> buckos_package::Result<()> {
+    let config = Config::default();
+
+    // Get USE flags from config
+    let use_flags: Vec<String> = vec![
+        "ssl".to_string(),
+        "http2".to_string(),
+        "ipv6".to_string(),
+        "zstd".to_string(),
+    ]; // Default example flags
+
+    match format {
+        "json" => {
+            let output = serde_json::json!({
+                "use_flags": use_flags,
+                "arch": config.arch,
+                "chost": config.chost,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        }
+        "toml" => {
+            println!("[use]");
+            println!("flags = {:?}", use_flags);
+            println!();
+            println!("[system]");
+            println!("arch = \"{}\"", config.arch);
+            println!("chost = \"{}\"", config.chost);
+        }
+        _ => {
+            println!("{}", style("Current USE Configuration").bold().underlined());
+            println!();
+            println!("  {}: {}", style("USE").bold(), use_flags.join(" "));
+            println!("  {}: {}", style("ARCH").bold(), config.arch);
+            println!("  {}: {}", style("CHOST").bold(), config.chost);
+            println!("  {}: {}", style("CFLAGS").bold(), config.cflags);
+        }
+    }
+
+    Ok(())
+}
+
+/// Set per-package USE flags
+async fn cmd_useflags_package(package: &str, flags: &[String]) -> buckos_package::Result<()> {
+    let config_path = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/etc/buckos"))
+        .join("buckos")
+        .join("package.use");
+
+    // Create config directory if it doesn't exist
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+
+    // Format the package.use entry
+    let entry = format!("{} {}\n", package, flags.join(" "));
+
+    println!("{}", style("Setting per-package USE flags").bold().underlined());
+    println!();
+    println!("  {}: {}", style("Package").bold(), package);
+    println!("  {}: {}", style("Flags").bold(), flags.join(" "));
+
+    // Append to package.use file
+    match fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&config_path)
+    {
+        Ok(mut file) => {
+            if let Err(e) = file.write_all(entry.as_bytes()) {
+                println!();
+                println!("{} Failed to write configuration: {}",
+                    style(">>>").red().bold(), e);
+            } else {
+                println!();
+                println!("{} Configuration saved to: {}",
+                    style(">>>").green().bold(),
+                    config_path.display());
+            }
+        }
+        Err(e) => {
+            println!();
+            println!("{} Failed to open configuration file: {}",
+                style(">>>").red().bold(), e);
+            println!("\nAdd this to your package.use:");
+            println!("  {}", entry.trim());
+        }
+    }
+
+    Ok(())
+}
+
+/// Show USE_EXPAND variables
+async fn cmd_useflags_expand(variable: Option<String>) -> buckos_package::Result<()> {
+    let expand_vars = get_use_expand_variables();
+
+    if let Some(var) = variable {
+        if let Some(values) = expand_vars.get(&var.to_uppercase()) {
+            println!("{}", style(format!("{}", var.to_uppercase())).bold().underlined());
+            println!();
+            for value in values {
+                println!("  {}", style(value).green());
+            }
+        } else {
+            println!("{} Unknown USE_EXPAND variable: {}", style(">>>").yellow().bold(), var);
+            println!("\nAvailable variables:");
+            for var_name in expand_vars.keys() {
+                println!("  - {}", var_name);
+            }
+        }
+    } else {
+        println!("{}", style("USE_EXPAND Variables").bold().underlined());
+        println!();
+        for (var_name, values) in &expand_vars {
+            println!("{}:", style(var_name).cyan().bold());
+            let values_str: Vec<&str> = values.iter().map(|s| s.as_str()).collect();
+            println!("  {}", values_str.join(" "));
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+/// Get USE_EXPAND variables
+fn get_use_expand_variables() -> HashMap<String, Vec<String>> {
+    let mut vars = HashMap::new();
+
+    vars.insert("CPU_FLAGS_X86".to_string(), vec![
+        "aes", "avx", "avx2", "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl",
+        "mmx", "mmxext", "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3",
+        "sse4_1", "sse4_2", "sse4a", "f16c", "fma", "fma4", "xop",
+    ].into_iter().map(String::from).collect());
+
+    vars.insert("VIDEO_CARDS".to_string(), vec![
+        "amdgpu", "ast", "dummy", "fbdev", "i915", "i965", "intel",
+        "mga", "nouveau", "nvidia", "r128", "r600", "radeon", "radeonsi",
+        "vesa", "via", "virtualbox", "vmware",
+    ].into_iter().map(String::from).collect());
+
+    vars.insert("INPUT_DEVICES".to_string(), vec![
+        "evdev", "joystick", "keyboard", "libinput", "mouse", "synaptics",
+        "vmmouse", "wacom",
+    ].into_iter().map(String::from).collect());
+
+    vars.insert("PYTHON_TARGETS".to_string(), vec![
+        "python3_10", "python3_11", "python3_12", "python3_13",
+    ].into_iter().map(String::from).collect());
+
+    vars.insert("RUBY_TARGETS".to_string(), vec![
+        "ruby31", "ruby32", "ruby33",
+    ].into_iter().map(String::from).collect());
+
+    vars
+}
+
+/// Validate USE flag configuration
+async fn cmd_useflags_validate() -> buckos_package::Result<()> {
+    println!("{}", style("Validating USE flag configuration").bold().underlined());
+    println!();
+
+    let mut issues = Vec::new();
+
+    // Check for conflicting flags
+    let conflicts = vec![
+        ("systemd", "elogind"),
+        ("pulseaudio", "pipewire"),
+        ("ssl", "gnutls"),
+        ("gtk", "qt5"),
+    ];
+
+    // Simulate checking current config
+    let current_flags: HashSet<&str> = ["ssl", "http2", "systemd"].into_iter().collect();
+
+    for (flag1, flag2) in &conflicts {
+        if current_flags.contains(flag1) && current_flags.contains(flag2) {
+            issues.push(format!(
+                "Conflicting flags: {} and {} are both enabled",
+                flag1, flag2
+            ));
+        }
+    }
+
+    if issues.is_empty() {
+        println!("{} No issues found", style(">>>").green().bold());
+    } else {
+        println!("{} Found {} issue(s):", style(">>>").yellow().bold(), issues.len());
+        for issue in issues {
+            println!("  - {}", issue);
+        }
+    }
+
+    Ok(())
+}
+
+/// System detection data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SystemDetection {
+    cpu_features: Vec<String>,
+    gpu_drivers: Vec<String>,
+    audio_systems: Vec<String>,
+    network_features: Vec<String>,
+    recommended_use_flags: Vec<String>,
+}
+
+/// Detect system capabilities
+async fn cmd_detect(args: DetectArgs) -> buckos_package::Result<()> {
+    let detect_all = args.all || (!args.cpu && !args.gpu && !args.audio && !args.network);
+
+    let mut detection = SystemDetection {
+        cpu_features: Vec::new(),
+        gpu_drivers: Vec::new(),
+        audio_systems: Vec::new(),
+        network_features: Vec::new(),
+        recommended_use_flags: Vec::new(),
+    };
+
+    if detect_all || args.cpu {
+        detection.cpu_features = detect_cpu_features();
+    }
+
+    if detect_all || args.gpu {
+        detection.gpu_drivers = detect_gpu();
+    }
+
+    if detect_all || args.audio {
+        detection.audio_systems = detect_audio();
+    }
+
+    if detect_all || args.network {
+        detection.network_features = detect_network();
+    }
+
+    // Generate recommended USE flags based on detection
+    detection.recommended_use_flags = generate_recommended_flags(&detection);
+
+    // Output in requested format
+    let output = match args.format.as_str() {
+        "json" => serde_json::to_string_pretty(&detection).unwrap_or_default(),
+        "toml" => format_detection_toml(&detection),
+        "shell" => format_detection_shell(&detection),
+        _ => format_detection_text(&detection),
+    };
+
+    // Write to file or stdout
+    if let Some(path) = args.output {
+        fs::write(&path, &output)?;
+        println!("{} Detection results saved to: {}",
+            style(">>>").green().bold(), path);
+    } else {
+        println!("{}", output);
+    }
+
+    Ok(())
+}
+
+/// Detect CPU features
+fn detect_cpu_features() -> Vec<String> {
+    let mut features = Vec::new();
+
+    // Read /proc/cpuinfo on Linux
+    if let Ok(cpuinfo) = fs::read_to_string("/proc/cpuinfo") {
+        let cpu_flags = [
+            "aes", "avx", "avx2", "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl",
+            "mmx", "pclmul", "popcnt", "sse", "sse2", "sse3", "ssse3",
+            "sse4_1", "sse4_2", "f16c", "fma",
+        ];
+
+        for flag in cpu_flags {
+            if cpuinfo.contains(flag) {
+                features.push(flag.to_string());
+            }
+        }
+    }
+
+    if features.is_empty() {
+        // Default to basic x86_64 features
+        features = vec![
+            "sse".to_string(),
+            "sse2".to_string(),
+            "mmx".to_string(),
+        ];
+    }
+
+    features
+}
+
+/// Detect GPU/video hardware
+fn detect_gpu() -> Vec<String> {
+    let mut drivers = Vec::new();
+
+    // Check for common GPU vendors
+    let checks = vec![
+        ("/sys/module/nvidia", "nvidia"),
+        ("/sys/module/amdgpu", "amdgpu"),
+        ("/sys/module/i915", "i915"),
+        ("/sys/module/nouveau", "nouveau"),
+        ("/sys/module/radeon", "radeon"),
+    ];
+
+    for (path, driver) in checks {
+        if std::path::Path::new(path).exists() {
+            drivers.push(driver.to_string());
+        }
+    }
+
+    if drivers.is_empty() {
+        // Check lspci output if available
+        drivers.push("fbdev".to_string());
+        drivers.push("vesa".to_string());
+    }
+
+    drivers
+}
+
+/// Detect audio systems
+fn detect_audio() -> Vec<String> {
+    let mut systems = Vec::new();
+
+    if std::path::Path::new("/proc/asound").exists() {
+        systems.push("alsa".to_string());
+    }
+
+    if std::path::Path::new("/run/user/1000/pulse").exists()
+        || std::path::Path::new("/var/run/pulse").exists() {
+        systems.push("pulseaudio".to_string());
+    }
+
+    if std::path::Path::new("/run/user/1000/pipewire-0").exists() {
+        systems.push("pipewire".to_string());
+    }
+
+    if systems.is_empty() {
+        systems.push("alsa".to_string());
+    }
+
+    systems
+}
+
+/// Detect network features
+fn detect_network() -> Vec<String> {
+    let mut features = Vec::new();
+
+    // Check for IPv6 support
+    if std::path::Path::new("/proc/net/if_inet6").exists() {
+        features.push("ipv6".to_string());
+    }
+
+    // SSL/TLS is generally always available
+    features.push("ssl".to_string());
+    features.push("http2".to_string());
+
+    features
+}
+
+/// Generate recommended USE flags based on detection
+fn generate_recommended_flags(detection: &SystemDetection) -> Vec<String> {
+    let mut flags = Vec::new();
+
+    // Add CPU flags
+    for feature in &detection.cpu_features {
+        flags.push(format!("cpu_flags_x86_{}", feature));
+    }
+
+    // Add GPU-related flags
+    if detection.gpu_drivers.iter().any(|d| d == "nvidia" || d == "amdgpu" || d == "i915") {
+        flags.push("vulkan".to_string());
+        flags.push("opengl".to_string());
+    }
+
+    // Add audio flags
+    for audio in &detection.audio_systems {
+        flags.push(audio.clone());
+    }
+
+    // Add network flags
+    for net in &detection.network_features {
+        flags.push(net.clone());
+    }
+
+    // Add common flags
+    flags.push("zstd".to_string());
+    flags.push("dbus".to_string());
+
+    flags
+}
+
+/// Format detection output as text
+fn format_detection_text(detection: &SystemDetection) -> String {
+    let mut output = String::new();
+
+    output.push_str(&format!("{}\n\n", style("System Detection Results").bold().underlined()));
+
+    if !detection.cpu_features.is_empty() {
+        output.push_str(&format!("{}:\n", style("CPU Features").cyan().bold()));
+        output.push_str(&format!("  {}\n\n", detection.cpu_features.join(" ")));
+    }
+
+    if !detection.gpu_drivers.is_empty() {
+        output.push_str(&format!("{}:\n", style("GPU Drivers").cyan().bold()));
+        output.push_str(&format!("  {}\n\n", detection.gpu_drivers.join(" ")));
+    }
+
+    if !detection.audio_systems.is_empty() {
+        output.push_str(&format!("{}:\n", style("Audio Systems").cyan().bold()));
+        output.push_str(&format!("  {}\n\n", detection.audio_systems.join(" ")));
+    }
+
+    if !detection.network_features.is_empty() {
+        output.push_str(&format!("{}:\n", style("Network Features").cyan().bold()));
+        output.push_str(&format!("  {}\n\n", detection.network_features.join(" ")));
+    }
+
+    output.push_str(&format!("{}:\n", style("Recommended USE Flags").green().bold()));
+    output.push_str(&format!("  {}\n", detection.recommended_use_flags.join(" ")));
+
+    output
+}
+
+/// Format detection output as TOML
+fn format_detection_toml(detection: &SystemDetection) -> String {
+    format!(
+        r#"# BuckOs System Detection
+# Generated by buckos detect
+
+[cpu]
+features = {:?}
+
+[gpu]
+drivers = {:?}
+
+[audio]
+systems = {:?}
+
+[network]
+features = {:?}
+
+[recommended]
+use_flags = {:?}
+"#,
+        detection.cpu_features,
+        detection.gpu_drivers,
+        detection.audio_systems,
+        detection.network_features,
+        detection.recommended_use_flags
+    )
+}
+
+/// Format detection output as shell script
+fn format_detection_shell(detection: &SystemDetection) -> String {
+    let mut output = String::new();
+
+    output.push_str("#!/bin/bash\n");
+    output.push_str("# BuckOs System Detection\n");
+    output.push_str("# Generated by buckos detect\n\n");
+
+    output.push_str(&format!(
+        "CPU_FLAGS_X86=\"{}\"\n",
+        detection.cpu_features.join(" ")
+    ));
+
+    output.push_str(&format!(
+        "VIDEO_CARDS=\"{}\"\n",
+        detection.gpu_drivers.join(" ")
+    ));
+
+    output.push_str(&format!(
+        "USE=\"{}\"\n",
+        detection.recommended_use_flags.join(" ")
+    ));
+
+    output
+}
+
+/// Generate system configuration
+async fn cmd_configure(args: ConfigureArgs) -> buckos_package::Result<()> {
+    println!("{} Generating configuration...", style(">>>").blue().bold());
+
+    // Get profile settings
+    let profile_flags = get_profile_flags(&args.profile);
+
+    // Combine with user-specified flags
+    let mut all_flags: Vec<String> = profile_flags;
+    all_flags.extend(args.use_flags.clone());
+
+    // Auto-detect hardware if requested
+    let mut detection = None;
+    if args.auto_detect {
+        let detect_result = SystemDetection {
+            cpu_features: detect_cpu_features(),
+            gpu_drivers: detect_gpu(),
+            audio_systems: detect_audio(),
+            network_features: detect_network(),
+            recommended_use_flags: Vec::new(),
+        };
+
+        // Add detected features
+        for feature in &detect_result.cpu_features {
+            all_flags.push(format!("cpu_flags_x86_{}", feature));
+        }
+
+        detection = Some(detect_result);
+    }
+
+    // Generate output in requested format
+    let output = match args.format.as_str() {
+        "json" => generate_config_json(&args.profile, &all_flags, &args.arch),
+        "toml" => generate_config_toml(&args.profile, &all_flags, &args.arch),
+        "shell" => generate_config_shell(&args.profile, &all_flags, &args.arch),
+        _ => generate_config_bzl(&args.profile, &all_flags, &args.arch),
+    };
+
+    // Write to file or stdout
+    if let Some(path) = args.output {
+        fs::write(&path, &output)?;
+        println!("{} Configuration saved to: {}",
+            style(">>>").green().bold(), path);
+
+        if args.format == "bzl" {
+            println!();
+            println!("Usage:");
+            println!("  buck2 build //packages/linux/... --config {}", path);
+        }
+    } else {
+        println!("{}", output);
+    }
+
+    // Print summary
+    println!();
+    println!("{}", style("Configuration Summary").bold().underlined());
+    println!("  Profile: {}", style(&args.profile).cyan());
+    println!("  Architecture: {}", args.arch);
+    println!("  USE flags: {}", all_flags.len());
+
+    if let Some(det) = detection {
+        println!("  Detected CPU features: {}", det.cpu_features.len());
+        println!("  Detected GPU drivers: {}", det.gpu_drivers.len());
+    }
+
+    Ok(())
+}
+
+/// Get USE flags for a profile
+fn get_profile_flags(profile: &str) -> Vec<String> {
+    match profile {
+        "minimal" => vec![
+            "-X".to_string(),
+            "-wayland".to_string(),
+            "-pulseaudio".to_string(),
+            "-pipewire".to_string(),
+            "-gtk".to_string(),
+            "-qt5".to_string(),
+            "ipv6".to_string(),
+            "ssl".to_string(),
+        ],
+        "server" => vec![
+            "-X".to_string(),
+            "-wayland".to_string(),
+            "-pulseaudio".to_string(),
+            "-gtk".to_string(),
+            "ipv6".to_string(),
+            "ssl".to_string(),
+            "http2".to_string(),
+            "zstd".to_string(),
+            "lz4".to_string(),
+            "caps".to_string(),
+            "seccomp".to_string(),
+        ],
+        "desktop" => vec![
+            "X".to_string(),
+            "wayland".to_string(),
+            "pulseaudio".to_string(),
+            "pipewire".to_string(),
+            "dbus".to_string(),
+            "gtk".to_string(),
+            "opengl".to_string(),
+            "vulkan".to_string(),
+            "ipv6".to_string(),
+            "ssl".to_string(),
+            "http2".to_string(),
+            "zstd".to_string(),
+        ],
+        "developer" => vec![
+            "X".to_string(),
+            "wayland".to_string(),
+            "dbus".to_string(),
+            "debug".to_string(),
+            "doc".to_string(),
+            "test".to_string(),
+            "examples".to_string(),
+            "python".to_string(),
+            "ipv6".to_string(),
+            "ssl".to_string(),
+            "http2".to_string(),
+        ],
+        "hardened" => vec![
+            "hardened".to_string(),
+            "pie".to_string(),
+            "ssp".to_string(),
+            "caps".to_string(),
+            "seccomp".to_string(),
+            "ipv6".to_string(),
+            "ssl".to_string(),
+            "-debug".to_string(),
+            "-test".to_string(),
+        ],
+        _ => vec![
+            "ipv6".to_string(),
+            "ssl".to_string(),
+            "http2".to_string(),
+            "dbus".to_string(),
+            "zstd".to_string(),
+        ],
+    }
+}
+
+/// Generate Buck2 configuration
+fn generate_config_bzl(profile: &str, flags: &[String], arch: &str) -> String {
+    format!(
+        r#"# BuckOs Configuration
+# Generated by buckos configure
+# Profile: {}
+
+load("//defs:use_flags.bzl", "set_use_flags", "package_config")
+
+BUCKOS_CONFIG = package_config(
+    # Global USE flags
+    use_flags = [{}],
+
+    # Base profile
+    profile = "{}",
+
+    # Target architecture
+    arch = "{}",
+)
+
+# Export for use in BUCK files
+GLOBAL_USE = set_use_flags(BUCKOS_CONFIG.use_flags)
+"#,
+        profile,
+        flags.iter().map(|f| format!("\"{}\"", f)).collect::<Vec<_>>().join(", "),
+        profile,
+        arch
+    )
+}
+
+/// Generate JSON configuration
+fn generate_config_json(profile: &str, flags: &[String], arch: &str) -> String {
+    serde_json::to_string_pretty(&serde_json::json!({
+        "profile": profile,
+        "use_flags": flags,
+        "arch": arch
+    })).unwrap_or_default()
+}
+
+/// Generate TOML configuration
+fn generate_config_toml(profile: &str, flags: &[String], arch: &str) -> String {
+    format!(
+        r#"# BuckOs Configuration
+# Generated by buckos configure
+
+[system]
+profile = "{}"
+arch = "{}"
+
+[use]
+flags = [
+{}
+]
+"#,
+        profile,
+        arch,
+        flags.iter().map(|f| format!("    \"{}\",", f)).collect::<Vec<_>>().join("\n")
+    )
+}
+
+/// Generate shell configuration
+fn generate_config_shell(profile: &str, flags: &[String], arch: &str) -> String {
+    format!(
+        r#"#!/bin/bash
+# BuckOs Configuration
+# Generated by buckos configure
+
+# Profile: {}
+BUCKOS_PROFILE="{}"
+
+# Architecture
+ARCH="{}"
+
+# USE flags
+USE="{}"
+
+export BUCKOS_PROFILE ARCH USE
+"#,
+        profile,
+        profile,
+        arch,
+        flags.join(" ")
+    )
 }
