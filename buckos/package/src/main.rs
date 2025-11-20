@@ -4,6 +4,7 @@
 //! Designed to be compatible with Gentoo's emerge command.
 
 use buckos_package::{
+    config::SyncType, overlay::{OverlayConfig, OverlayManager, OverlayQuality},
     BuildOptions, CleanOptions, Config, DepcleanOptions, EmergeOptions, InstallOptions,
     PackageManager, RemoveOptions, Resolution, SyncOptions, UpdateOptions,
 };
@@ -164,6 +165,9 @@ enum Commands {
 
     /// Manage package signing and verification
     Sign(SignArgs),
+
+    /// Manage overlays (additional package repositories)
+    Overlay(OverlayArgs),
 }
 
 #[derive(Args)]
@@ -708,6 +712,83 @@ enum SignCommand {
     },
 }
 
+#[derive(Args)]
+struct OverlayArgs {
+    /// Overlay subcommand
+    #[command(subcommand)]
+    subcommand: OverlayCommand,
+}
+
+#[derive(Subcommand)]
+enum OverlayCommand {
+    /// List overlays
+    List {
+        /// Show only enabled overlays
+        #[arg(short, long)]
+        enabled: bool,
+        /// Show all available overlays (including disabled)
+        #[arg(short, long)]
+        all: bool,
+    },
+    /// Add a new overlay
+    Add {
+        /// Overlay name
+        name: String,
+        /// Sync URI (git URL, rsync path, or http URL)
+        #[arg(short, long)]
+        uri: Option<String>,
+        /// Sync type (git, rsync, http, local)
+        #[arg(short = 't', long, default_value = "git")]
+        sync_type: String,
+        /// Priority (higher = preferred)
+        #[arg(short, long, default_value = "50")]
+        priority: i32,
+        /// Local path (for local overlays)
+        #[arg(short, long)]
+        location: Option<String>,
+    },
+    /// Remove an overlay
+    Remove {
+        /// Overlay name
+        name: String,
+        /// Delete overlay files
+        #[arg(short, long)]
+        delete: bool,
+    },
+    /// Enable an overlay
+    Enable {
+        /// Overlay name
+        name: String,
+    },
+    /// Disable an overlay
+    Disable {
+        /// Overlay name
+        name: String,
+    },
+    /// Sync an overlay
+    Sync {
+        /// Overlay name (all if not specified)
+        name: Option<String>,
+    },
+    /// Show overlay information
+    Info {
+        /// Overlay name
+        name: String,
+    },
+    /// Set overlay priority
+    Priority {
+        /// Overlay name
+        name: String,
+        /// New priority
+        priority: i32,
+    },
+    /// Search for overlays
+    Search {
+        /// Search query
+        query: String,
+    },
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -795,6 +876,7 @@ async fn main() -> ExitCode {
         Commands::Export(args) => cmd_export(args).await,
         Commands::Revdep(args) => cmd_revdep(&pkg_manager, args, &emerge_opts).await,
         Commands::Sign(args) => cmd_sign(args).await,
+        Commands::Overlay(args) => cmd_overlay(args).await,
     };
 
     match result {
@@ -4195,6 +4277,302 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
             manager.set_key_trust(&key_id, trust_level)?;
 
             println!("{} Trust level updated", style(">>>").green().bold());
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle overlay commands
+async fn cmd_overlay(args: OverlayArgs) -> buckos_package::Result<()> {
+    let config = OverlayConfig::default();
+    let mut manager = OverlayManager::new(config)?;
+
+    match args.subcommand {
+        OverlayCommand::List { enabled, all } => {
+            let overlays = if enabled {
+                manager.list_enabled()
+            } else if all {
+                manager.list_all()
+            } else {
+                // Default: show all overlays with status
+                manager.list_all()
+            };
+
+            if overlays.is_empty() {
+                println!("{} No overlays configured", style(">>>").yellow().bold());
+                return Ok(());
+            }
+
+            println!("{}", style("Configured Overlays").bold().underlined());
+            println!();
+
+            for overlay in overlays {
+                let status = if overlay.enabled {
+                    style("*").green().bold()
+                } else {
+                    style(" ").dim()
+                };
+
+                let quality = match overlay.quality {
+                    OverlayQuality::Official => style("[official]").green(),
+                    OverlayQuality::Community => style("[community]").blue(),
+                    OverlayQuality::Experimental => style("[experimental]").yellow(),
+                    OverlayQuality::Local => style("[local]").cyan(),
+                };
+
+                println!(
+                    " {} {} {} (priority: {}) {}",
+                    status,
+                    style(&overlay.name).bold(),
+                    quality,
+                    overlay.priority,
+                    if overlay.enabled { "" } else { "(disabled)" }
+                );
+
+                if !overlay.description.is_empty() {
+                    println!("     {}", style(&overlay.description).dim());
+                }
+            }
+
+            println!();
+            println!("{} * = enabled overlay", style("Legend:").dim());
+        }
+
+        OverlayCommand::Add {
+            name,
+            uri,
+            sync_type,
+            priority,
+            location,
+        } => {
+            let sync_type_enum = match sync_type.to_lowercase().as_str() {
+                "git" => SyncType::Git,
+                "rsync" => SyncType::Rsync,
+                "http" | "https" => SyncType::Http,
+                "local" => SyncType::Local,
+                _ => {
+                    return Err(buckos_package::Error::InvalidOverlayConfig(format!(
+                        "Unknown sync type: {}. Use: git, rsync, http, local",
+                        sync_type
+                    )));
+                }
+            };
+
+            if sync_type_enum == SyncType::Local {
+                let path = location.ok_or_else(|| {
+                    buckos_package::Error::InvalidOverlayConfig(
+                        "Local overlays require --location".to_string(),
+                    )
+                })?;
+
+                println!(
+                    "{} Adding local overlay {}...",
+                    style(">>>").blue().bold(),
+                    name
+                );
+
+                manager.add_local(&name, std::path::Path::new(&path), priority)?;
+            } else {
+                let uri = uri.ok_or_else(|| {
+                    buckos_package::Error::InvalidOverlayConfig(
+                        "Remote overlays require --uri".to_string(),
+                    )
+                })?;
+
+                println!(
+                    "{} Adding overlay {} from {}...",
+                    style(">>>").blue().bold(),
+                    name,
+                    uri
+                );
+
+                manager.add_remote(&name, &uri, sync_type_enum, priority)?;
+            }
+
+            println!(
+                "{} Overlay {} added successfully",
+                style(">>>").green().bold(),
+                name
+            );
+            println!("  Use 'buckos overlay enable {}' to enable it", name);
+        }
+
+        OverlayCommand::Remove { name, delete } => {
+            println!(
+                "{} Removing overlay {}...",
+                style(">>>").blue().bold(),
+                name
+            );
+
+            manager.remove(&name, delete)?;
+
+            println!(
+                "{} Overlay {} removed",
+                style(">>>").green().bold(),
+                name
+            );
+        }
+
+        OverlayCommand::Enable { name } => {
+            println!(
+                "{} Enabling overlay {}...",
+                style(">>>").blue().bold(),
+                name
+            );
+
+            manager.enable(&name)?;
+
+            println!(
+                "{} Overlay {} enabled",
+                style(">>>").green().bold(),
+                name
+            );
+        }
+
+        OverlayCommand::Disable { name } => {
+            println!(
+                "{} Disabling overlay {}...",
+                style(">>>").blue().bold(),
+                name
+            );
+
+            manager.disable(&name)?;
+
+            println!(
+                "{} Overlay {} disabled",
+                style(">>>").green().bold(),
+                name
+            );
+        }
+
+        OverlayCommand::Sync { name } => {
+            if let Some(name) = name {
+                println!(
+                    "{} Syncing overlay {}...",
+                    style(">>>").blue().bold(),
+                    name
+                );
+
+                manager.sync(&name).await?;
+
+                println!(
+                    "{} Overlay {} synced",
+                    style(">>>").green().bold(),
+                    name
+                );
+            } else {
+                println!(
+                    "{} Syncing all enabled overlays...",
+                    style(">>>").blue().bold()
+                );
+
+                manager.sync_all().await?;
+
+                println!(
+                    "{} All overlays synced",
+                    style(">>>").green().bold()
+                );
+            }
+        }
+
+        OverlayCommand::Info { name } => {
+            match manager.get_info(&name) {
+                Some(overlay) => {
+                    println!("{}", style("Overlay Information").bold().underlined());
+                    println!();
+                    println!("  {} {}", style("Name:").bold(), overlay.name);
+                    println!("  {} {}", style("Description:").bold(), overlay.description);
+                    println!("  {} {:?}", style("Sync Type:").bold(), overlay.sync_type);
+                    println!("  {} {}", style("Sync URI:").bold(), overlay.sync_uri);
+                    println!("  {} {}", style("Location:").bold(), overlay.location.display());
+                    println!("  {} {}", style("Priority:").bold(), overlay.priority);
+                    println!("  {} {}", style("Quality:").bold(), overlay.quality);
+                    println!(
+                        "  {} {}",
+                        style("Status:").bold(),
+                        if overlay.enabled { "enabled" } else { "disabled" }
+                    );
+                    println!(
+                        "  {} {}",
+                        style("Auto-sync:").bold(),
+                        if overlay.auto_sync { "yes" } else { "no" }
+                    );
+                    if let Some(owner) = &overlay.owner {
+                        println!("  {} {}", style("Owner:").bold(), owner);
+                    }
+                    if let Some(homepage) = &overlay.homepage {
+                        println!("  {} {}", style("Homepage:").bold(), homepage);
+                    }
+                    if !overlay.masters.is_empty() {
+                        println!("  {} {}", style("Masters:").bold(), overlay.masters.join(", "));
+                    }
+                    if let Some(last_sync) = overlay.last_sync {
+                        let datetime = chrono::DateTime::from_timestamp(last_sync as i64, 0)
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        println!("  {} {}", style("Last Sync:").bold(), datetime);
+                    }
+                }
+                None => {
+                    println!(
+                        "{} Overlay not found: {}",
+                        style(">>>").yellow().bold(),
+                        name
+                    );
+                }
+            }
+        }
+
+        OverlayCommand::Priority { name, priority } => {
+            println!(
+                "{} Setting priority for {} to {}...",
+                style(">>>").blue().bold(),
+                name,
+                priority
+            );
+
+            manager.set_priority(&name, priority)?;
+
+            println!(
+                "{} Priority updated",
+                style(">>>").green().bold()
+            );
+        }
+
+        OverlayCommand::Search { query } => {
+            let results = manager.search(&query);
+
+            if results.is_empty() {
+                println!(
+                    "{} No overlays found matching '{}'",
+                    style(">>>").yellow().bold(),
+                    query
+                );
+                return Ok(());
+            }
+
+            println!(
+                "{} Found {} overlay(s) matching '{}'",
+                style(">>>").green().bold(),
+                results.len(),
+                query
+            );
+            println!();
+
+            for overlay in results {
+                let quality = match overlay.quality {
+                    OverlayQuality::Official => style("[official]").green(),
+                    OverlayQuality::Community => style("[community]").blue(),
+                    OverlayQuality::Experimental => style("[experimental]").yellow(),
+                    OverlayQuality::Local => style("[local]").cyan(),
+                };
+
+                println!("  {} {}", style(&overlay.name).bold(), quality);
+                if !overlay.description.is_empty() {
+                    println!("    {}", style(&overlay.description).dim());
+                }
+            }
         }
     }
 

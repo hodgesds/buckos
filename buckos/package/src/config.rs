@@ -153,7 +153,7 @@ impl Default for RepositoryConfig {
 }
 
 /// Repository sync type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SyncType {
     Git,
     Rsync,
