@@ -328,3 +328,299 @@ def get_latest_in_slot(slot, versions_info):
             slot_versions.append(version)
 
     return select_best_version(slot_versions)
+
+
+# Subslot System
+
+def parse_slot_subslot(slot_string):
+    """
+    Parse a slot/subslot string
+
+    Args:
+        slot_string: Slot string (e.g., "3", "3/3.2")
+
+    Returns:
+        Tuple of (slot, subslot) where subslot may be None
+    """
+    if "/" in slot_string:
+        parts = slot_string.split("/", 1)
+        return (parts[0], parts[1])
+    return (slot_string, None)
+
+
+def format_slot_subslot(slot, subslot = None):
+    """
+    Format slot and subslot into a string
+
+    Args:
+        slot: Slot identifier
+        subslot: Subslot identifier (optional)
+
+    Returns:
+        Formatted slot/subslot string
+    """
+    if subslot:
+        return "{}/{}".format(slot, subslot)
+    return slot
+
+
+def subslot_dep(target, slot, operator = "="):
+    """
+    Create a subslot-aware dependency specification
+
+    Args:
+        target: Buck target path
+        slot: Slot identifier
+        operator: Subslot operator:
+            "=" - Rebuild when subslot changes (default)
+            "*" - Don't rebuild on subslot changes
+
+    Returns:
+        Dependency specification string
+    """
+    if operator == "=":
+        return "{}:{}=".format(target, slot)
+    elif operator == "*":
+        return "{}:{}*".format(target, slot)
+    else:
+        return "{}:{}".format(target, slot)
+
+
+def check_abi_compatibility(old_version_info, new_version_info):
+    """
+    Check ABI compatibility between two versions
+
+    Args:
+        old_version_info: Dict with version, slot, subslot info
+        new_version_info: Dict with version, slot, subslot info
+
+    Returns:
+        Dict with compatibility result:
+            compatible: True if ABI is compatible
+            reason: Explanation string
+            rebuild_required: List of packages needing rebuild
+    """
+    result = {
+        "compatible": True,
+        "reason": "",
+        "rebuild_required": [],
+    }
+
+    old_slot = old_version_info.get("slot", "0")
+    new_slot = new_version_info.get("slot", "0")
+
+    # Parse slot/subslot
+    old_slot_parts = parse_slot_subslot(old_slot)
+    new_slot_parts = parse_slot_subslot(new_slot)
+
+    # Check slot change
+    if old_slot_parts[0] != new_slot_parts[0]:
+        result["compatible"] = False
+        result["reason"] = "Slot changed from {} to {}".format(
+            old_slot_parts[0], new_slot_parts[0]
+        )
+        return result
+
+    # Check subslot change
+    old_subslot = old_slot_parts[1]
+    new_subslot = new_slot_parts[1]
+
+    if old_subslot != new_subslot:
+        result["compatible"] = False
+        result["reason"] = "Subslot changed from {} to {}, indicating ABI change".format(
+            old_subslot or "(none)", new_subslot or "(none)"
+        )
+        # In a real implementation, we'd query reverse dependencies here
+        result["rebuild_required"] = []
+        return result
+
+    result["reason"] = "ABI compatible (same slot/subslot)"
+    return result
+
+
+def get_subslot_from_version(version, version_info):
+    """
+    Get subslot for a version
+
+    Args:
+        version: Version string
+        version_info: Dict mapping version to info
+
+    Returns:
+        Subslot string or None
+    """
+    if version not in version_info:
+        return None
+
+    slot_str = version_info[version].get("slot", "0")
+    parts = parse_slot_subslot(slot_str)
+    return parts[1]
+
+
+def calculate_soname_subslot(soname):
+    """
+    Calculate subslot from a library soname
+
+    Args:
+        soname: Library soname (e.g., "libssl.so.3")
+
+    Returns:
+        Subslot string based on soname version
+    """
+    # Extract version from soname
+    if ".so." in soname:
+        parts = soname.split(".so.")
+        if len(parts) > 1:
+            return parts[1]
+    return None
+
+
+def version_to_subslot(version, depth = 2):
+    """
+    Convert version to subslot using specified depth
+
+    Args:
+        version: Version string (e.g., "3.2.1")
+        depth: Number of version components to use
+
+    Returns:
+        Subslot string (e.g., "3.2" for depth=2)
+    """
+    parsed = parse_version(version)
+    components = [str(parsed[i]) for i in range(min(depth, 3))]
+    return ".".join(components)
+
+
+def find_versions_with_subslot(subslot, versions_info):
+    """
+    Find all versions with a specific subslot
+
+    Args:
+        subslot: Subslot to search for
+        versions_info: Dict mapping version to info
+
+    Returns:
+        List of versions with matching subslot
+    """
+    result = []
+    for version, info in versions_info.items():
+        slot_str = info.get("slot", "0")
+        parts = parse_slot_subslot(slot_str)
+        if parts[1] == subslot:
+            result.append(version)
+    return result
+
+
+def get_rebuild_list_for_subslot_change(package, old_subslot, new_subslot, rdeps):
+    """
+    Get list of packages that need rebuilding due to subslot change
+
+    Args:
+        package: Package name
+        old_subslot: Old subslot value
+        new_subslot: New subslot value
+        rdeps: Dict mapping package to its reverse dependencies
+
+    Returns:
+        List of packages requiring rebuild
+    """
+    if old_subslot == new_subslot:
+        return []
+
+    rebuild = []
+    if package in rdeps:
+        for dep_info in rdeps[package]:
+            # Check if dependency uses subslot operator "="
+            if dep_info.get("subslot_operator") == "=":
+                rebuild.append(dep_info.get("package"))
+
+    return rebuild
+
+
+def multi_version_package_with_subslots(
+        name,
+        versions,
+        default_version,
+        description = "",
+        homepage = "",
+        license = "",
+        maintainers = [],
+        visibility = ["PUBLIC"]):
+    """
+    Define a package with multiple versions and subslot support
+
+    Args:
+        name: Package name
+        versions: Dict mapping version to version info including subslot
+        default_version: Default version to install
+        description: Package description
+        homepage: Project homepage
+        license: License identifier
+        maintainers: List of maintainers
+        visibility: Buck visibility
+
+    Example:
+        multi_version_package_with_subslots(
+            name = "openssl",
+            versions = {
+                "3.2.0": {
+                    "slot": "3/3.2",
+                    "status": "stable",
+                    "src_uri": "...",
+                    "sha256": "...",
+                },
+                "3.1.4": {
+                    "slot": "3/3.1",
+                    "status": "stable",
+                    "src_uri": "...",
+                    "sha256": "...",
+                },
+            },
+            default_version = "3.2.0",
+        )
+    """
+
+    # Create individual targets for each version
+    for version, info in versions.items():
+        target_name = "{}-{}".format(name, version.replace(".", "_"))
+
+        # Parse slot/subslot
+        slot_str = info.get("slot", "0")
+        slot_parts = parse_slot_subslot(slot_str)
+
+        metadata = {
+            "name": name,
+            "version": version,
+            "slot": slot_parts[0],
+            "subslot": slot_parts[1],
+            "status": info.get("status", "stable"),
+            "src_uri": info.get("src_uri", ""),
+            "sha256": info.get("sha256", ""),
+            "description": description,
+            "homepage": homepage,
+            "license": license,
+            "maintainers": maintainers,
+            "keywords": info.get("keywords", ["amd64"]),
+            "eapi": info.get("eapi", "8"),
+        }
+
+        native.genrule(
+            name = target_name + "_metadata",
+            out = target_name + "_metadata.json",
+            cmd = "echo '{}' > $OUT".format(json.encode(metadata)),
+            visibility = visibility,
+        )
+
+        native.filegroup(
+            name = target_name,
+            srcs = [":" + target_name + "_metadata"],
+            visibility = visibility,
+        )
+
+    # Create alias for default version
+    default_target = "{}-{}".format(name, default_version.replace(".", "_"))
+    native.alias(
+        name = name,
+        actual = ":" + default_target,
+        visibility = visibility,
+    )
