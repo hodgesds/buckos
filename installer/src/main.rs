@@ -37,6 +37,75 @@ struct Args {
     dry_run: bool,
 }
 
+/// Check that we have the necessary environment variables to connect to a display server.
+/// This is especially important when running with sudo.
+fn check_display_environment() -> Result<()> {
+    use std::env;
+
+    // Check if we're running as root
+    let is_root = unsafe { libc::geteuid() } == 0;
+
+    if !is_root {
+        // Not running as root, environment should be fine
+        return Ok(());
+    }
+
+    // Running as root - check for necessary environment variables
+    let has_wayland = env::var("WAYLAND_DISPLAY").is_ok();
+    let has_xdg_runtime = env::var("XDG_RUNTIME_DIR").is_ok();
+    let has_display = env::var("DISPLAY").is_ok();
+
+    // If we have neither Wayland nor X11 environment variables, we'll likely fail
+    if !has_wayland && !has_display {
+        eprintln!("\n╔════════════════════════════════════════════════════════════════════╗");
+        eprintln!("║              ERROR: Display Server Connection Missing              ║");
+        eprintln!("╚════════════════════════════════════════════════════════════════════╝\n");
+        eprintln!("The installer is running as root but cannot connect to your display");
+        eprintln!("server. This happens when environment variables are not preserved.\n");
+
+        if !has_wayland {
+            eprintln!("Missing: WAYLAND_DISPLAY environment variable");
+        }
+        if !has_xdg_runtime {
+            eprintln!("Missing: XDG_RUNTIME_DIR environment variable");
+        }
+        if !has_display {
+            eprintln!("Missing: DISPLAY environment variable");
+        }
+
+        eprintln!("\n📋 SOLUTIONS:\n");
+        eprintln!("  1. Run with preserved environment variables:");
+        eprintln!("     $ sudo -E ./target/release/buckos-installer\n");
+
+        eprintln!("  2. For Wayland (recommended), explicitly preserve variables:");
+        eprintln!("     $ sudo WAYLAND_DISPLAY=\"$WAYLAND_DISPLAY\" \\");
+        eprintln!("            XDG_RUNTIME_DIR=\"$XDG_RUNTIME_DIR\" \\");
+        eprintln!("            ./target/release/buckos-installer\n");
+
+        eprintln!("  3. Use the text-mode installer (no GUI):");
+        eprintln!("     $ sudo ./target/release/buckos-installer --text-mode\n");
+
+        eprintln!("  4. Run without sudo and use polkit/pkexec for privilege escalation");
+        eprintln!("     when needed (GUI will prompt for password):\n");
+        eprintln!("     $ ./target/release/buckos-installer\n");
+
+        return Err(anyhow::anyhow!(
+            "Cannot connect to display server. Please use one of the solutions above."
+        ));
+    }
+
+    // Warn if we're missing Wayland-specific variables even though WAYLAND_DISPLAY is set
+    if has_wayland && !has_xdg_runtime {
+        tracing::warn!("WAYLAND_DISPLAY is set but XDG_RUNTIME_DIR is missing. This may cause issues.");
+        eprintln!("\n⚠️  WARNING: XDG_RUNTIME_DIR is not set.");
+        eprintln!("    The installer may have trouble connecting to Wayland.\n");
+        eprintln!("    Consider running with:");
+        eprintln!("    $ sudo -E ./target/release/buckos-installer\n");
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -55,6 +124,11 @@ fn main() -> Result<()> {
         .init();
 
     tracing::info!("Buckos Installer starting...");
+
+    // Check for proper environment when running with sudo (GUI mode only)
+    if !args.text_mode {
+        check_display_environment()?;
+    }
 
     // Check system requirements
     if !args.skip_checks {
