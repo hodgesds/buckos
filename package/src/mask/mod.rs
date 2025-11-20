@@ -7,9 +7,9 @@
 //! - License-based masking
 
 use crate::types::{PackageId, PackageInfo, PackageSpec, VersionSpec};
-use crate::{Error, Result};
+use crate::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// Architecture keyword states

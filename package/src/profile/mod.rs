@@ -11,7 +11,7 @@ use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 /// A system profile defining defaults and package configurations
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,12 +175,16 @@ impl Profile {
 
     /// Check if a package is masked
     pub fn is_package_masked(&self, package: &str) -> bool {
-        self.package_mask.iter().any(|p| package_matches(package, p))
+        self.package_mask
+            .iter()
+            .any(|p| package_matches(package, p))
     }
 
     /// Check if a package is unmasked
     pub fn is_package_unmasked(&self, package: &str) -> bool {
-        self.package_unmask.iter().any(|p| package_matches(package, p))
+        self.package_unmask
+            .iter()
+            .any(|p| package_matches(package, p))
     }
 
     /// Get a make.defaults variable
@@ -283,17 +287,26 @@ impl ResolvedProfile {
 
     /// Get CFLAGS
     pub fn cflags(&self) -> &str {
-        self.make_defaults.get("CFLAGS").map(|s| s.as_str()).unwrap_or("")
+        self.make_defaults
+            .get("CFLAGS")
+            .map(|s| s.as_str())
+            .unwrap_or("")
     }
 
     /// Get CXXFLAGS
     pub fn cxxflags(&self) -> &str {
-        self.make_defaults.get("CXXFLAGS").map(|s| s.as_str()).unwrap_or("")
+        self.make_defaults
+            .get("CXXFLAGS")
+            .map(|s| s.as_str())
+            .unwrap_or("")
     }
 
     /// Get LDFLAGS
     pub fn ldflags(&self) -> &str {
-        self.make_defaults.get("LDFLAGS").map(|s| s.as_str()).unwrap_or("")
+        self.make_defaults
+            .get("LDFLAGS")
+            .map(|s| s.as_str())
+            .unwrap_or("")
     }
 }
 
@@ -397,10 +410,14 @@ impl ProfileManager {
         // Base profile
         let mut base = Profile::new("base");
         base.description = "Base system profile".to_string();
-        base.make_defaults.insert("CFLAGS".to_string(), "-O2 -pipe".to_string());
-        base.make_defaults.insert("CXXFLAGS".to_string(), "${CFLAGS}".to_string());
-        base.make_defaults.insert("LDFLAGS".to_string(), "-Wl,-O1 -Wl,--as-needed".to_string());
-        base.make_defaults.insert("MAKEOPTS".to_string(), "-j$(nproc)".to_string());
+        base.make_defaults
+            .insert("CFLAGS".to_string(), "-O2 -pipe".to_string());
+        base.make_defaults
+            .insert("CXXFLAGS".to_string(), "${CFLAGS}".to_string());
+        base.make_defaults
+            .insert("LDFLAGS".to_string(), "-Wl,-O1 -Wl,--as-needed".to_string());
+        base.make_defaults
+            .insert("MAKEOPTS".to_string(), "-j$(nproc)".to_string());
         self.profiles.insert(base.name.clone(), base);
 
         // Linux base profile
@@ -418,7 +435,10 @@ impl ProfileManager {
         amd64.parents = vec!["default/linux".to_string()];
         amd64.arch = Some("amd64".to_string());
         amd64.keywords = vec!["amd64".to_string()];
-        amd64.make_defaults.insert("CFLAGS".to_string(), "-O2 -pipe -march=x86-64 -mtune=generic".to_string());
+        amd64.make_defaults.insert(
+            "CFLAGS".to_string(),
+            "-O2 -pipe -march=x86-64 -mtune=generic".to_string(),
+        );
         amd64.use_flags.insert("abi_x86_64".to_string());
         self.profiles.insert(amd64.name.clone(), amd64);
 
@@ -428,27 +448,33 @@ impl ProfileManager {
         arm64.parents = vec!["default/linux".to_string()];
         arm64.arch = Some("arm64".to_string());
         arm64.keywords = vec!["arm64".to_string()];
-        arm64.make_defaults.insert("CFLAGS".to_string(), "-O2 -pipe -march=armv8-a".to_string());
+        arm64
+            .make_defaults
+            .insert("CFLAGS".to_string(), "-O2 -pipe -march=armv8-a".to_string());
         self.profiles.insert(arm64.name.clone(), arm64);
 
         // Desktop profile
         let mut desktop = Profile::new("default/linux/amd64/desktop");
         desktop.description = "Desktop system with GUI support".to_string();
         desktop.parents = vec!["default/linux/amd64".to_string()];
-        desktop.use_flags.extend([
-            "X".to_string(),
-            "wayland".to_string(),
-            "pulseaudio".to_string(),
-            "alsa".to_string(),
-            "cups".to_string(),
-            "dbus".to_string(),
-            "gtk".to_string(),
-            "qt5".to_string(),
-            "bluetooth".to_string(),
-            "networkmanager".to_string(),
-            "opengl".to_string(),
-            "vulkan".to_string(),
-        ].iter().cloned());
+        desktop.use_flags.extend(
+            [
+                "X".to_string(),
+                "wayland".to_string(),
+                "pulseaudio".to_string(),
+                "alsa".to_string(),
+                "cups".to_string(),
+                "dbus".to_string(),
+                "gtk".to_string(),
+                "qt5".to_string(),
+                "bluetooth".to_string(),
+                "networkmanager".to_string(),
+                "opengl".to_string(),
+                "vulkan".to_string(),
+            ]
+            .iter()
+            .cloned(),
+        );
         desktop.stability = ProfileStability::Stable;
         self.profiles.insert(desktop.name.clone(), desktop);
 
@@ -456,47 +482,63 @@ impl ProfileManager {
         let mut gnome = Profile::new("default/linux/amd64/desktop/gnome");
         gnome.description = "GNOME desktop environment".to_string();
         gnome.parents = vec!["default/linux/amd64/desktop".to_string()];
-        gnome.use_flags.extend([
-            "gnome".to_string(),
-            "gtk3".to_string(),
-            "introspection".to_string(),
-            "gstreamer".to_string(),
-        ].iter().cloned());
+        gnome.use_flags.extend(
+            [
+                "gnome".to_string(),
+                "gtk3".to_string(),
+                "introspection".to_string(),
+                "gstreamer".to_string(),
+            ]
+            .iter()
+            .cloned(),
+        );
         self.profiles.insert(gnome.name.clone(), gnome);
 
         // Desktop KDE/Plasma profile
         let mut kde = Profile::new("default/linux/amd64/desktop/plasma");
         kde.description = "KDE Plasma desktop environment".to_string();
         kde.parents = vec!["default/linux/amd64/desktop".to_string()];
-        kde.use_flags.extend([
-            "kde".to_string(),
-            "qt6".to_string(),
-            "qml".to_string(),
-            "semantic-desktop".to_string(),
-        ].iter().cloned());
+        kde.use_flags.extend(
+            [
+                "kde".to_string(),
+                "qt6".to_string(),
+                "qml".to_string(),
+                "semantic-desktop".to_string(),
+            ]
+            .iter()
+            .cloned(),
+        );
         self.profiles.insert(kde.name.clone(), kde);
 
         // Server profile
         let mut server = Profile::new("default/linux/amd64/server");
         server.description = "Server system without GUI".to_string();
         server.parents = vec!["default/linux/amd64".to_string()];
-        server.use_flags.extend([
-            "acl".to_string(),
-            "caps".to_string(),
-            "crypt".to_string(),
-            "ssl".to_string(),
-            "pam".to_string(),
-            "ipv6".to_string(),
-        ].iter().cloned());
+        server.use_flags.extend(
+            [
+                "acl".to_string(),
+                "caps".to_string(),
+                "crypt".to_string(),
+                "ssl".to_string(),
+                "pam".to_string(),
+                "ipv6".to_string(),
+            ]
+            .iter()
+            .cloned(),
+        );
         // Explicitly disable GUI-related flags
-        server.use_mask.extend([
-            "X".to_string(),
-            "wayland".to_string(),
-            "gtk".to_string(),
-            "qt5".to_string(),
-            "pulseaudio".to_string(),
-            "opengl".to_string(),
-        ].iter().cloned());
+        server.use_mask.extend(
+            [
+                "X".to_string(),
+                "wayland".to_string(),
+                "gtk".to_string(),
+                "qt5".to_string(),
+                "pulseaudio".to_string(),
+                "opengl".to_string(),
+            ]
+            .iter()
+            .cloned(),
+        );
         server.stability = ProfileStability::Stable;
         self.profiles.insert(server.name.clone(), server);
 
@@ -510,15 +552,19 @@ impl ProfileManager {
         );
         hardened.make_defaults.insert(
             "LDFLAGS".to_string(),
-            "-Wl,-O1 -Wl,--as-needed -Wl,-z,relro -Wl,-z,now -pie".to_string()
+            "-Wl,-O1 -Wl,--as-needed -Wl,-z,relro -Wl,-z,now -pie".to_string(),
         );
-        hardened.use_flags.extend([
-            "hardened".to_string(),
-            "pie".to_string(),
-            "ssp".to_string(),
-            "seccomp".to_string(),
-            "caps".to_string(),
-        ].iter().cloned());
+        hardened.use_flags.extend(
+            [
+                "hardened".to_string(),
+                "pie".to_string(),
+                "ssp".to_string(),
+                "seccomp".to_string(),
+                "caps".to_string(),
+            ]
+            .iter()
+            .cloned(),
+        );
         hardened.stability = ProfileStability::Stable;
         self.profiles.insert(hardened.name.clone(), hardened);
 
@@ -529,31 +575,37 @@ impl ProfileManager {
             "default/linux/amd64/hardened".to_string(),
             "default/linux/amd64/server".to_string(),
         ];
-        self.profiles.insert(hardened_server.name.clone(), hardened_server);
+        self.profiles
+            .insert(hardened_server.name.clone(), hardened_server);
 
         // LLVM/Clang toolchain profile
         let mut llvm = Profile::new("default/linux/amd64/llvm");
         llvm.description = "LLVM/Clang toolchain".to_string();
         llvm.parents = vec!["default/linux/amd64".to_string()];
         llvm.toolchain = Toolchain::Llvm;
-        llvm.make_defaults.insert("CC".to_string(), "clang".to_string());
-        llvm.make_defaults.insert("CXX".to_string(), "clang++".to_string());
-        llvm.make_defaults.insert("AR".to_string(), "llvm-ar".to_string());
-        llvm.make_defaults.insert("NM".to_string(), "llvm-nm".to_string());
-        llvm.make_defaults.insert("RANLIB".to_string(), "llvm-ranlib".to_string());
+        llvm.make_defaults
+            .insert("CC".to_string(), "clang".to_string());
+        llvm.make_defaults
+            .insert("CXX".to_string(), "clang++".to_string());
+        llvm.make_defaults
+            .insert("AR".to_string(), "llvm-ar".to_string());
+        llvm.make_defaults
+            .insert("NM".to_string(), "llvm-nm".to_string());
+        llvm.make_defaults
+            .insert("RANLIB".to_string(), "llvm-ranlib".to_string());
         llvm.make_defaults.insert(
             "CFLAGS".to_string(),
-            "-O2 -pipe -march=x86-64 -mtune=generic -flto=thin".to_string()
+            "-O2 -pipe -march=x86-64 -mtune=generic -flto=thin".to_string(),
         );
         llvm.make_defaults.insert(
             "LDFLAGS".to_string(),
-            "-Wl,-O1 -Wl,--as-needed -fuse-ld=lld -flto=thin".to_string()
+            "-Wl,-O1 -Wl,--as-needed -fuse-ld=lld -flto=thin".to_string(),
         );
-        llvm.use_flags.extend([
-            "clang".to_string(),
-            "lld".to_string(),
-            "llvm".to_string(),
-        ].iter().cloned());
+        llvm.use_flags.extend(
+            ["clang".to_string(), "lld".to_string(), "llvm".to_string()]
+                .iter()
+                .cloned(),
+        );
         llvm.stability = ProfileStability::Testing;
         self.profiles.insert(llvm.name.clone(), llvm);
 
@@ -562,11 +614,14 @@ impl ProfileManager {
         gcc.description = "GCC toolchain (explicit)".to_string();
         gcc.parents = vec!["default/linux/amd64".to_string()];
         gcc.toolchain = Toolchain::Gcc;
-        gcc.make_defaults.insert("CC".to_string(), "gcc".to_string());
-        gcc.make_defaults.insert("CXX".to_string(), "g++".to_string());
+        gcc.make_defaults
+            .insert("CC".to_string(), "gcc".to_string());
+        gcc.make_defaults
+            .insert("CXX".to_string(), "g++".to_string());
         gcc.make_defaults.insert("AR".to_string(), "ar".to_string());
         gcc.make_defaults.insert("NM".to_string(), "nm".to_string());
-        gcc.make_defaults.insert("RANLIB".to_string(), "ranlib".to_string());
+        gcc.make_defaults
+            .insert("RANLIB".to_string(), "ranlib".to_string());
         gcc.stability = ProfileStability::Stable;
         self.profiles.insert(gcc.name.clone(), gcc);
 
@@ -583,7 +638,7 @@ impl ProfileManager {
         ]);
         musl.make_defaults.insert(
             "CFLAGS".to_string(),
-            "-O2 -pipe -march=x86-64 -mtune=generic -fstack-clash-protection".to_string()
+            "-O2 -pipe -march=x86-64 -mtune=generic -fstack-clash-protection".to_string(),
         );
         musl.stability = ProfileStability::Testing;
         self.profiles.insert(musl.name.clone(), musl);
@@ -595,7 +650,8 @@ impl ProfileManager {
             "default/linux/amd64/musl".to_string(),
             "default/linux/amd64/hardened".to_string(),
         ];
-        self.profiles.insert(musl_hardened.name.clone(), musl_hardened);
+        self.profiles
+            .insert(musl_hardened.name.clone(), musl_hardened);
 
         // musl LLVM profile
         let mut musl_llvm = Profile::new("default/linux/amd64/musl/llvm");
@@ -610,10 +666,9 @@ impl ProfileManager {
         let mut systemd = Profile::new("default/linux/amd64/systemd");
         systemd.description = "systemd init system".to_string();
         systemd.parents = vec!["default/linux/amd64".to_string()];
-        systemd.use_flags.extend([
-            "systemd".to_string(),
-            "udev".to_string(),
-        ].iter().cloned());
+        systemd
+            .use_flags
+            .extend(["systemd".to_string(), "udev".to_string()].iter().cloned());
         systemd.use_mask.insert("elogind".to_string());
         self.profiles.insert(systemd.name.clone(), systemd);
 
@@ -621,10 +676,11 @@ impl ProfileManager {
         let mut openrc = Profile::new("default/linux/amd64/openrc");
         openrc.description = "OpenRC init system".to_string();
         openrc.parents = vec!["default/linux/amd64".to_string()];
-        openrc.use_flags.extend([
-            "openrc".to_string(),
-            "elogind".to_string(),
-        ].iter().cloned());
+        openrc.use_flags.extend(
+            ["openrc".to_string(), "elogind".to_string()]
+                .iter()
+                .cloned(),
+        );
         openrc.use_mask.insert("systemd".to_string());
         self.profiles.insert(openrc.name.clone(), openrc);
 
@@ -632,16 +688,20 @@ impl ProfileManager {
         let mut developer = Profile::new("default/linux/amd64/developer");
         developer.description = "Development workstation".to_string();
         developer.parents = vec!["default/linux/amd64/desktop".to_string()];
-        developer.use_flags.extend([
-            "debug".to_string(),
-            "doc".to_string(),
-            "examples".to_string(),
-            "test".to_string(),
-            "static-libs".to_string(),
-        ].iter().cloned());
+        developer.use_flags.extend(
+            [
+                "debug".to_string(),
+                "doc".to_string(),
+                "examples".to_string(),
+                "test".to_string(),
+                "static-libs".to_string(),
+            ]
+            .iter()
+            .cloned(),
+        );
         developer.make_defaults.insert(
             "CFLAGS".to_string(),
-            "-O2 -pipe -march=x86-64 -mtune=generic -g".to_string()
+            "-O2 -pipe -march=x86-64 -mtune=generic -g".to_string(),
         );
         developer.stability = ProfileStability::Dev;
         self.profiles.insert(developer.name.clone(), developer);
@@ -650,30 +710,32 @@ impl ProfileManager {
         let mut minimal = Profile::new("default/linux/amd64/minimal");
         minimal.description = "Minimal system".to_string();
         minimal.parents = vec!["default/linux/amd64".to_string()];
-        minimal.use_mask.extend([
-            "X".to_string(),
-            "gtk".to_string(),
-            "qt5".to_string(),
-            "doc".to_string(),
-            "examples".to_string(),
-            "nls".to_string(),
-            "static-libs".to_string(),
-        ].iter().cloned());
-        minimal.use_flags.insert("minimal".to_string());
-        minimal.make_defaults.insert(
-            "CFLAGS".to_string(),
-            "-Os -pipe -march=x86-64".to_string()
+        minimal.use_mask.extend(
+            [
+                "X".to_string(),
+                "gtk".to_string(),
+                "qt5".to_string(),
+                "doc".to_string(),
+                "examples".to_string(),
+                "nls".to_string(),
+                "static-libs".to_string(),
+            ]
+            .iter()
+            .cloned(),
         );
+        minimal.use_flags.insert("minimal".to_string());
+        minimal
+            .make_defaults
+            .insert("CFLAGS".to_string(), "-Os -pipe -march=x86-64".to_string());
         self.profiles.insert(minimal.name.clone(), minimal);
 
         // Container profile
         let mut container = Profile::new("default/linux/amd64/container");
         container.description = "Container/Docker optimized".to_string();
         container.parents = vec!["default/linux/amd64/minimal".to_string()];
-        container.use_mask.extend([
-            "pam".to_string(),
-            "caps".to_string(),
-        ].iter().cloned());
+        container
+            .use_mask
+            .extend(["pam".to_string(), "caps".to_string()].iter().cloned());
         self.profiles.insert(container.name.clone(), container);
 
         // No-multilib profile (pure 64-bit)
@@ -681,7 +743,9 @@ impl ProfileManager {
         no_multilib.description = "Pure 64-bit system (no 32-bit support)".to_string();
         no_multilib.parents = vec!["default/linux/amd64".to_string()];
         no_multilib.use_mask.insert("abi_x86_32".to_string());
-        no_multilib.package_mask.push("app-emulation/wine".to_string());
+        no_multilib
+            .package_mask
+            .push("app-emulation/wine".to_string());
         self.profiles.insert(no_multilib.name.clone(), no_multilib);
 
         // Prefix profile (for non-root installations)
@@ -725,7 +789,10 @@ impl ProfileManager {
                 warn!(
                     "Profile '{}' is deprecated: {}",
                     name,
-                    profile.deprecation_message.as_deref().unwrap_or("No reason given")
+                    profile
+                        .deprecation_message
+                        .as_deref()
+                        .unwrap_or("No reason given")
                 );
             }
         }
@@ -783,7 +850,9 @@ impl ProfileManager {
 
                 // Merge package masks (later profiles can override)
                 resolved.package_mask.extend(profile.package_mask.clone());
-                resolved.package_unmask.extend(profile.package_unmask.clone());
+                resolved
+                    .package_unmask
+                    .extend(profile.package_unmask.clone());
 
                 // Merge make.defaults (later profiles override)
                 for (key, value) in &profile.make_defaults {
@@ -792,7 +861,8 @@ impl ProfileManager {
 
                 // Merge package USE
                 for (pkg, flags) in &profile.package_use {
-                    resolved.package_use
+                    resolved
+                        .package_use
                         .entry(pkg.clone())
                         .or_insert_with(Vec::new)
                         .extend(flags.clone());
@@ -844,7 +914,9 @@ impl ProfileManager {
             return Ok(()); // Avoid circular dependencies
         }
 
-        let profile = self.profiles.get(name)
+        let profile = self
+            .profiles
+            .get(name)
             .ok_or_else(|| Error::ProfileNotFound(name.to_string()))?;
 
         visited.insert(name.to_string());
@@ -859,7 +931,9 @@ impl ProfileManager {
 
     /// Show profile information
     pub fn show_profile(&self, name: &str) -> Result<ProfileInfo> {
-        let profile = self.profiles.get(name)
+        let profile = self
+            .profiles
+            .get(name)
             .ok_or_else(|| Error::ProfileNotFound(name.to_string()))?;
 
         let chain = self.get_inheritance_chain(name)?;
@@ -883,7 +957,9 @@ impl ProfileManager {
     pub fn validate(&self, name: &str) -> Result<Vec<String>> {
         let mut warnings = Vec::new();
 
-        let profile = self.profiles.get(name)
+        let profile = self
+            .profiles
+            .get(name)
             .ok_or_else(|| Error::ProfileNotFound(name.to_string()))?;
 
         // Check for missing parents
@@ -910,9 +986,13 @@ impl ProfileManager {
 
     /// Compare two profiles
     pub fn compare(&self, profile1: &str, profile2: &str) -> Result<ProfileComparison> {
-        let p1 = self.profiles.get(profile1)
+        let p1 = self
+            .profiles
+            .get(profile1)
             .ok_or_else(|| Error::ProfileNotFound(profile1.to_string()))?;
-        let p2 = self.profiles.get(profile2)
+        let p2 = self
+            .profiles
+            .get(profile2)
             .ok_or_else(|| Error::ProfileNotFound(profile2.to_string()))?;
 
         let use_only_in_1: Vec<_> = p1.use_flags.difference(&p2.use_flags).cloned().collect();
@@ -973,9 +1053,12 @@ fn package_matches(package: &str, pattern: &str) -> bool {
     if pattern.contains('*') {
         // Simple glob matching without regex
         glob_match(pattern, package)
-    } else if pattern.starts_with(">=") || pattern.starts_with("<=") ||
-              pattern.starts_with('>') || pattern.starts_with('<') ||
-              pattern.starts_with('=') {
+    } else if pattern.starts_with(">=")
+        || pattern.starts_with("<=")
+        || pattern.starts_with('>')
+        || pattern.starts_with('<')
+        || pattern.starts_with('=')
+    {
         // Version comparison - simplified
         let pkg_name = pattern.trim_start_matches(|c| c == '>' || c == '<' || c == '=' || c == '!');
         package.starts_with(pkg_name.split('-').next().unwrap_or(pkg_name))
@@ -1007,9 +1090,7 @@ fn glob_match(pattern: &str, text: &str) -> bool {
                 let mut remaining_text = String::new();
                 while let Some(c) = text_chars.next() {
                     remaining_text.push(c);
-                    let test_text: String = std::iter::once(c)
-                        .chain(text_chars.clone())
-                        .collect();
+                    let test_text: String = std::iter::once(c).chain(text_chars.clone()).collect();
                     if glob_match(&remaining_pattern, &test_text) {
                         return true;
                     }
@@ -1040,15 +1121,20 @@ pub fn format_profile_list(profiles: &[&Profile], current: Option<&str>) -> Stri
     let mut output = String::new();
 
     for profile in profiles {
-        let marker = if Some(profile.name.as_str()) == current { "*" } else { " " };
-        let status = if profile.deprecated { " (deprecated)" } else { "" };
+        let marker = if Some(profile.name.as_str()) == current {
+            "*"
+        } else {
+            " "
+        };
+        let status = if profile.deprecated {
+            " (deprecated)"
+        } else {
+            ""
+        };
 
         output.push_str(&format!(
             "{} {:<45} {}{}\n",
-            marker,
-            profile.name,
-            profile.description,
-            status
+            marker, profile.name, profile.description, status
         ));
     }
 
@@ -1175,6 +1261,10 @@ mod tests {
         let hardened = manager.get("default/linux/amd64/hardened").unwrap();
         assert!(hardened.use_flags.contains("hardened"));
         assert!(hardened.use_flags.contains("pie"));
-        assert!(hardened.make_defaults.get("CFLAGS").unwrap().contains("-fstack-protector-strong"));
+        assert!(hardened
+            .make_defaults
+            .get("CFLAGS")
+            .unwrap()
+            .contains("-fstack-protector-strong"));
     }
 }

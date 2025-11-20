@@ -4,7 +4,7 @@
 
 use crate::{Error, PackageId, PackageInfo, Result, VersionSpec};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// Type of package blocker
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

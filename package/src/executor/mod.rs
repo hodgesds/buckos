@@ -87,7 +87,7 @@ impl ParallelExecutor {
         }
 
         // Find initially ready tasks (no dependencies)
-        let mut ready: Vec<usize> = dep_count
+        let ready: Vec<usize> = dep_count
             .iter()
             .filter(|(_, &count)| count == 0)
             .map(|(&id, _)| id)

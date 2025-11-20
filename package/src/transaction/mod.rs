@@ -5,7 +5,7 @@
 use crate::buck::BuckIntegration;
 use crate::cache::PackageCache;
 use crate::db::PackageDb;
-use crate::executor::{ParallelExecutor, Task, TaskOutput};
+use crate::executor::ParallelExecutor;
 use crate::{
     BuildOptions, Error, FileType, InstalledFile, InstalledPackage, PackageId, PackageInfo, Result,
 };
@@ -13,7 +13,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 
 /// Package operation type
 #[derive(Debug, Clone)]

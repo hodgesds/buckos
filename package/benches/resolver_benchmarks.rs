@@ -1,7 +1,9 @@
 use buckos_package::db::PackageDb;
 use buckos_package::repository::RepositoryManager;
 use buckos_package::resolver::DependencyResolver;
-use buckos_package::{Config, Dependency, InstallOptions, PackageId, PackageInfo, UseCondition, VersionSpec};
+use buckos_package::{
+    Config, Dependency, InstallOptions, PackageId, PackageInfo, UseCondition, VersionSpec,
+};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use semver::Version;
 use std::sync::Arc;
@@ -10,11 +12,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 use varisat::ExtendFormula;
 
-fn create_mock_package(
-    name: &str,
-    version: &str,
-    dep_count: usize,
-) -> PackageInfo {
+fn create_mock_package(name: &str, version: &str, dep_count: usize) -> PackageInfo {
     let mut dependencies = Vec::new();
     for i in 0..dep_count {
         dependencies.push(Dependency {
@@ -48,7 +46,12 @@ fn create_mock_package(
     }
 }
 
-fn setup_resolver() -> (TempDir, Arc<RwLock<PackageDb>>, Arc<RepositoryManager>, DependencyResolver) {
+fn setup_resolver() -> (
+    TempDir,
+    Arc<RwLock<PackageDb>>,
+    Arc<RepositoryManager>,
+    DependencyResolver,
+) {
     let temp_dir = TempDir::new().unwrap();
     let db = PackageDb::open(temp_dir.path()).unwrap();
     let db = Arc::new(RwLock::new(db));
@@ -151,10 +154,7 @@ fn bench_dependency_matching(c: &mut Criterion) {
 
     group.bench_function("find_by_name", |b| {
         b.iter(|| {
-            let _found: Vec<_> = packages
-                .iter()
-                .filter(|p| p.id.name == "pkg-50")
-                .collect();
+            let _found: Vec<_> = packages.iter().filter(|p| p.id.name == "pkg-50").collect();
             black_box(_found);
         });
     });

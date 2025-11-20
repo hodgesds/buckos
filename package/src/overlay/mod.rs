@@ -37,9 +37,7 @@ impl Default for OverlayConfig {
             config_path: PathBuf::from("/etc/buckos/overlays.toml"),
             list_path: PathBuf::from("/var/db/buckos/overlays.json"),
             storage_dir: PathBuf::from("/var/db/repos"),
-            remote_lists: vec![
-                "https://api.gentoo.org/overlays/repositories.xml".to_string(),
-            ],
+            remote_lists: vec!["https://api.gentoo.org/overlays/repositories.xml".to_string()],
         }
     }
 }
@@ -196,21 +194,14 @@ impl OverlayManager {
             std::fs::create_dir_all(&overlay.location)?;
         }
 
-        self.state
-            .overlays
-            .insert(overlay.name.clone(), overlay);
+        self.state.overlays.insert(overlay.name.clone(), overlay);
         self.save_state()?;
 
         Ok(())
     }
 
     /// Add a local overlay
-    pub fn add_local(
-        &mut self,
-        name: &str,
-        location: &Path,
-        priority: i32,
-    ) -> Result<()> {
+    pub fn add_local(&mut self, name: &str, location: &Path, priority: i32) -> Result<()> {
         let overlay = OverlayInfo {
             name: name.to_string(),
             description: format!("Local overlay: {}", name),
@@ -651,9 +642,7 @@ mod tests {
         let local_path = temp_dir.path().join("my-overlay");
         std::fs::create_dir(&local_path).unwrap();
 
-        manager
-            .add_local("test-overlay", &local_path, 50)
-            .unwrap();
+        manager.add_local("test-overlay", &local_path, 50).unwrap();
 
         assert!(manager.exists("test-overlay"));
         assert!(!manager.is_enabled("test-overlay"));
@@ -671,9 +660,7 @@ mod tests {
         let local_path = temp_dir.path().join("my-overlay");
         std::fs::create_dir(&local_path).unwrap();
 
-        manager
-            .add_local("test-overlay", &local_path, 50)
-            .unwrap();
+        manager.add_local("test-overlay", &local_path, 50).unwrap();
 
         // Enable
         manager.enable("test-overlay").unwrap();
@@ -717,9 +704,7 @@ mod tests {
         let local_path = temp_dir.path().join("my-overlay");
         std::fs::create_dir(&local_path).unwrap();
 
-        manager
-            .add_local("test-overlay", &local_path, 50)
-            .unwrap();
+        manager.add_local("test-overlay", &local_path, 50).unwrap();
         manager.enable("test-overlay").unwrap();
 
         manager.remove("test-overlay", false).unwrap();
@@ -793,9 +778,7 @@ mod tests {
         let local_path = temp_dir.path().join("my-overlay");
         std::fs::create_dir(&local_path).unwrap();
 
-        manager
-            .add_local("test-overlay", &local_path, 50)
-            .unwrap();
+        manager.add_local("test-overlay", &local_path, 50).unwrap();
         manager.enable("test-overlay").unwrap();
 
         let configs = manager.to_repository_configs();

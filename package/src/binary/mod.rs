@@ -13,7 +13,7 @@ use crate::{Error, InstalledPackage, PackageId, PackageInfo, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Binary package format version
 pub const BINPKG_FORMAT_VERSION: u32 = 2;
@@ -196,9 +196,21 @@ impl BinaryPackage {
             cflags: std::env::var("CFLAGS").unwrap_or_default(),
             cxxflags: std::env::var("CXXFLAGS").unwrap_or_default(),
             ldflags: std::env::var("LDFLAGS").unwrap_or_default(),
-            dependencies: info.dependencies.iter().map(|d| d.package.full_name()).collect(),
-            runtime_deps: info.runtime_dependencies.iter().map(|d| d.package.full_name()).collect(),
-            build_deps: info.build_dependencies.iter().map(|d| d.package.full_name()).collect(),
+            dependencies: info
+                .dependencies
+                .iter()
+                .map(|d| d.package.full_name())
+                .collect(),
+            runtime_deps: info
+                .runtime_dependencies
+                .iter()
+                .map(|d| d.package.full_name())
+                .collect(),
+            build_deps: info
+                .build_dependencies
+                .iter()
+                .map(|d| d.package.full_name())
+                .collect(),
             compression: DEFAULT_COMPRESSION,
             instance_id: None,
             signature: None,
@@ -234,9 +246,7 @@ impl BinaryPackage {
 
     /// Get the full path for this binary package within PKGDIR
     pub fn full_path(&self, pkgdir: &Path) -> PathBuf {
-        pkgdir
-            .join(&self.id.category)
-            .join(self.filename())
+        pkgdir.join(&self.id.category).join(self.filename())
     }
 
     /// Check if this package is signed
@@ -390,7 +400,8 @@ impl BinaryPackageManager {
 
         // Create the archive
         let pkg_path = binpkg.full_path(&self.pkgdir);
-        self.create_archive(build_dir, &pkg_path, opts.compression).await?;
+        self.create_archive(build_dir, &pkg_path, opts.compression)
+            .await?;
 
         // Calculate hashes
         let content = std::fs::read(&pkg_path)?;
@@ -400,7 +411,9 @@ impl BinaryPackageManager {
 
         // Sign if requested
         if opts.sign {
-            let signature = self.signing_manager.sign_data(&content, opts.signing_key.as_deref())?;
+            let signature = self
+                .signing_manager
+                .sign_data(&content, opts.signing_key.as_deref())?;
             binpkg.signature = Some(signature);
 
             // Also write detached signature file
@@ -414,7 +427,11 @@ impl BinaryPackageManager {
 
         // Update index
         let key = pkg.id.full_name();
-        self.index.packages.entry(key).or_default().push(binpkg.clone());
+        self.index
+            .packages
+            .entry(key)
+            .or_default()
+            .push(binpkg.clone());
         self.index.last_updated = Some(chrono::Utc::now());
         self.save_index()?;
 
@@ -466,11 +483,7 @@ impl BinaryPackageManager {
     }
 
     /// Extract a binary package
-    pub async fn extract_package(
-        &self,
-        binpkg: &BinaryPackage,
-        dest_dir: &Path,
-    ) -> Result<()> {
+    pub async fn extract_package(&self, binpkg: &BinaryPackage, dest_dir: &Path) -> Result<()> {
         let pkg_path = self.pkgdir.join(&binpkg.path);
 
         if !pkg_path.exists() {
@@ -507,7 +520,10 @@ impl BinaryPackageManager {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::Other(format!("Package extraction failed: {}", stderr)));
+            return Err(Error::Other(format!(
+                "Package extraction failed: {}",
+                stderr
+            )));
         }
 
         info!("Extracted {} to {}", binpkg.path, dest_dir.display());
@@ -531,15 +547,18 @@ impl BinaryPackageManager {
         version: &semver::Version,
     ) -> Option<&BinaryPackage> {
         let key = pkg_id.full_name();
-        self.index.packages.get(&key).and_then(|packages| {
-            packages.iter().find(|p| &p.version == version)
-        })
+        self.index
+            .packages
+            .get(&key)
+            .and_then(|packages| packages.iter().find(|p| &p.version == version))
     }
 
     /// Get the best matching binary package (latest version)
     pub fn get_best_match(&self, pkg_id: &PackageId) -> Option<&BinaryPackage> {
         let packages = self.find_packages(pkg_id);
-        packages.into_iter().max_by(|a, b| a.version.cmp(&b.version))
+        packages
+            .into_iter()
+            .max_by(|a, b| a.version.cmp(&b.version))
     }
 
     /// Verify a binary package
@@ -658,9 +677,10 @@ impl BinaryPackageManager {
         pkg_id: &PackageId,
         version: Option<&semver::Version>,
     ) -> Result<BinaryPackage> {
-        let server = self.remote_server.as_ref().ok_or_else(|| {
-            Error::Other("No remote server configured".to_string())
-        })?;
+        let server = self
+            .remote_server
+            .as_ref()
+            .ok_or_else(|| Error::Other("No remote server configured".to_string()))?;
 
         // Construct URL
         let filename = if let Some(v) = version {
@@ -702,7 +722,9 @@ impl BinaryPackageManager {
         // Create package metadata
         let binpkg = BinaryPackage {
             id: pkg_id.clone(),
-            version: version.cloned().unwrap_or_else(|| semver::Version::new(0, 0, 0)),
+            version: version
+                .cloned()
+                .unwrap_or_else(|| semver::Version::new(0, 0, 0)),
             slot: "0".to_string(),
             description: String::new(),
             build_time: chrono::Utc::now(),
@@ -731,7 +753,11 @@ impl BinaryPackageManager {
 
         // Update index
         let key = pkg_id.full_name();
-        self.index.packages.entry(key).or_default().push(binpkg.clone());
+        self.index
+            .packages
+            .entry(key)
+            .or_default()
+            .push(binpkg.clone());
         self.index.last_updated = Some(chrono::Utc::now());
         self.save_index()?;
 
@@ -741,9 +767,10 @@ impl BinaryPackageManager {
 
     /// Sync remote package index
     pub async fn sync_remote_index(&mut self) -> Result<()> {
-        let server = self.remote_server.as_ref().ok_or_else(|| {
-            Error::Other("No remote server configured".to_string())
-        })?;
+        let server = self
+            .remote_server
+            .as_ref()
+            .ok_or_else(|| Error::Other("No remote server configured".to_string()))?;
 
         let url = format!("{}/Packages.json", server);
         info!("Syncing remote package index from {}", url);
@@ -780,7 +807,10 @@ impl BinaryPackageManager {
 
         for packages in self.index.packages.values() {
             for pkg in packages {
-                output.push_str(&format!("CPV: {}/{}-{}\n", pkg.id.category, pkg.id.name, pkg.version));
+                output.push_str(&format!(
+                    "CPV: {}/{}-{}\n",
+                    pkg.id.category, pkg.id.name, pkg.version
+                ));
                 output.push_str(&format!("SLOT: {}\n", pkg.slot));
                 output.push_str(&format!("PATH: {}\n", pkg.path));
                 output.push_str(&format!("SIZE: {}\n", pkg.size));
@@ -812,7 +842,8 @@ impl BinaryPackageManager {
                         pkg.signature = Some(signature.clone());
 
                         // Write detached signature
-                        let sig_path = pkg_path.with_extension(format!("{}.asc", pkg.compression.extension()));
+                        let sig_path =
+                            pkg_path.with_extension(format!("{}.asc", pkg.compression.extension()));
                         std::fs::write(&sig_path, &signature)?;
 
                         signed_count += 1;
@@ -886,7 +917,12 @@ impl BinaryPackageManager {
         let mut last_dash = None;
         for (i, c) in stem.char_indices() {
             if c == '-' {
-                if stem[i + 1..].chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                if stem[i + 1..]
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+                {
                     last_dash = Some(i);
                 }
             }
@@ -1096,8 +1132,17 @@ mod tests {
 
     #[test]
     fn test_parse_simple_version() {
-        assert_eq!(parse_simple_version("3").unwrap(), semver::Version::new(3, 0, 0));
-        assert_eq!(parse_simple_version("3.0").unwrap(), semver::Version::new(3, 0, 0));
-        assert_eq!(parse_simple_version("3.0.0").unwrap(), semver::Version::new(3, 0, 0));
+        assert_eq!(
+            parse_simple_version("3").unwrap(),
+            semver::Version::new(3, 0, 0)
+        );
+        assert_eq!(
+            parse_simple_version("3.0").unwrap(),
+            semver::Version::new(3, 0, 0)
+        );
+        assert_eq!(
+            parse_simple_version("3.0.0").unwrap(),
+            semver::Version::new(3, 0, 0)
+        );
     }
 }

@@ -26,25 +26,17 @@ fn bench_cache_hash_computation(c: &mut Criterion) {
         create_test_file(&test_file, *size).unwrap();
 
         group.throughput(Throughput::Bytes(*size as u64));
-        group.bench_with_input(
-            BenchmarkId::new("sha256", size),
-            size,
-            |b, _| {
-                b.iter(|| {
-                    black_box(buckos_package::cache::compute_sha256(&test_file).unwrap());
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("sha256", size), size, |b, _| {
+            b.iter(|| {
+                black_box(buckos_package::cache::compute_sha256(&test_file).unwrap());
+            });
+        });
 
-        group.bench_with_input(
-            BenchmarkId::new("blake3", size),
-            size,
-            |b, _| {
-                b.iter(|| {
-                    black_box(buckos_package::cache::compute_blake3(&test_file).unwrap());
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("blake3", size), size, |b, _| {
+            b.iter(|| {
+                black_box(buckos_package::cache::compute_blake3(&test_file).unwrap());
+            });
+        });
     }
 
     group.finish();
@@ -102,29 +94,21 @@ fn bench_cache_compression(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes(*size as u64));
 
-        group.bench_with_input(
-            BenchmarkId::new("gzip_compress", size),
-            size,
-            |b, _| {
-                b.iter(|| {
-                    use flate2::write::GzEncoder;
-                    use flate2::Compression;
-                    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                    encoder.write_all(&test_data).unwrap();
-                    black_box(encoder.finish().unwrap());
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("gzip_compress", size), size, |b, _| {
+            b.iter(|| {
+                use flate2::write::GzEncoder;
+                use flate2::Compression;
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(&test_data).unwrap();
+                black_box(encoder.finish().unwrap());
+            });
+        });
 
-        group.bench_with_input(
-            BenchmarkId::new("zstd_compress", size),
-            size,
-            |b, _| {
-                b.iter(|| {
-                    black_box(zstd::encode_all(&test_data[..], 3).unwrap());
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("zstd_compress", size), size, |b, _| {
+            b.iter(|| {
+                black_box(zstd::encode_all(&test_data[..], 3).unwrap());
+            });
+        });
 
         // Create compressed data for decompression benchmarks
         let gzip_compressed = {
@@ -137,30 +121,22 @@ fn bench_cache_compression(c: &mut Criterion) {
 
         let zstd_compressed = zstd::encode_all(&test_data[..], 3).unwrap();
 
-        group.bench_with_input(
-            BenchmarkId::new("gzip_decompress", size),
-            size,
-            |b, _| {
-                b.iter(|| {
-                    use flate2::read::GzDecoder;
-                    use std::io::Read;
-                    let mut decoder = GzDecoder::new(&gzip_compressed[..]);
-                    let mut decompressed = Vec::new();
-                    decoder.read_to_end(&mut decompressed).unwrap();
-                    black_box(decompressed);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("gzip_decompress", size), size, |b, _| {
+            b.iter(|| {
+                use flate2::read::GzDecoder;
+                use std::io::Read;
+                let mut decoder = GzDecoder::new(&gzip_compressed[..]);
+                let mut decompressed = Vec::new();
+                decoder.read_to_end(&mut decompressed).unwrap();
+                black_box(decompressed);
+            });
+        });
 
-        group.bench_with_input(
-            BenchmarkId::new("zstd_decompress", size),
-            size,
-            |b, _| {
-                b.iter(|| {
-                    black_box(zstd::decode_all(&zstd_compressed[..]).unwrap());
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("zstd_decompress", size), size, |b, _| {
+            b.iter(|| {
+                black_box(zstd::decode_all(&zstd_compressed[..]).unwrap());
+            });
+        });
     }
 
     group.finish();
