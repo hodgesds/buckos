@@ -6,6 +6,7 @@
 //! - FEATURES
 //! - System paths
 //! - Architecture settings
+//! - Buck2 build system configuration
 
 use crate::{
     FeaturesConfig, KeywordConfig, LicenseConfig, MirrorConfig, Result, UseConfig,
@@ -14,6 +15,410 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+
+/// Buck2 execution mode for builds
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum BuckExecutionMode {
+    /// Only execute actions locally
+    LocalOnly,
+    /// Only execute actions remotely
+    RemoteOnly,
+    /// Prefer local execution, fall back to remote
+    PreferLocal,
+    /// Prefer remote execution, fall back to local
+    PreferRemote,
+    /// Auto-select based on action requirements
+    Auto,
+}
+
+impl Default for BuckExecutionMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl std::fmt::Display for BuckExecutionMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuckExecutionMode::LocalOnly => write!(f, "local-only"),
+            BuckExecutionMode::RemoteOnly => write!(f, "remote-only"),
+            BuckExecutionMode::PreferLocal => write!(f, "prefer-local"),
+            BuckExecutionMode::PreferRemote => write!(f, "prefer-remote"),
+            BuckExecutionMode::Auto => write!(f, "auto"),
+        }
+    }
+}
+
+/// Buck2 console output mode
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum BuckConsoleMode {
+    /// Simple console output
+    Simple,
+    /// Super console with live updates
+    Super,
+    /// Simple TTY mode
+    SimpleTty,
+    /// Auto-detect based on terminal
+    Auto,
+    /// No console output
+    None,
+}
+
+impl Default for BuckConsoleMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl std::fmt::Display for BuckConsoleMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuckConsoleMode::Simple => write!(f, "simple"),
+            BuckConsoleMode::Super => write!(f, "super"),
+            BuckConsoleMode::SimpleTty => write!(f, "simpletty"),
+            BuckConsoleMode::Auto => write!(f, "auto"),
+            BuckConsoleMode::None => write!(f, "none"),
+        }
+    }
+}
+
+/// Buck2 remote execution configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BuckRemoteExecution {
+    /// Enable remote execution
+    pub enabled: bool,
+    /// Remote execution endpoint
+    pub endpoint: String,
+    /// CAS (Content Addressable Storage) address
+    pub cas_address: String,
+    /// Action cache address
+    pub action_cache_address: String,
+    /// Use TLS for connections
+    pub use_tls: bool,
+    /// Connection timeout in seconds
+    pub timeout_secs: u32,
+    /// Instance name for RE
+    pub instance_name: String,
+}
+
+/// Buck2 cache configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuckCacheConfig {
+    /// Enable remote cache
+    pub remote_cache_enabled: bool,
+    /// Enable local cache
+    pub local_cache_enabled: bool,
+    /// Write to cache even when reads are disabled
+    pub write_to_cache_anyway: bool,
+    /// Upload all actions to RE
+    pub upload_all_actions: bool,
+    /// Local cache directory
+    pub local_cache_dir: PathBuf,
+    /// Maximum local cache size in GB
+    pub local_cache_size_gb: u32,
+}
+
+impl Default for BuckCacheConfig {
+    fn default() -> Self {
+        Self {
+            remote_cache_enabled: false,
+            local_cache_enabled: true,
+            write_to_cache_anyway: false,
+            upload_all_actions: false,
+            local_cache_dir: PathBuf::from("/var/cache/buckos/buck-cache"),
+            local_cache_size_gb: 10,
+        }
+    }
+}
+
+/// Buck2 toolchain configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuckToolchainConfig {
+    /// Default Rust edition
+    pub rust_edition: String,
+    /// Enable Rust incremental compilation
+    pub rust_incremental: bool,
+    /// Rust toolchain channel (stable, beta, nightly)
+    pub rust_channel: String,
+    /// Default C++ standard
+    pub cxx_standard: String,
+    /// C++ compiler
+    pub cxx_compiler: String,
+    /// C compiler
+    pub cc_compiler: String,
+    /// Python version
+    pub python_version: String,
+    /// Go version
+    pub go_version: String,
+}
+
+impl Default for BuckToolchainConfig {
+    fn default() -> Self {
+        Self {
+            rust_edition: "2021".to_string(),
+            rust_incremental: true,
+            rust_channel: "stable".to_string(),
+            cxx_standard: "c++17".to_string(),
+            cxx_compiler: "clang++".to_string(),
+            cc_compiler: "clang".to_string(),
+            python_version: "3".to_string(),
+            go_version: "1.21".to_string(),
+        }
+    }
+}
+
+/// Buck2 cell configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BuckCellConfig {
+    /// Cell name to path mappings
+    pub cells: IndexMap<String, PathBuf>,
+    /// Cell aliases
+    pub aliases: IndexMap<String, String>,
+    /// Default prelude location
+    pub prelude: String,
+}
+
+/// Buck2-specific build configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuckConfig {
+    // === Execution settings ===
+    /// Number of threads for Buck2 execution
+    pub threads: u32,
+    /// Execution mode (local-only, remote-only, prefer-local, prefer-remote, auto)
+    pub execution_mode: BuckExecutionMode,
+    /// Console output mode
+    pub console_mode: BuckConsoleMode,
+    /// Verbosity level (0-10)
+    pub verbosity: u8,
+
+    // === Remote execution ===
+    /// Remote execution configuration
+    pub remote_execution: BuckRemoteExecution,
+
+    // === Cache configuration ===
+    /// Cache configuration
+    pub cache: BuckCacheConfig,
+
+    // === Toolchain configuration ===
+    /// Toolchain configuration
+    pub toolchain: BuckToolchainConfig,
+
+    // === Output configuration ===
+    /// Buck2 output directory
+    pub out_dir: PathBuf,
+    /// Isolation directory for builds
+    pub isolation_dir: String,
+
+    // === Cell configuration ===
+    /// Cell configuration
+    pub cell_config: BuckCellConfig,
+
+    // === Platform configuration ===
+    /// Target platform
+    pub target_platform: String,
+    /// Execution platform
+    pub execution_platform: String,
+
+    // === Build settings ===
+    /// Enable sandboxing
+    pub sandbox: bool,
+    /// Enable materialization of outputs
+    pub materialize_outputs: bool,
+    /// Keep going on build failures
+    pub keep_going: bool,
+    /// Skip missing targets
+    pub skip_missing_targets: bool,
+
+    // === File watchers ===
+    /// Enable file watcher
+    pub file_watcher: bool,
+    /// File watcher type (watchman, notify)
+    pub file_watcher_type: String,
+}
+
+impl Default for BuckConfig {
+    fn default() -> Self {
+        let parallelism = std::thread::available_parallelism()
+            .map(|p| p.get() as u32)
+            .unwrap_or(4);
+
+        Self {
+            threads: parallelism,
+            execution_mode: BuckExecutionMode::Auto,
+            console_mode: BuckConsoleMode::Auto,
+            verbosity: 1,
+            remote_execution: BuckRemoteExecution::default(),
+            cache: BuckCacheConfig::default(),
+            toolchain: BuckToolchainConfig::default(),
+            out_dir: PathBuf::from("buck-out"),
+            isolation_dir: String::new(),
+            cell_config: BuckCellConfig::default(),
+            target_platform: String::new(),
+            execution_platform: "root//platforms:default".to_string(),
+            sandbox: true,
+            materialize_outputs: true,
+            keep_going: false,
+            skip_missing_targets: false,
+            file_watcher: true,
+            file_watcher_type: "watchman".to_string(),
+        }
+    }
+}
+
+impl BuckConfig {
+    /// Generate Buck2 command-line arguments from configuration
+    pub fn to_args(&self) -> Vec<String> {
+        let mut args = Vec::new();
+
+        // Parallelism
+        args.push(format!("-j{}", self.threads));
+
+        // Execution mode
+        match self.execution_mode {
+            BuckExecutionMode::LocalOnly => args.push("--local-only".to_string()),
+            BuckExecutionMode::RemoteOnly => args.push("--remote-only".to_string()),
+            BuckExecutionMode::PreferLocal => args.push("--prefer-local".to_string()),
+            BuckExecutionMode::PreferRemote => args.push("--prefer-remote".to_string()),
+            BuckExecutionMode::Auto => {}
+        }
+
+        // Console mode
+        if self.console_mode != BuckConsoleMode::Auto {
+            args.push(format!("--console={}", self.console_mode));
+        }
+
+        // Cache options
+        if !self.cache.remote_cache_enabled {
+            args.push("--no-remote-cache".to_string());
+        }
+        if self.cache.write_to_cache_anyway {
+            args.push("--write-to-cache-anyway".to_string());
+        }
+        if self.cache.upload_all_actions {
+            args.push("--upload-all-actions".to_string());
+        }
+
+        // Build options
+        if self.keep_going {
+            args.push("--keep-going".to_string());
+        }
+        if self.skip_missing_targets {
+            args.push("--skip-missing-targets".to_string());
+        }
+
+        // Target platform
+        if !self.target_platform.is_empty() {
+            args.push(format!("--target-platforms={}", self.target_platform));
+        }
+
+        args
+    }
+
+    /// Generate .buckconfig content from this configuration
+    pub fn to_buckconfig(&self) -> String {
+        let mut config = String::new();
+
+        // Build section
+        config.push_str("[build]\n");
+        config.push_str(&format!("execution_platforms = {}\n", self.execution_platform));
+        if !self.isolation_dir.is_empty() {
+            config.push_str(&format!("isolation_dir = {}\n", self.isolation_dir));
+        }
+        config.push('\n');
+
+        // Rust section
+        config.push_str("[rust]\n");
+        config.push_str(&format!("default_edition = {}\n", self.toolchain.rust_edition));
+        if self.toolchain.rust_incremental {
+            config.push_str("incremental = true\n");
+        }
+        config.push('\n');
+
+        // Cxx section
+        config.push_str("[cxx]\n");
+        config.push_str(&format!("cxx_compiler = {}\n", self.toolchain.cxx_compiler));
+        config.push_str(&format!("c_compiler = {}\n", self.toolchain.cc_compiler));
+        config.push('\n');
+
+        // Python section
+        config.push_str("[python]\n");
+        config.push_str(&format!("version = {}\n", self.toolchain.python_version));
+        config.push('\n');
+
+        // Cells section if configured
+        if !self.cell_config.cells.is_empty() {
+            config.push_str("[cells]\n");
+            for (name, path) in &self.cell_config.cells {
+                config.push_str(&format!("{} = {}\n", name, path.display()));
+            }
+            config.push('\n');
+        }
+
+        // Cell aliases
+        if !self.cell_config.aliases.is_empty() {
+            config.push_str("[cell_aliases]\n");
+            for (alias, target) in &self.cell_config.aliases {
+                config.push_str(&format!("{} = {}\n", alias, target));
+            }
+            config.push('\n');
+        }
+
+        config
+    }
+
+    /// Get environment variables for Buck2 execution
+    pub fn build_env(&self) -> IndexMap<String, String> {
+        let mut env = IndexMap::new();
+
+        env.insert("BUCK2_THREADS".to_string(), self.threads.to_string());
+        env.insert("BUCK2_EXECUTION_MODE".to_string(), self.execution_mode.to_string());
+        env.insert("BUCK2_CONSOLE".to_string(), self.console_mode.to_string());
+        env.insert("BUCK2_VERBOSITY".to_string(), self.verbosity.to_string());
+
+        // Toolchain settings
+        env.insert("BUCK2_RUST_EDITION".to_string(), self.toolchain.rust_edition.clone());
+        env.insert("BUCK2_CXX_STANDARD".to_string(), self.toolchain.cxx_standard.clone());
+
+        // Cache settings
+        if !self.cache.remote_cache_enabled {
+            env.insert("BUCK2_NO_REMOTE_CACHE".to_string(), "1".to_string());
+        }
+
+        env
+    }
+
+    /// Create a configuration optimized for CI/CD environments
+    pub fn ci() -> Self {
+        let mut config = Self::default();
+        config.console_mode = BuckConsoleMode::Simple;
+        config.cache.remote_cache_enabled = true;
+        config.cache.upload_all_actions = true;
+        config.keep_going = true;
+        config.file_watcher = false;
+        config
+    }
+
+    /// Create a configuration optimized for development
+    pub fn development() -> Self {
+        let mut config = Self::default();
+        config.console_mode = BuckConsoleMode::Super;
+        config.toolchain.rust_incremental = true;
+        config.file_watcher = true;
+        config
+    }
+
+    /// Create a configuration for remote execution
+    pub fn remote(endpoint: &str) -> Self {
+        let mut config = Self::default();
+        config.execution_mode = BuckExecutionMode::PreferRemote;
+        config.remote_execution.enabled = true;
+        config.remote_execution.endpoint = endpoint.to_string();
+        config.cache.remote_cache_enabled = true;
+        config
+    }
+}
 
 /// Main make.conf configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +522,10 @@ pub struct MakeConf {
     // === Miscellaneous ===
     /// Custom variables
     pub custom: IndexMap<String, String>,
+
+    // === Buck2 configuration ===
+    /// Buck2-specific build configuration
+    pub buck: BuckConfig,
 }
 
 impl Default for MakeConf {
@@ -190,6 +599,9 @@ impl Default for MakeConf {
 
             // Custom
             custom: IndexMap::new(),
+
+            // Buck2
+            buck: BuckConfig::default(),
         }
     }
 }
@@ -344,7 +756,44 @@ impl MakeConf {
             env.insert(key.clone(), value.clone());
         }
 
+        // Add Buck2 environment variables
+        for (key, value) in self.buck.build_env() {
+            env.insert(key, value);
+        }
+
         env
+    }
+
+    /// Get Buck2 command-line arguments
+    pub fn buck_args(&self) -> Vec<String> {
+        self.buck.to_args()
+    }
+
+    /// Generate .buckconfig content from configuration
+    pub fn to_buckconfig(&self) -> String {
+        self.buck.to_buckconfig()
+    }
+
+    /// Set Buck2 execution mode
+    pub fn set_buck_execution_mode(&mut self, mode: BuckExecutionMode) {
+        self.buck.execution_mode = mode;
+    }
+
+    /// Enable Buck2 remote execution
+    pub fn enable_buck_remote(&mut self, endpoint: &str) {
+        self.buck.remote_execution.enabled = true;
+        self.buck.remote_execution.endpoint = endpoint.to_string();
+        self.buck.cache.remote_cache_enabled = true;
+    }
+
+    /// Set Buck2 toolchain settings
+    pub fn set_buck_rust_edition(&mut self, edition: &str) {
+        self.buck.toolchain.rust_edition = edition.to_string();
+    }
+
+    /// Configure Buck2 for CI/CD
+    pub fn configure_buck_for_ci(&mut self) {
+        self.buck = BuckConfig::ci();
     }
 
     /// Create a desktop-oriented configuration
@@ -486,5 +935,109 @@ mod tests {
         let cpu_flags = env.get("CPU_FLAGS_X86").unwrap();
         assert!(cpu_flags.contains("avx2"));
         assert!(cpu_flags.contains("sse4_2"));
+    }
+
+    #[test]
+    fn test_buck_config_default() {
+        let conf = MakeConf::default();
+        assert!(conf.buck.threads > 0);
+        assert_eq!(conf.buck.execution_mode, BuckExecutionMode::Auto);
+        assert_eq!(conf.buck.console_mode, BuckConsoleMode::Auto);
+        assert_eq!(conf.buck.toolchain.rust_edition, "2021");
+    }
+
+    #[test]
+    fn test_buck_config_to_args() {
+        let mut buck = BuckConfig::default();
+        buck.threads = 8;
+        buck.execution_mode = BuckExecutionMode::LocalOnly;
+        buck.keep_going = true;
+
+        let args = buck.to_args();
+        assert!(args.contains(&"-j8".to_string()));
+        assert!(args.contains(&"--local-only".to_string()));
+        assert!(args.contains(&"--keep-going".to_string()));
+    }
+
+    #[test]
+    fn test_buck_config_ci() {
+        let buck = BuckConfig::ci();
+        assert_eq!(buck.console_mode, BuckConsoleMode::Simple);
+        assert!(buck.cache.remote_cache_enabled);
+        assert!(buck.cache.upload_all_actions);
+        assert!(buck.keep_going);
+        assert!(!buck.file_watcher);
+    }
+
+    #[test]
+    fn test_buck_config_development() {
+        let buck = BuckConfig::development();
+        assert_eq!(buck.console_mode, BuckConsoleMode::Super);
+        assert!(buck.toolchain.rust_incremental);
+        assert!(buck.file_watcher);
+    }
+
+    #[test]
+    fn test_buck_config_remote() {
+        let buck = BuckConfig::remote("https://re.example.com");
+        assert_eq!(buck.execution_mode, BuckExecutionMode::PreferRemote);
+        assert!(buck.remote_execution.enabled);
+        assert_eq!(buck.remote_execution.endpoint, "https://re.example.com");
+        assert!(buck.cache.remote_cache_enabled);
+    }
+
+    #[test]
+    fn test_buck_config_to_buckconfig() {
+        let buck = BuckConfig::default();
+        let config = buck.to_buckconfig();
+
+        assert!(config.contains("[build]"));
+        assert!(config.contains("[rust]"));
+        assert!(config.contains("default_edition = 2021"));
+        assert!(config.contains("[cxx]"));
+        assert!(config.contains("[python]"));
+    }
+
+    #[test]
+    fn test_buck_build_env() {
+        let conf = MakeConf::default();
+        let env = conf.build_env();
+
+        assert!(env.contains_key("BUCK2_THREADS"));
+        assert!(env.contains_key("BUCK2_EXECUTION_MODE"));
+        assert!(env.contains_key("BUCK2_RUST_EDITION"));
+    }
+
+    #[test]
+    fn test_make_conf_buck_methods() {
+        let mut conf = MakeConf::default();
+
+        conf.set_buck_execution_mode(BuckExecutionMode::PreferLocal);
+        assert_eq!(conf.buck.execution_mode, BuckExecutionMode::PreferLocal);
+
+        conf.set_buck_rust_edition("2024");
+        assert_eq!(conf.buck.toolchain.rust_edition, "2024");
+
+        conf.enable_buck_remote("https://re.example.com");
+        assert!(conf.buck.remote_execution.enabled);
+        assert!(conf.buck.cache.remote_cache_enabled);
+    }
+
+    #[test]
+    fn test_buck_execution_mode_display() {
+        assert_eq!(BuckExecutionMode::LocalOnly.to_string(), "local-only");
+        assert_eq!(BuckExecutionMode::RemoteOnly.to_string(), "remote-only");
+        assert_eq!(BuckExecutionMode::PreferLocal.to_string(), "prefer-local");
+        assert_eq!(BuckExecutionMode::PreferRemote.to_string(), "prefer-remote");
+        assert_eq!(BuckExecutionMode::Auto.to_string(), "auto");
+    }
+
+    #[test]
+    fn test_buck_console_mode_display() {
+        assert_eq!(BuckConsoleMode::Simple.to_string(), "simple");
+        assert_eq!(BuckConsoleMode::Super.to_string(), "super");
+        assert_eq!(BuckConsoleMode::SimpleTty.to_string(), "simpletty");
+        assert_eq!(BuckConsoleMode::Auto.to_string(), "auto");
+        assert_eq!(BuckConsoleMode::None.to_string(), "none");
     }
 }

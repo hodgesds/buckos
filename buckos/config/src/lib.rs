@@ -105,7 +105,10 @@ pub use features::{FeatureCategory, FeatureInfo, FeaturesConfig};
 pub use keywords::{Arch, Keyword, KeywordConfig, KeywordStability, PackageKeywordEntry};
 pub use license::{LicenseConfig, LicenseInfo, PackageLicenseEntry};
 pub use loader::{load_system_config, load_user_config, paths, ConfigLoader};
-pub use make_conf::MakeConf;
+pub use make_conf::{
+    BuckCacheConfig, BuckCellConfig, BuckConfig, BuckConsoleMode, BuckExecutionMode,
+    BuckRemoteExecution, BuckToolchainConfig, MakeConf,
+};
 pub use mask::{MaskConfig, MaskEntry};
 pub use mirrors::{Mirror, MirrorConfig, MirrorStrategy, ThirdpartyMirrors};
 pub use portage::{PortageConfig, PortageConfigBuilder};
@@ -124,8 +127,10 @@ pub use version::*;
 /// Prelude module for convenient imports
 pub mod prelude {
     pub use crate::{
-        ConfigError, ConfigLoader, FeaturesConfig, KeywordConfig, LicenseConfig, MakeConf,
-        MaskConfig, MirrorConfig, PackageAtom, PortageConfig, PortageConfigBuilder, ProfileConfig,
-        ReposConfig, Repository, Result, SetsConfig, SyncType, UseConfig, UseFlag,
+        BuckCacheConfig, BuckCellConfig, BuckConfig, BuckConsoleMode, BuckExecutionMode,
+        BuckRemoteExecution, BuckToolchainConfig, ConfigError, ConfigLoader, FeaturesConfig,
+        KeywordConfig, LicenseConfig, MakeConf, MaskConfig, MirrorConfig, PackageAtom,
+        PortageConfig, PortageConfigBuilder, ProfileConfig, ReposConfig, Repository, Result,
+        SetsConfig, SyncType, UseConfig, UseFlag,
     };
 }
