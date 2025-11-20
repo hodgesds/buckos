@@ -23,6 +23,7 @@ pub mod db;
 pub mod distfile;
 pub mod error;
 pub mod executor;
+pub mod mask;
 pub mod news;
 pub mod preserved_libs;
 pub mod profile;
