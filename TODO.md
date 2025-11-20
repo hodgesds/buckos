@@ -4,9 +4,10 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ## Implementation Status Summary
 
-**Core Package Management:** 5/6 high priority complete, 5/5 medium priority complete
+**Core Package Management:** 5/6 high priority complete, 6/6 medium priority complete
 - Repository sync, USE flags, package sets, slots all implemented
 - Masking and keywords system implemented (package.mask/unmask, ACCEPT_KEYWORDS, license-based masking)
+- Profile system implemented (cascading profiles, USE flags, package masking, architecture-specific)
 - Missing: Ebuild-like build scripts
 
 **Dependency Resolution:** 5/5 high priority complete, 2/2 medium priority complete
@@ -72,11 +73,13 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ### Medium Priority
 
-- [ ] **Profile System** - System profiles for defaults
-  - Cascading profiles
-  - Profile-specific USE flags
-  - Package masking via profiles
-  - Architecture-specific profiles
+- [x] **Profile System** - System profiles for defaults
+  - Cascading profiles (Profile.parents with inheritance chain resolution)
+  - Profile-specific USE flags (use_flags, use_mask, use_force, package_use)
+  - Package masking via profiles (package_mask, package_unmask)
+  - Architecture-specific profiles (amd64, arm64, with built-in profiles)
+  - ProfileManager with 25+ built-in profiles (base, desktop, server, hardened, LLVM, musl, systemd, openrc)
+  - Profile validation, comparison, and information display
   - Location: `buckos/package/src/profile/`
 
 - [x] **Masking and Keywords** - Package availability control
