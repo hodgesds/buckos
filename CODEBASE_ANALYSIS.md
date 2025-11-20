@@ -1,10 +1,10 @@
-# Buckos Codebase Analysis: USE Flag System Implementation
+# Buckos Codebase Analysis
 
 ## Executive Summary
 
-This document provides a comprehensive overview of the Buckos codebase, focusing on the current state of USE flag support and what's needed for full implementation.
+Buckos is a comprehensive Linux distribution framework built on Buck2 for deterministic, hermetic builds. It implements a Portage-compatible package manager with advanced features including USE flags, slots/subslots, EAPI support, and a SAT-based dependency resolver.
 
-**Status**: The project has a solid foundation with significant USE flag infrastructure already in place, but the CLI needs enhancement to fully expose and manage USE flags.
+**Current Status**: The project has mature package management, a comprehensive build definition system, hardware-aware installer, and framework components for init system and system utilities.
 
 ---
 
@@ -13,149 +13,149 @@ This document provides a comprehensive overview of the Buckos codebase, focusing
 ### Main Directory Layout
 ```
 buckos/
-├── buckos/                    # Main workspace
-│   ├── Cargo.toml            # Rust workspace
-│   ├── src/main.rs           # Placeholder
-│   ├── model/                # Data models
-│   ├── package/              # Package manager (PRIMARY)
-│   ├── config/               # Configuration system
+├── buckos/                    # Main Rust workspace
+│   ├── Cargo.toml            # Workspace configuration
+│   ├── model/                # Core data models (21 modules)
+│   ├── package/              # Package manager CLI (PRIMARY)
+│   ├── config/               # Configuration system (20 modules)
+│   ├── installer/            # GUI installer with hardware detection
 │   ├── assist/               # System diagnostics
 │   ├── start/                # Init system (PID 1)
 │   ├── tools/                # System utilities
 │   └── web/                  # Documentation site
+├── defs/                      # Build definition system
+│   ├── eapi.bzl              # EAPI version support (6, 7, 8)
+│   ├── eclasses.bzl          # Eclass implementations
+│   ├── licenses.bzl          # License definitions
+│   ├── versions.bzl          # Subslot/ABI tracking
+│   ├── use_flags.bzl         # USE flag definitions
+│   ├── package_defs.bzl      # Core package macro
+│   ├── package_sets.bzl      # @world, @system sets
+│   ├── tooling.bzl           # Tool integration
+│   ├── registry.bzl          # Package catalog
+│   ├── maintainers.bzl       # Maintainer info
+│   └── package_customize.bzl # Per-package customizations
 ├── build/defs.bzl            # Buck2 build macros
-├── platforms/
-├── toolchains/
-└── third-party/
+├── platforms/                # Platform configurations
+├── toolchains/               # Toolchain definitions
+└── third-party/              # External dependencies
 ```
 
 ### Key Crates
-1. **buckos-package**: Main package manager CLI (`src/main.rs`)
-2. **buckos-config**: Configuration management (`src/use_flags.rs`)
-3. **buckos-model**: Core data models
-4. **buckos-start**: Init system
-5. **buckos-assist**: System diagnostics
-6. **buckos-tools**: System utilities
+
+| Crate | Binary | Purpose | Status |
+|-------|--------|---------|--------|
+| **buckos-package** | `buckos` | Package manager CLI | ✅ Production-ready |
+| **buckos-config** | - | Configuration system | ✅ Feature-complete |
+| **buckos-model** | - | Core data models | ✅ Stable |
+| **buckos-installer** | `installer` | GUI installation wizard | ✅ Feature-complete |
+| **buckos-start** | `start` | Init system (PID 1) | ⚠️ Framework |
+| **buckos-assist** | `assist` | System diagnostics | ⚠️ Framework |
+| **buckos-tools** | `tools` | System utilities | ⚠️ Framework |
+| **buckos-web** | `web` | Documentation site | ⚠️ Minimal |
 
 ---
 
-## 2. Current USE Flag System Implementation
+## 2. Build Definition System
 
-### 2.1 Configuration Layer (buckos-config crate)
+### 2.1 Overview
 
-**File**: `/home/user/buckos/buckos/config/src/use_flags.rs` (495 lines)
+The `defs/` directory contains Starlark build definitions (4,855 total lines) that implement a Portage-compatible package specification system.
 
-#### Already Implemented:
-- ✅ **UseConfig**: Complete USE flag configuration system
-- ✅ **UseFlag**: Individual flag with enable/disable state
-- ✅ **PackageUseEntry**: Per-package USE flag overrides
-- ✅ **UseFlagDescription**: Flag metadata (name, description, global flag indicator)
-- ✅ **UseExpandVariable**: USE_EXPAND variable definitions
+### 2.2 EAPI Support (defs/eapi.bzl - 539 lines)
 
-#### Features:
-- **Global USE flags**: `make.conf` style (`USE="X wayland systemd"`)
-- **Per-package USE flags**: `package.use` style
-- **USE_EXPAND variables**: 
-  - CPU_FLAGS_X86 (30+ instruction set extensions)
-  - VIDEO_CARDS (17 video drivers)
-  - INPUT_DEVICES (8 input device types)
-  - L10N (language codes)
-  - PYTHON_TARGETS (3.10-3.13)
-  - RUBY_TARGETS (3.1-3.3)
-- **USE flag masking**: Mask and force flags
-- **Stable USE**: Separate stable mask/force
-- **Flag parsing**: "X", "-gtk", "systemd" syntax support
-- **Flag merging**: Configuration merging
-- **Common flags**: 18+ well-known global flags predefined
+Implements EAPI versions 6, 7, and 8 with version-specific features:
 
-#### Common USE Flags Defined:
-- **Display**: X, wayland
-- **Init**: systemd, elogind
-- **Audio**: pulseaudio, pipewire
-- **IPC**: dbus
-- **Toolkits**: gtk, qt5, qt6
-- **Security**: ssl, gnutls
-- **Compression**: zstd, lz4
-- **Build**: doc, examples, test, debug
+```starlark
+# EAPI 8 features
+- BDEPEND for build-time dependencies
+- Enhanced USE defaults
+- Improved fetch restrictions
+- SRC_URI arrows for renaming
+```
 
-### 2.2 Package Manager Layer (buckos-package crate)
+### 2.3 Eclasses (defs/eclasses.bzl - 480 lines)
 
-**File**: `/home/user/buckos/buckos/package/src/types.rs` (lines 407-422)
+Provides 11+ eclasses for common build patterns:
 
-#### Simple Implementation:
-```rust
-pub struct UseConfig {
-    pub global: HashSet<String>,
-    pub package: BTreeMap<PackageId, HashSet<String>>,
+| Eclass | Purpose |
+|--------|---------|
+| `cmake` | CMake build system |
+| `meson` | Meson build system |
+| `autotools` | GNU Autotools |
+| `python-r1` | Python packages |
+| `cargo` | Rust/Cargo projects |
+| `go-module` | Go modules |
+| `kernel-build` | Linux kernel |
+| `llvm` | LLVM toolchain |
+| `xdg` | XDG specifications |
+| `systemd` | Systemd units |
+| `git-r3` | Git repositories |
+
+### 2.4 License System (defs/licenses.bzl - 702 lines)
+
+Defines 60+ licenses with metadata:
+
+```starlark
+licenses = {
+    "GPL-2": {
+        "name": "GNU General Public License v2",
+        "url": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
+        "libre": True,
+        "copyleft": True,
+    },
+    # ... 60+ more licenses
+}
+
+# License groups
+license_groups = {
+    "FREE": [...],
+    "EULA": [...],
+    "OSI-APPROVED": [...],
 }
 ```
 
-#### Features:
-- ✅ Global and per-package USE flags
-- ✅ Flag retrieval per package
-- ❌ No USE_EXPAND support
-- ❌ No masking/forcing
-- ❌ No flag parsing/validation
+### 2.5 Version/Subslot System (defs/versions.bzl - 626 lines)
 
-### 2.3 CLI Layer (buckos-package/src/main.rs)
+Implements slot and subslot support for ABI compatibility tracking:
 
-**File**: `/home/user/buckos/buckos/package/src/main.rs` (1,395 lines)
+```starlark
+# Slot format: SLOT/SUBSLOT
+# Example: "0/1.2" where 0 is slot, 1.2 is ABI version
 
-#### Current CLI Commands:
-- ✅ `install` - Install packages
-- ✅ `remove/unmerge` - Remove packages
-- ✅ `update` - Update packages (@world compatible)
-- ✅ `sync` - Sync repositories
-- ✅ `search` - Search packages
-- ✅ `info` - Package information (WITH USE flags!)
-- ✅ `list` - List installed packages
-- ✅ `build` - Build packages
-- ✅ `clean` - Cache cleanup
-- ✅ `verify` - Verify installed packages
-- ✅ `query` - Query package database (files, deps, rdeps)
-- ✅ `owner` - Find file owner
-- ✅ `depgraph` - Dependency graph
-- ✅ `config` - Show configuration
-- ✅ `depclean` - Remove unused packages
-- ✅ `resume` - Resume interrupted operations
-- ✅ `newuse` - Rebuild for USE flag changes
-- ✅ `audit` - Security vulnerability check
+def slot_operator_deps(dep, slot_op):
+    """
+    Slot operators:
+    - :=  Rebuild when subslot changes
+    - :*  Accept any slot
+    - :0  Specific slot only
+    """
+```
 
-#### USE Flag Support in CLI:
-1. **Install command** (InstallArgs struct):
-   - `--use-flags` - Comma-separated flags to enable
-   - `--disable-use` - Comma-separated flags to disable
-   - These are passed to package manager
+### 2.6 USE Flags (defs/use_flags.bzl - 436 lines)
 
-2. **Global options**:
-   - `--newuse` / `-N` - Rebuild on USE flag changes
-   - `--tree` / `-t` - Show dependency tree with USE flags
-   - Verbose output shows USE flags
+Defines global USE flags and expansion variables:
 
-3. **Display**:
-   - Shows USE flags in package info
-   - Shows USE flags in installation list (in verbose mode)
-   - Shows USE flag changes in newuse output
+**Global USE Flags (18+)**:
+- Display: `X`, `wayland`
+- Init: `systemd`, `elogind`
+- Audio: `pulseaudio`, `pipewire`
+- Toolkits: `gtk`, `qt5`, `qt6`
+- Security: `ssl`, `gnutls`
+- Build: `doc`, `examples`, `test`, `debug`
 
-#### Current Limitations:
-- ❌ No command to set/manage global USE flags
-- ❌ No command to modify package-specific USE flags
-- ❌ No command to view/list available USE flags
-- ❌ No command to show/edit USE_EXPAND variables
-- ❌ No command to check USE flag descriptions
-- ❌ No interactive USE flag configuration
-- ❌ No config file editor/modifier
-- ❌ Global flags are only read from config, never modified by CLI
+**USE_EXPAND Variables**:
+- `CPU_FLAGS_X86`: 30+ instruction set extensions
+- `VIDEO_CARDS`: 17 video drivers
+- `INPUT_DEVICES`: 8 input device types
+- `L10N`: Language codes
+- `PYTHON_TARGETS`: 3.10-3.13
+- `RUBY_TARGETS`: 3.1-3.3
 
----
+### 2.7 Package Definitions (defs/package_defs.bzl - 468 lines)
 
-## 3. Buck2 Integration
+Core `buckos_package()` macro:
 
-### 3.1 Build Macros (build/defs.bzl)
-
-**File**: `/home/user/buckos/build/defs.bzl` (204 lines)
-
-#### Package Definition:
 ```starlark
 def buckos_package(
     name,
@@ -166,39 +166,148 @@ def buckos_package(
     license = None,
     deps = None,
     build_deps = None,
-    use_flags = None,        # <-- Already supported!
+    use_flags = None,
     slot = "0",
+    subslot = None,
     keywords = None,
+    eapi = "8",
+    eclass = None,
     **kwargs
 )
 ```
 
-**Status**:
-- ✅ USE flags parameter exists
-- ✅ Metadata generation includes USE flags
-- ❌ No mechanism to pass runtime USE flags to build
-- ❌ No USE flag conditional compilation
-- ❌ No USE flag expansion handling
+### 2.8 Package Sets (defs/package_sets.bzl - 378 lines)
 
-### 3.2 Buck Integration Module
+Implements Portage-compatible package sets:
 
-**File**: `/home/user/buckos/buckos/package/src/buck/mod.rs` (120+ lines)
-
-**Current capabilities**:
-- ✅ Basic `buck build` execution
-- ✅ Job count configuration
-- ✅ Release mode support
-- ✅ Custom build arguments
-- ❌ No USE flag passing to Buck
-- ❌ No environment variable setup for USE flags
+- `@world` - User-selected packages
+- `@system` - Base system packages
+- `@selected` - Explicitly installed
+- Custom sets with pattern matching
 
 ---
 
-## 4. Configuration Management
+## 3. Package Manager (buckos-package)
 
-### 4.1 Config File Structure
+### 3.1 CLI Commands
 
-**File**: `/home/user/buckos/buckos/package/src/config.rs` (200 lines)
+**File**: `buckos/package/src/main.rs` (1,395+ lines)
+
+| Command | Description | Status |
+|---------|-------------|--------|
+| `install` | Install packages | ✅ |
+| `remove`/`unmerge` | Remove packages | ✅ |
+| `update` | Update packages (@world) | ✅ |
+| `sync` | Sync repositories | ✅ |
+| `search` | Search packages | ✅ |
+| `info` | Package information | ✅ |
+| `list` | List installed packages | ✅ |
+| `build` | Build packages | ✅ |
+| `clean` | Cache cleanup | ✅ |
+| `verify` | Verify installed packages | ✅ |
+| `query` | Query database | ✅ |
+| `owner` | Find file owner | ✅ |
+| `depgraph` | Dependency graph | ✅ |
+| `config` | Show configuration | ✅ |
+| `depclean` | Remove unused packages | ✅ |
+| `resume` | Resume operations | ✅ |
+| `newuse` | Rebuild for USE changes | ✅ |
+| `audit` | Security vulnerability check | ✅ |
+
+### 3.2 Submodules
+
+```
+buckos/package/src/
+├── main.rs           # CLI entry point
+├── lib.rs            # Package manager library
+├── types.rs          # Data types
+├── config.rs         # Configuration
+├── buck/             # Buck2 integration
+├── cache/            # Artifact caching
+├── catalog/          # Package catalog
+├── db/               # SQLite database
+├── executor/         # Parallel execution
+├── repository/       # Repository management
+├── resolver/         # SAT-based dependency resolution
+├── transaction/      # Atomic operations
+└── validation/       # Data validation
+```
+
+### 3.3 USE Flag Support
+
+**Install command options**:
+```bash
+buckos install <pkg> --use-flags=X,wayland --disable-use=gtk
+```
+
+**Global options**:
+- `--newuse` / `-N` - Rebuild on USE flag changes
+- `--tree` / `-t` - Show dependency tree with USE flags
+
+### 3.4 Dependency Resolution
+
+Uses Varisat SAT solver for:
+- Conflict resolution
+- USE-conditional dependencies
+- Slot/subslot constraints
+- Circular dependency detection
+
+---
+
+## 4. Configuration System (buckos-config)
+
+### 4.1 Overview
+
+**Directory**: `buckos/config/` (20 modules, 10,000+ lines)
+
+Portage-compatible configuration with full feature support.
+
+### 4.2 USE Flag Configuration
+
+**File**: `buckos/config/src/use_flags.rs` (495 lines)
+
+```rust
+pub struct UseConfig {
+    pub global: HashSet<String>,
+    pub package: Vec<PackageUseEntry>,
+    pub expand: IndexMap<String, HashSet<String>>,
+    pub mask: HashSet<String>,
+    pub force: HashSet<String>,
+    pub stable_mask: HashSet<String>,
+    pub stable_force: HashSet<String>,
+}
+```
+
+**Features**:
+- ✅ Global USE flags (`make.conf` style)
+- ✅ Per-package USE flags (`package.use` style)
+- ✅ USE_EXPAND variables
+- ✅ USE flag masking and forcing
+- ✅ Stable USE mask/force
+- ✅ Flag parsing (`X`, `-gtk`, `systemd`)
+- ✅ Configuration merging
+
+### 4.3 Package Atoms
+
+Full support for Portage package atom syntax:
+- `category/package`
+- `>=category/package-1.0`
+- `=category/package-1.0*`
+- `category/package:slot`
+- `category/package[use_flag]`
+
+### 4.4 Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `make.conf` | Global settings (CFLAGS, USE, etc.) |
+| `package.use/*` | Per-package USE flags |
+| `package.mask` | Masked packages |
+| `package.unmask` | Unmasked packages |
+| `package.accept_keywords` | Keyword overrides |
+| `repos.conf` | Repository configuration |
+
+### 4.5 Main Config Structure
 
 ```rust
 pub struct Config {
@@ -209,7 +318,7 @@ pub struct Config {
     pub buck_path: PathBuf,
     pub parallelism: usize,
     pub repositories: Vec<RepositoryConfig>,
-    pub use_flags: UseConfig,           // <-- Integrated!
+    pub use_flags: UseConfig,
     pub world: WorldSet,
     pub arch: String,
     pub chost: String,
@@ -223,273 +332,349 @@ pub struct Config {
 }
 ```
 
-**Features**:
-- ✅ TOML-based configuration
-- ✅ Default configuration
-- ✅ Load from file
-- ✅ Save to file
-- ✅ System paths management
-- ✅ Cache directory management
+---
 
-**Limitations**:
-- ❌ No USE flags loading from `/etc/buckos/make.conf`
-- ❌ No package.use file loading
-- ❌ No configuration validation
-- ❌ No configuration merging from multiple sources
-- ❌ No environment variable override support
+## 5. Installer (buckos-installer)
+
+### 5.1 Overview
+
+**Directory**: `buckos/installer/` (5 files, ~125 KB)
+
+GUI installation wizard built with egui/eframe.
+
+### 5.2 Hardware Detection
+
+Automatic detection of:
+- **GPU**: Vendor, model, driver recommendations
+- **Network**: Interfaces, capabilities
+- **Audio**: Sound cards, codecs
+- **Storage**: Disks, partitions, SMART data
+
+### 5.3 Installation Profiles
+
+| Profile | Description |
+|---------|-------------|
+| **Desktop** | Full desktop environment |
+| **Server** | Headless server |
+| **Handheld/Gaming** | Gaming-optimized |
+| **Minimal** | Base system only |
+
+### 5.4 Desktop Environments
+
+9 supported desktop environments:
+- GNOME
+- KDE Plasma
+- XFCE
+- Cinnamon
+- MATE
+- LXQt
+- Budgie
+- Sway (Wayland compositor)
+- i3 (tiling WM)
+
+### 5.5 Bootloaders
+
+5 supported bootloaders:
+- GRUB
+- systemd-boot
+- rEFInd
+- Limine
+- EFISTUB
+
+### 5.6 Disk Configuration
+
+**Partition Layouts**:
+- Basic (single root)
+- Standard (separate /home)
+- Advanced (LVM)
+- Btrfs subvolumes
+- ZFS datasets
+- Manual partitioning
+
+**Encryption**:
+- LUKS full-disk encryption
+- Encrypted /home only
+- Custom encryption schemes
 
 ---
 
-## 5. Data Model Layer
+## 6. Init System (buckos-start)
 
-### 5.1 Package Types
+### 6.1 Overview
 
-**File**: `/home/user/buckos/buckos/package/src/types.rs`
+**Directory**: `buckos/start/` (8 files, ~110 KB)
 
-#### Key Types:
-1. **UseFlag** (lines 154-160):
-   - name: String
-   - description: String
-   - default: bool
+PID 1 init system with service supervision.
 
-2. **UseFlagStatus** (lines 200-204):
-   - name: String
-   - enabled: bool
+### 6.2 Service Types
 
-3. **UseFlagChange** (lines 233-237):
-   - flag: String
-   - added: bool
+| Type | Description |
+|------|-------------|
+| `simple` | Main process stays in foreground |
+| `forking` | Traditional daemon fork |
+| `oneshot` | Run once at startup |
+| `notify` | sd_notify() integration |
+| `idle` | Run when system is idle |
 
-4. **NewusePackage** (lines 240-246):
-   - Tracks USE flag changes for rebuilds
+### 6.3 Features
 
-5. **ResolvedPackage** (lines 208-221):
-   - Includes use_flags vector for resolution display
+- Dependency-based service ordering
+- Socket activation
+- Watchdog support
+- Cgroup integration
+- Resource limits
+- Service restart policies
 
-6. **Dependency** (lines 82-105):
-   - use_flags: UseCondition (Always, IfEnabled, IfDisabled, And, Or)
-   - Supports conditional dependencies
+### 6.4 Service Definition
 
-#### Support for:
-- ✅ USE-conditional dependencies
-- ✅ USE flag tracking in packages
-- ✅ USE change detection
-- ✅ USE flag status in resolution
+```toml
+[service]
+name = "example"
+type = "simple"
+exec_start = "/usr/bin/example"
+dependencies = ["network.target"]
 
----
-
-## 6. Missing Components
-
-### 6.1 Critical Missing Features
-
-1. **Config File Modifications**
-   - No `buckos config` command to modify settings
-   - No ability to set global USE flags from CLI
-   - No ability to set per-package USE flags from CLI
-   - No config file templating or generation
-
-2. **USE Flag Management Commands**
-   - No `buckos useflags list` - List all available flags
-   - No `buckos useflags info <flag>` - Show flag description
-   - No `buckos useflags set <flag>` - Enable/disable globally
-   - No `buckos useflags package <pkg> <flags>` - Set per-package flags
-   - No `buckos useflags expand` - Show USE_EXPAND definitions
-
-3. **USE_EXPAND Integration**
-   - Config system has full USE_EXPAND support
-   - CLI has no way to view/set USE_EXPAND variables
-   - Buck integration doesn't use them
-
-4. **Build Integration**
-   - Buck targets receive USE flag metadata
-   - No mechanism to convert CLI flags to build configuration
-   - No environment variables set for USE flags during build
-   - No USE flag validation against available flags
-
-5. **Configuration Persistence**
-   - No make.conf equivalent loading/saving
-   - No package.use loading from files
-   - No profile system integration
-   - No cascading configuration
-
-6. **Validation & Error Handling**
-   - No validation module for USE flags
-   - No checking against available flags
-   - No conflict detection
-   - No dependency validation
-
-### 6.2 Enhancement Opportunities
-
-1. **Better Package Info Display**
-   - Show which USE flags are currently set
-   - Show which USE flags are available
-   - Show descriptions of flags
-   - Show how flags affect dependencies
-
-2. **Interactive Mode**
-   - Interactive USE flag selection during install
-   - USE flag editor UI
-   - Dependency impact preview
-
-3. **Advanced Features**
-   - USE flag profiles (recommended sets)
-   - Auto-detection of best USE flags
-   - USE flag change history
-   - Rollback to previous configurations
-
----
-
-## 7. File Inventory
-
-### Core Files:
-
-| File | Lines | Purpose | Status |
-|------|-------|---------|--------|
-| `/home/user/buckos/buckos/package/src/main.rs` | 1,395 | CLI entry point | ✅ Complete, needs enhancements |
-| `/home/user/buckos/buckos/package/src/lib.rs` | 1,000+ | Package manager lib | ✅ Core complete |
-| `/home/user/buckos/buckos/package/src/types.rs` | 600+ | Data types | ✅ Core types exist |
-| `/home/user/buckos/buckos/package/src/config.rs` | 200 | Config management | ✅ Basic complete |
-| `/home/user/buckos/buckos/config/src/use_flags.rs` | 495 | USE flag system | ✅ Feature-rich |
-| `/home/user/buckos/buckos/config/src/lib.rs` | 132 | Config lib | ✅ Well-documented |
-| `/home/user/buckos/build/defs.bzl` | 204 | Buck macros | ✅ Partial support |
-| `/home/user/buckos/buckos/package/src/buck/mod.rs` | 120+ | Buck integration | ⚠️ Basic only |
-
-### Submodules in Package/src:
-- `buck/` - Buck2 integration
-- `cache/` - Artifact caching
-- `catalog/` - Package catalog management
-- `db/` - SQLite database
-- `executor/` - Parallel execution
-- `repository/` - Repository management
-- `resolver/` - Dependency resolution (SAT solver)
-- `transaction/` - Atomic operations
-- `validation/` - Data validation
-
----
-
-## 8. Recommendations for USE Flag System Implementation
-
-### Phase 1: CLI Commands (High Priority)
-1. Add `buckos useflags` command group:
-   - `list [--package=<pkg>]` - List USE flags
-   - `info <flag>` - Show flag details
-   - `set <flag>` - Set global flag
-   - `unset <flag>` - Unset global flag
-   - `package <pkg> <flags>` - Set per-package flags
-
-2. Enhance `buckos config`:
-   - Show current USE flags
-   - Show configuration file paths
-   - Option to reset to defaults
-
-3. Add validation:
-   - Validate USE flags against available flags
-   - Check for conflicts
-   - Warn about unknown flags
-
-### Phase 2: Configuration Integration
-1. Load/save from Gentoo-compatible files:
-   - `/etc/buckos/make.conf` or TOML equivalent
-   - `/etc/buckos/package.use/`
-
-2. Add profile system:
-   - Load system profiles
-   - Cascade configuration
-   - Profile-specific USE flags
-
-3. Implement validation module
-
-### Phase 3: Build System Integration
-1. Pass USE flags to Buck builds:
-   - Convert to environment variables
-   - Pass as build configuration
-   - Support USE-conditional rules
-
-2. Implement USE flag constraints:
-   - REQUIRED_USE validation
-   - Flag conflict detection
-
-### Phase 4: Advanced Features
-1. Interactive USE flag selection
-2. USE flag profiles
-3. Historical tracking
-4. Auto-optimization
-
----
-
-## 9. Current Strengths
-
-1. ✅ **Solid Foundation**: USE flag types and structures already defined
-2. ✅ **Rich Config System**: buckos-config has comprehensive USE flag support
-3. ✅ **CLI Framework**: Clap-based CLI is well-structured
-4. ✅ **Buck Integration**: Metadata system ready
-5. ✅ **Emerge Compatibility**: Many Portage features already implemented
-6. ✅ **Type Safety**: Strong typing prevents errors
-7. ✅ **Comprehensive Docs**: Good inline documentation
-
----
-
-## 10. Current Gaps
-
-1. ❌ **No USE flag management CLI**
-2. ❌ **No config file loading** (USE flags specifically)
-3. ❌ **No USE flag validation**
-4. ❌ **No build system integration** (USE flags to Buck)
-5. ❌ **No interactive configuration**
-6. ❌ **Limited use_flags.rs integration** in package manager
-
----
-
-## 11. Code Examples
-
-### Current USE Flag Structure in Config:
-```rust
-pub struct UseConfig {
-    pub global: HashSet<String>,
-    pub package: Vec<PackageUseEntry>,
-    pub expand: IndexMap<String, HashSet<String>>,
-    pub mask: HashSet<String>,
-    pub force: HashSet<String>,
-    pub stable_mask: HashSet<String>,
-    pub stable_force: HashSet<String>,
-}
-
-pub fn effective_flags(&self, category: &str, name: &str) -> HashSet<String>
+[service.restart]
+policy = "on-failure"
+delay = "5s"
 ```
 
-### Current CLI USE Flag Support:
-```rust
-#[derive(Args)]
-struct InstallArgs {
-    #[arg(long, value_delimiter = ',')]
-    use_flags: Vec<String>,
+---
 
-    #[arg(long = "disable-use", value_delimiter = ',')]
-    disable_use_flags: Vec<String>,
-}
-```
+## 7. System Utilities
 
-### Buck Package Definition:
+### 7.1 Assist (buckos-assist)
+
+**Directory**: `buckos/assist/` (6 files, ~43 KB)
+
+System diagnostics and help system:
+- Hardware information gathering
+- System health checks
+- Privacy-controlled reporting
+- Troubleshooting guides
+
+### 7.2 Tools (buckos-tools)
+
+**Directory**: `buckos/tools/` (1 file, ~22 KB)
+
+System utility framework for common operations.
+
+---
+
+## 8. Buck2 Integration
+
+### 8.1 Build Macros
+
+**File**: `build/defs.bzl` (204 lines)
+
+Core Buck2 macros for package builds:
+
 ```starlark
 def buckos_package(
     name,
     category,
     version,
-    use_flags = None,  # Available, but not used at runtime
-    ...
+    description = None,
+    homepage = None,
+    license = None,
+    deps = None,
+    build_deps = None,
+    use_flags = None,
+    slot = "0",
+    keywords = None,
+    **kwargs
 )
+```
+
+### 8.2 Buck Integration Module
+
+**File**: `buckos/package/src/buck/mod.rs`
+
+- Basic `buck build` execution
+- Job count configuration
+- Release mode support
+- Custom build arguments
+
+---
+
+## 9. Data Models (buckos-model)
+
+### 9.1 Overview
+
+**Directory**: `buckos/model/` (21 modules)
+
+Foundational data types used across all crates.
+
+### 9.2 Key Types
+
+```rust
+// Package identification
+pub struct PackageId {
+    pub category: String,
+    pub name: String,
+    pub version: Version,
+    pub slot: Slot,
+}
+
+// USE flag types
+pub struct UseFlag {
+    pub name: String,
+    pub description: String,
+    pub default: bool,
+}
+
+pub enum UseCondition {
+    Always,
+    IfEnabled(String),
+    IfDisabled(String),
+    And(Vec<UseCondition>),
+    Or(Vec<UseCondition>),
+}
+
+// Dependency specification
+pub struct Dependency {
+    pub atom: PackageAtom,
+    pub use_flags: UseCondition,
+    pub slot_op: Option<SlotOperator>,
+}
+```
+
+---
+
+## 10. Technology Stack
+
+### Core Technologies
+
+| Component | Technology |
+|-----------|------------|
+| Language | Rust 2021 Edition |
+| Build System | Buck2 |
+| Database | SQLite |
+| SAT Solver | Varisat |
+| Async Runtime | Tokio |
+| CLI Parser | Clap |
+| GUI Framework | egui/eframe |
+| Web Framework | Axum |
+| Serialization | Serde (TOML, JSON) |
+
+### External Dependencies
+
+40+ external crates including:
+- `tokio` - Async runtime
+- `clap` - CLI parsing
+- `serde` - Serialization
+- `rusqlite` - SQLite bindings
+- `varisat` - SAT solver
+- `egui`/`eframe` - GUI
+- `axum` - Web server
+- `reqwest` - HTTP client
+
+---
+
+## 11. Current State Summary
+
+### Fully Implemented
+
+- ✅ Package management (install, remove, update, search)
+- ✅ USE flag system (global, per-package, USE_EXPAND)
+- ✅ Dependency resolution (SAT solver)
+- ✅ Slot/subslot support with ABI tracking
+- ✅ EAPI 6, 7, 8 support
+- ✅ Eclass system (11+ eclasses)
+- ✅ License management (60+ licenses)
+- ✅ Package verification and auditing
+- ✅ Configuration management (Portage-compatible)
+- ✅ Parallel operations
+- ✅ Transaction support with rollback
+- ✅ Security audit with CVE checking
+- ✅ GUI installer with hardware detection
+- ✅ Multiple desktop environments
+- ✅ Disk encryption support
+
+### Framework Components
+
+- ⚠️ Init system (structure complete, needs testing)
+- ⚠️ System diagnostics (basic implementation)
+- ⚠️ System utilities (minimal implementation)
+- ⚠️ Documentation website (minimal)
+
+### Future Enhancements
+
+1. **Build Integration**
+   - Pass USE flags to Buck builds as environment variables
+   - USE flag conditional compilation
+   - REQUIRED_USE validation
+
+2. **Interactive Features**
+   - Interactive USE flag selection
+   - Configuration wizard
+   - TUI interface
+
+3. **Advanced Features**
+   - USE flag profiles
+   - Auto-optimization
+   - Historical tracking
+   - Distributed builds
+
+---
+
+## 12. File Statistics
+
+| Component | Files | Lines |
+|-----------|-------|-------|
+| Build definitions (defs/) | 11 | 4,855 |
+| Package manager | 15+ | 3,000+ |
+| Configuration | 20 | 10,000+ |
+| Installer | 5 | ~3,000 |
+| Init system | 8 | ~3,000 |
+| Model | 21 | ~2,000 |
+| Total Rust | 70+ | 20,000+ |
+
+---
+
+## 13. Quick Reference
+
+### Common Commands
+
+```bash
+# Package management
+buckos install app-misc/hello
+buckos remove app-misc/hello
+buckos update @world
+buckos search hello
+
+# With USE flags
+buckos install media-video/mpv --use-flags=X,wayland
+buckos newuse  # Rebuild for USE changes
+
+# System maintenance
+buckos depclean
+buckos verify
+buckos audit
+```
+
+### Configuration Locations
+
+```
+/etc/buckos/
+├── make.conf           # Global settings
+├── package.use/        # Per-package USE flags
+├── package.mask        # Masked packages
+├── package.unmask      # Unmasked packages
+├── package.accept_keywords
+└── repos.conf          # Repository configuration
 ```
 
 ---
 
 ## Summary
 
-The Buckos project has a **strong foundation for USE flag support** with comprehensive configuration infrastructure in the `buckos-config` crate. However, the **CLI needs significant enhancement** to expose and manage these features effectively. The work involves:
+Buckos is a well-architected Linux distribution framework with:
 
-1. Creating new CLI commands for USE flag management
-2. Integrating the rich `buckos-config` system with the package manager
-3. Implementing configuration file loading/saving
-4. Adding validation and conflict detection
-5. Passing USE flags to the Buck2 build system
+1. **Mature Package Management**: Full Portage compatibility with modern Rust implementation
+2. **Comprehensive Build System**: Buck2 integration with rich Starlark definitions
+3. **Advanced Configuration**: Complete USE flag, licensing, and EAPI support
+4. **Modern Installer**: Hardware-aware GUI with multiple profiles
+5. **Framework Components**: Init system and utilities in development
 
-The infrastructure is solid; it's primarily a matter of CLI and integration work.
+The codebase demonstrates strong type safety, good documentation, and clean separation of concerns. Primary development focus should be on completing the init system and improving build integration for USE flags.
