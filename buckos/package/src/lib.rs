@@ -25,6 +25,7 @@ pub mod error;
 pub mod executor;
 pub mod news;
 pub mod preserved_libs;
+pub mod profile;
 pub mod repository;
 pub mod resolver;
 pub mod sandbox;
