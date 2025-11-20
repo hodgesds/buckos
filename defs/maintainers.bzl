@@ -11,7 +11,7 @@ This module defines package maintainers and teams for the BuckOS project.
 MAINTAINERS = {
     "core-team": {
         "name": "BuckOS Core Team",
-        "email": "core@buckos.dev",
+        "email": "core@buckos.org",
         "github": "buckos-core",
         "description": "Maintains core system packages",
         "packages": [
@@ -25,7 +25,7 @@ MAINTAINERS = {
     },
     "security-team": {
         "name": "BuckOS Security Team",
-        "email": "security@buckos.dev",
+        "email": "security@buckos.org",
         "github": "buckos-security",
         "description": "Maintains security-critical packages",
         "packages": [
@@ -37,7 +37,7 @@ MAINTAINERS = {
     },
     "network-team": {
         "name": "BuckOS Network Team",
-        "email": "network@buckos.dev",
+        "email": "network@buckos.org",
         "github": "buckos-network",
         "description": "Maintains networking packages",
         "packages": [
@@ -48,7 +48,7 @@ MAINTAINERS = {
     },
     "toolchain-team": {
         "name": "BuckOS Toolchain Team",
-        "email": "toolchain@buckos.dev",
+        "email": "toolchain@buckos.org",
         "github": "buckos-toolchain",
         "description": "Maintains compilers and build tools",
         "packages": [
@@ -60,7 +60,7 @@ MAINTAINERS = {
     },
     "web-team": {
         "name": "BuckOS Web Team",
-        "email": "web@buckos.dev",
+        "email": "web@buckos.org",
         "github": "buckos-web",
         "description": "Maintains web server packages",
         "packages": [
@@ -70,7 +70,7 @@ MAINTAINERS = {
     },
     "kernel-team": {
         "name": "BuckOS Kernel Team",
-        "email": "kernel@buckos.dev",
+        "email": "kernel@buckos.org",
         "github": "buckos-kernel",
         "description": "Maintains kernel and kernel-related packages",
         "packages": [
@@ -81,7 +81,7 @@ MAINTAINERS = {
     },
     "desktop-team": {
         "name": "BuckOS Desktop Team",
-        "email": "desktop@buckos.dev",
+        "email": "desktop@buckos.org",
         "github": "buckos-desktop",
         "description": "Maintains desktop environment packages",
         "packages": [

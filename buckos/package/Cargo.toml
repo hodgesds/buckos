@@ -1,7 +1,7 @@
 [package]
 name = "buckos-package"
 version = "0.0.1"
-authors = ["Daniel Hodges <dsh@buckos.com>", "Buckos"]
+authors = ["Daniel Hodges <dsh@buckos.org>", "Buckos"]
 edition = "2021"
 description = "Buckos Package Manager - A scalable Buck-based package manager"
 readme = "../README.md"

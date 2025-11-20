@@ -1,7 +1,7 @@
 [package]
 name = "buckos-web"
 version = "0.0.1"
-authors = ["Daniel Hodges <dsh@buckos.com>", "Buckos"]
+authors = ["Daniel Hodges <dsh@buckos.org>", "Buckos"]
 edition = "2021"
 description = "Buckos website and documentation"
 readme = "../README.md"

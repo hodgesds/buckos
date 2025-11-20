@@ -258,5 +258,5 @@ This crate is part of the Buckos project and is licensed under the same terms.
 
 ## See Also
 
-- [Buckos Documentation](https://buckos.dev/docs)
+- [Buckos Documentation](https://buckos.org/docs)
 - [Gentoo Wiki](https://wiki.gentoo.org/) - Many concepts are similar
