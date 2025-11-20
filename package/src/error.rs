@@ -226,6 +226,9 @@ pub enum Error {
     #[error("Invalid overlay configuration: {0}")]
     InvalidOverlayConfig(String),
 
+    #[error("Patch error for {package}: {reason}")]
+    PatchError { package: String, reason: String },
+
     #[error("{0}")]
     Other(String),
 }
