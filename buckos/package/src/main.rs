@@ -158,6 +158,9 @@ enum Commands {
 
     /// Export configuration in various formats
     Export(ExportArgs),
+
+    /// Rebuild packages with broken library dependencies (revdep-rebuild)
+    Revdep(RevdepArgs),
 }
 
 #[derive(Args)]
@@ -601,6 +604,21 @@ struct ExportArgs {
     with_packages: bool,
 }
 
+#[derive(Args)]
+struct RevdepArgs {
+    /// Only show packages that would be rebuilt (don't actually rebuild)
+    #[arg(short, long)]
+    pretend: bool,
+    /// Library path to check (default: system library paths)
+    #[arg(short, long)]
+    library: Option<String>,
+    /// Specific packages to check
+    packages: Vec<String>,
+    /// Ignore specific packages during rebuild
+    #[arg(long, value_delimiter = ',')]
+    ignore: Vec<String>,
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -687,6 +705,7 @@ async fn main() -> ExitCode {
         Commands::Rdeps(args) => cmd_rdeps(&pkg_manager, args).await,
         Commands::Profile(args) => cmd_profile(args).await,
         Commands::Export(args) => cmd_export(args).await,
+        Commands::Revdep(args) => cmd_revdep(&pkg_manager, args, &emerge_opts).await,
     };
 
     match result {
@@ -3449,6 +3468,96 @@ async fn cmd_export(args: ExportArgs) -> buckos_package::Result<()> {
     } else {
         println!("{}", output);
     }
+
+    Ok(())
+}
+
+/// Rebuild packages with broken library dependencies
+async fn cmd_revdep(
+    pm: &PackageManager,
+    args: RevdepArgs,
+    emerge_opts: &EmergeOptions,
+) -> buckos_package::Result<()> {
+    println!(
+        "{} Checking for packages with broken library dependencies...",
+        style(">>>").blue().bold()
+    );
+
+    // Find packages with broken dependencies
+    let broken = pm.find_broken_deps(args.library.as_deref(), &args.packages).await?;
+
+    // Filter out ignored packages
+    let to_rebuild: Vec<_> = broken
+        .into_iter()
+        .filter(|pkg| !args.ignore.contains(&pkg.name) && !args.ignore.contains(&pkg.id.full_name()))
+        .collect();
+
+    if to_rebuild.is_empty() {
+        println!(
+            "\n{} No packages with broken dependencies found",
+            style(">>>").green().bold()
+        );
+        return Ok(());
+    }
+
+    // Display packages to rebuild
+    println!(
+        "\n{} Found {} package(s) with broken dependencies:\n",
+        style(">>>").yellow().bold(),
+        to_rebuild.len()
+    );
+
+    for pkg in &to_rebuild {
+        println!(
+            "  {} {}/{}",
+            style("R").yellow().bold(),
+            style(&pkg.id.category).cyan(),
+            style(format!("{}-{}", &pkg.name, &pkg.version)).yellow()
+        );
+
+        // Show broken libraries
+        if !pkg.broken_libs.is_empty() {
+            for lib in &pkg.broken_libs {
+                println!(
+                    "      {} Missing library: {}",
+                    style("->").dim(),
+                    style(lib).red()
+                );
+            }
+        }
+    }
+
+    println!(
+        "\n>>> Rebuilding {} package(s)...",
+        style(to_rebuild.len()).bold()
+    );
+
+    // Pretend mode
+    if args.pretend || emerge_opts.pretend {
+        return Ok(());
+    }
+
+    // Ask mode
+    if emerge_opts.ask {
+        if !Confirm::new()
+            .with_prompt("Would you like to rebuild these packages?")
+            .default(true)
+            .interact()?
+        {
+            println!("{}", style(">>> Exiting.").yellow().bold());
+            return Ok(());
+        }
+        println!();
+    }
+
+    // Actually rebuild
+    pm.rebuild_packages(&to_rebuild).await?;
+
+    println!(
+        "\n{} {} packages rebuilt successfully",
+        style(">>>").green().bold(),
+        to_rebuild.len()
+    );
 
     Ok(())
 }

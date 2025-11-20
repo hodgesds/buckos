@@ -895,6 +895,155 @@ impl PackageManager {
 
         Ok(results)
     }
+
+    /// Find packages with broken library dependencies
+    pub async fn find_broken_deps(
+        &self,
+        library: Option<&str>,
+        packages: &[String],
+    ) -> Result<Vec<BrokenPackage>> {
+        info!("Scanning for broken library dependencies");
+
+        let db = self.db.read().await;
+
+        // Get packages to check
+        let to_check: Vec<InstalledPackage> = if packages.is_empty() {
+            db.get_all_installed()?
+        } else {
+            let mut pkgs = Vec::new();
+            for name in packages {
+                if let Some(pkg) = db.get_installed(name)? {
+                    pkgs.push(pkg);
+                }
+            }
+            pkgs
+        };
+        drop(db);
+
+        // Standard library paths to check
+        let lib_paths = vec![
+            "/lib",
+            "/lib64",
+            "/usr/lib",
+            "/usr/lib64",
+            "/usr/local/lib",
+            "/usr/local/lib64",
+        ];
+
+        let mut broken_packages = Vec::new();
+
+        for pkg in &to_check {
+            let mut broken_libs = Vec::new();
+
+            // Check each file in the package
+            for file in &pkg.files {
+                // Only check executable files and shared libraries
+                if !file.path.ends_with(".so")
+                    && !file.path.contains(".so.")
+                    && file.file_type != FileType::Regular
+                {
+                    continue;
+                }
+
+                // Check if it's a binary or shared library
+                let path = std::path::Path::new(&file.path);
+                if !path.exists() {
+                    continue;
+                }
+
+                // Try to read ELF dependencies (simplified check)
+                if let Ok(deps) = self.get_elf_dependencies(&file.path).await {
+                    for dep in deps {
+                        // If a specific library was requested, only check that
+                        if let Some(lib) = library {
+                            if !dep.contains(lib) {
+                                continue;
+                            }
+                        }
+
+                        // Check if the dependency exists
+                        let mut found = false;
+                        for lib_path in &lib_paths {
+                            let full_path = format!("{}/{}", lib_path, dep);
+                            if std::path::Path::new(&full_path).exists() {
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if !found && !broken_libs.contains(&dep) {
+                            broken_libs.push(dep);
+                        }
+                    }
+                }
+            }
+
+            if !broken_libs.is_empty() {
+                broken_packages.push(BrokenPackage {
+                    id: pkg.id.clone(),
+                    name: pkg.name.clone(),
+                    version: pkg.version.clone(),
+                    broken_libs,
+                });
+            }
+        }
+
+        // Sort by package name
+        broken_packages.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(broken_packages)
+    }
+
+    /// Get ELF library dependencies for a file
+    async fn get_elf_dependencies(&self, path: &str) -> Result<Vec<String>> {
+        // Use readelf or objdump to get dependencies
+        let output = tokio::process::Command::new("readelf")
+            .args(["-d", path])
+            .output()
+            .await;
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let mut deps = Vec::new();
+
+                // Parse NEEDED entries
+                for line in stdout.lines() {
+                    if line.contains("(NEEDED)") {
+                        // Extract library name from "Shared library: [libfoo.so.1]"
+                        if let Some(start) = line.find('[') {
+                            if let Some(end) = line.find(']') {
+                                let lib = &line[start + 1..end];
+                                deps.push(lib.to_string());
+                            }
+                        }
+                    }
+                }
+
+                Ok(deps)
+            }
+            _ => Ok(Vec::new()), // Not an ELF file or readelf not available
+        }
+    }
+
+    /// Rebuild a list of packages
+    pub async fn rebuild_packages(&self, packages: &[BrokenPackage]) -> Result<()> {
+        info!("Rebuilding {} packages", packages.len());
+
+        // Convert to package names and install with force
+        let package_names: Vec<String> = packages
+            .iter()
+            .map(|p| p.id.full_name())
+            .collect();
+
+        let opts = InstallOptions {
+            force: true, // Force rebuild
+            build: true, // Build from source
+            ..Default::default()
+        };
+
+        self.install(&package_names, opts).await
+    }
 }
 
 /// Result of file owner query
@@ -903,6 +1052,15 @@ pub struct OwnerResult {
     pub package: PackageId,
     pub version: semver::Version,
     pub file_path: String,
+}
+
+/// Package with broken library dependencies
+#[derive(Debug, Clone)]
+pub struct BrokenPackage {
+    pub id: PackageId,
+    pub name: String,
+    pub version: semver::Version,
+    pub broken_libs: Vec<String>,
 }
 
 /// Options for install command
