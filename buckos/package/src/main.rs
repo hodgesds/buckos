@@ -1155,6 +1155,7 @@ async fn cmd_build(pm: &PackageManager, args: BuildArgs) -> buckos_package::Resu
         jobs: args.jobs,
         release: args.release,
         buck_args: args.buck_args,
+        config_options: None,
     };
 
     let result = pm.build(&args.target, opts).await?;
