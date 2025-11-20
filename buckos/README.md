@@ -16,7 +16,7 @@ Buckos is organized as a Rust workspace with the following crates:
 | `buckos-model` | Core data models and types |
 | `buckos-config` | System configuration management |
 | `buckos-package` | Buck-based package manager |
-| `buckos-start` | Init system (PID 1) |
+| `buckos-boss` | Init system (PID 1) |
 | `buckos-assist` | Help and assistance utilities |
 | `buckos-tools` | Utility tool collection |
 | `buckos-web` | Official website and documentation |
@@ -30,7 +30,7 @@ Buckos is organized as a Rust workspace with the following crates:
 - **Emerge-Compatible CLI**: Familiar interface for Gentoo users
 - **Transaction Support**: Atomic operations with rollback capabilities
 
-### Init System (`buckos-start`)
+### Init System (`buckos-boss`)
 - **PID 1 Service Manager**: systemd-like service supervision
 - **Process Supervision**: Automatic restart with configurable policies
 - **Dependency Management**: Service dependency ordering
@@ -73,7 +73,7 @@ cargo install --path .
 After building, the following binaries will be available:
 
 - `buckos` - Package manager (main CLI)
-- `start` - Init system
+- `boss` - Init system
 - `buckos-web` - Documentation server
 
 ## Quick Start
@@ -101,16 +101,16 @@ buckos install -uDN @world
 
 ```bash
 # Start a service
-start start nginx
+boss start nginx
 
 # Stop a service
-start stop nginx
+boss stop nginx
 
 # Check service status
-start status nginx
+boss status nginx
 
 # List all services
-start list
+boss list
 ```
 
 ## Configuration
@@ -178,7 +178,7 @@ Package management operations:
 - Package building and installation
 - Transaction management
 
-### buckos-start
+### buckos-boss
 
 Init system operations:
 

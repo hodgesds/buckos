@@ -322,7 +322,7 @@ use buckos_model::package::Package;
 // In buckos-config
 use buckos_model::user::User;
 
-// In buckos-start
+// In buckos-boss
 use buckos_model::system::SystemInfo;
 ```
 

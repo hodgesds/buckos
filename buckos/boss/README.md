@@ -1,10 +1,10 @@
-# buckos-start
+# buckos-boss
 
 A modern init system (PID 1) and service manager for Buckos, providing systemd-like service supervision.
 
 ## Overview
 
-`buckos-start` is the initialization daemon for Buckos, responsible for bootstrapping the system, managing services, and supervising processes. It provides a familiar systemd-like interface while being lightweight and designed specifically for Buckos.
+`buckos-boss` is the initialization daemon for Buckos, responsible for bootstrapping the system, managing services, and supervising processes. It provides a familiar systemd-like interface while being lightweight and designed specifically for Buckos.
 
 ## Features
 
@@ -22,13 +22,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-buckos-start = { path = "../start" }
+buckos-boss = { path = "../boss" }
 ```
 
 Or install the binary:
 
 ```bash
-cargo install --path buckos/start
+cargo install --path buckos/boss
 ```
 
 ## CLI Usage
@@ -36,50 +36,50 @@ cargo install --path buckos/start
 ### Running as Init (PID 1)
 
 ```bash
-# Boot the system with start as init
-start init
+# Boot the system with boss as init
+boss init
 ```
 
 ### Service Management
 
 ```bash
 # Start a service
-start start nginx
+boss start nginx
 
 # Stop a service
-start stop nginx
+boss stop nginx
 
 # Restart a service
-start restart nginx
+boss restart nginx
 
 # Check service status
-start status nginx
+boss status nginx
 
 # Check all services status
-start status
+boss status
 
 # List all services
-start list
+boss list
 ```
 
 ### Creating Services
 
 ```bash
 # Create a new service
-start new nginx "/usr/sbin/nginx -g 'daemon off;'"
+boss new nginx "/usr/sbin/nginx -g 'daemon off;'"
 
 # Create with output file
-start new myapp "/usr/bin/myapp" -o /var/log/myapp.log
+boss new myapp "/usr/bin/myapp" -o /var/log/myapp.log
 ```
 
 ### System Control
 
 ```bash
 # Shutdown the system
-start shutdown
+boss shutdown
 
 # Reboot the system
-start shutdown --reboot
+boss shutdown --reboot
 ```
 
 ## Service Configuration
@@ -221,7 +221,7 @@ tasks_max = 512
 ### Basic Service Management
 
 ```rust
-use buckos_start::manager::ServiceManager;
+use buckos_boss::manager::ServiceManager;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -244,7 +244,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Running as Init
 
 ```rust
-use buckos_start::init::Init;
+use buckos_boss::init::Init;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This should only be run as PID 1
@@ -263,7 +263,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Custom Service Types
 
 ```rust
-use buckos_start::service::{Service, ServiceConfig, ServiceType};
+use buckos_boss::service::{Service, ServiceConfig, ServiceType};
 
 let config = ServiceConfig {
     name: "myapp".into(),
@@ -282,7 +282,7 @@ service.start().await?;
 ### Process Supervision
 
 ```rust
-use buckos_start::process::ProcessSupervisor;
+use buckos_boss::process::ProcessSupervisor;
 
 let supervisor = ProcessSupervisor::new();
 
@@ -304,7 +304,7 @@ supervisor.terminate(&handle).await?;
 Main init system coordinator for PID 1 operations.
 
 ```rust
-use buckos_start::init::Init;
+use buckos_boss::init::Init;
 
 let init = Init::new()?;
 init.mount_virtual_filesystems()?;
@@ -324,7 +324,7 @@ init.boot()?;
 Service manager for tracking and controlling services.
 
 ```rust
-use buckos_start::manager::ServiceManager;
+use buckos_boss::manager::ServiceManager;
 
 let manager = ServiceManager::new("/etc/buckos/services")?;
 
@@ -342,7 +342,7 @@ manager.start_all().await?;
 Service types and state management.
 
 ```rust
-use buckos_start::service::{Service, ServiceState};
+use buckos_boss::service::{Service, ServiceState};
 
 // Query state
 let state = service.state();
@@ -357,7 +357,7 @@ match state {
 Process supervision and lifecycle management.
 
 ```rust
-use buckos_start::process::{Process, RestartPolicy};
+use buckos_boss::process::{Process, RestartPolicy};
 
 let mut process = Process::new(config)?;
 process.set_restart_policy(RestartPolicy::OnFailure);
@@ -368,7 +368,7 @@ process.start().await?;
 Error types for the init system.
 
 ```rust
-use buckos_start::error::StartError;
+use buckos_boss::error::StartError;
 
 match result {
     Err(StartError::ServiceNotFound(name)) => {
@@ -397,7 +397,7 @@ match result {
 
 ## Signal Handling
 
-`buckos-start` handles the following signals:
+`buckos-boss` handles the following signals:
 
 | Signal | Action |
 |--------|--------|
@@ -409,7 +409,7 @@ match result {
 
 ## Comparison with systemd
 
-| Feature | systemd | buckos-start |
+| Feature | systemd | buckos-boss |
 |---------|---------|---------------|
 | Language | C | Rust |
 | Service Files | INI format | TOML |
@@ -451,31 +451,31 @@ match result {
 
 ```bash
 # Run all tests
-cargo test -p buckos-start
+cargo test -p buckos-boss
 
 # Run specific test
-cargo test -p buckos-start service
+cargo test -p buckos-boss service
 
 # Run with logging
-RUST_LOG=debug cargo test -p buckos-start
+RUST_LOG=debug cargo test -p buckos-boss
 
 # Test as non-PID 1 (limited functionality)
-cargo run -p buckos-start -- status
+cargo run -p buckos-boss -- status
 ```
 
 ## Logging
 
-`buckos-start` uses the `tracing` crate for logging:
+`buckos-boss` uses the `tracing` crate for logging:
 
 ```bash
 # Set log level via environment
-RUST_LOG=info start init
+RUST_LOG=info boss init
 
 # Debug level for troubleshooting
-RUST_LOG=debug start init
+RUST_LOG=debug boss init
 
 # Specific module logging
-RUST_LOG=buckos_start::service=debug start init
+RUST_LOG=buckos_boss::service=debug boss init
 ```
 
 ## Configuration
@@ -483,7 +483,7 @@ RUST_LOG=buckos_start::service=debug start init
 ### Global Configuration
 
 ```toml
-# /etc/buckos/start.toml
+# /etc/buckos/boss.toml
 
 [init]
 # Hostname
@@ -500,7 +500,7 @@ runtime_dir = "/run/buckos"
 level = "info"
 
 # Log output
-output = "journal"  # or "file:/var/log/start.log"
+output = "journal"  # or "file:/var/log/boss.log"
 
 [defaults]
 # Default restart delay

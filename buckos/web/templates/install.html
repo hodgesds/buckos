@@ -44,12 +44,12 @@ cargo build --release
 
 # Or build specific components
 cargo build --release -p buckos-package
-cargo build --release -p buckos-start</code></pre>
+cargo build --release -p buckos-boss</code></pre>
 
     <h3>3. Install Binaries</h3>
     <pre><code># Install to ~/.cargo/bin (ensure it's in your PATH)
 cargo install --path buckos/package
-cargo install --path buckos/start</code></pre>
+cargo install --path buckos/boss</code></pre>
 </section>
 
 <section>
@@ -115,21 +115,21 @@ www-client/firefox wayland screencast</code></pre>
 </section>
 
 <section>
-    <h2>Init System (start)</h2>
-    <p>Buckos uses the <code>start</code> daemon as its init system:</p>
+    <h2>Init System (boss)</h2>
+    <p>Buckos uses the <code>boss</code> daemon as its init system:</p>
 
     <h3>Service Management</h3>
     <pre><code># Start a service
-start-rc start nginx
+boss start nginx
 
 # Stop a service
-start-rc stop nginx
+boss stop nginx
 
 # Enable service at boot
-start-rc enable nginx
+boss enable nginx
 
 # Check service status
-start-rc status nginx</code></pre>
+boss status nginx</code></pre>
 </section>
 
 <section>

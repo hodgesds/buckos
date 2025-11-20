@@ -20,7 +20,7 @@ buckos/
 │   ├── package/              # Package manager (PRIMARY)
 │   ├── config/               # Configuration system
 │   ├── assist/               # System diagnostics
-│   ├── start/                # Init system (PID 1)
+│   ├── boss/                 # Init system (PID 1)
 │   ├── tools/                # System utilities
 │   └── web/                  # Documentation site
 ├── build/defs.bzl            # Buck2 build macros
@@ -33,7 +33,7 @@ buckos/
 1. **buckos-package**: Main package manager CLI (`src/main.rs`)
 2. **buckos-config**: Configuration management (`src/use_flags.rs`)
 3. **buckos-model**: Core data models
-4. **buckos-start**: Init system
+4. **buckos-boss**: Init system
 5. **buckos-assist**: System diagnostics
 6. **buckos-tools**: System utilities
 

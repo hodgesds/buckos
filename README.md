@@ -34,7 +34,7 @@ buckos/
 │   ├── package/          # Package manager (buckos)
 │   ├── assist/           # System diagnostics
 │   ├── config/           # Configuration management
-│   ├── start/            # Init system (PID 1)
+│   ├── boss/             # Init system (PID 1)
 │   ├── web/              # Documentation website
 │   └── tools/            # System utilities
 ├── build/                # Build artifacts
@@ -159,23 +159,23 @@ Manages system configuration with full Portage compatibility.
 - `repos.conf/` - Repository configuration
 - Custom package sets (@world, @system, etc.)
 
-### buckos-start (Init System)
+### buckos-boss (Init System)
 
 A modern init system and service manager designed to run as PID 1.
 
-**Binary**: `start`
+**Binary**: `boss`
 
 **Commands**:
 ```bash
-start init                  # Run as PID 1
-start start <service>       # Start a service
-start stop <service>        # Stop a service
-start restart <service>     # Restart a service
-start status [service]      # Show service status
-start list                  # List all services
-start enable <service>      # Enable service at boot
-start disable <service>     # Disable service at boot
-start logs <service>        # Show service logs
+boss init                   # Run as PID 1
+boss start <service>        # Start a service
+boss stop <service>         # Stop a service
+boss restart <service>      # Restart a service
+boss status [service]       # Show service status
+boss list                   # List all services
+boss enable <service>       # Enable service at boot
+boss disable <service>      # Disable service at boot
+boss logs <service>         # Show service logs
 ```
 
 **Features**:
@@ -572,7 +572,7 @@ cargo build --release
 
 # Install binaries
 cargo install --path buckos/package
-cargo install --path buckos/start
+cargo install --path buckos/boss
 cargo install --path buckos/assist
 cargo install --path buckos/tools
 ```
@@ -704,16 +704,16 @@ buckos-assist collect --privacy minimal --redact-usernames --redact-ips
 
 ```bash
 # Start a service
-buckos-start start nginx
+boss start nginx
 
 # Enable service at boot
-buckos-start enable nginx
+boss enable nginx
 
 # Check service status
-buckos-start status nginx
+boss status nginx
 
 # View service logs
-buckos-start logs nginx
+boss logs nginx
 ```
 
 ## Comparison with Gentoo
@@ -735,7 +735,7 @@ buckos-start logs nginx
 ┌─────────────────────────────────────────────────────────┐
 │                    User Interface                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │   buckos     │  │buckos-assist │  │ buckos-start │   │
+│  │   buckos     │  │buckos-assist │  │  buckos-boss │   │
 │  └──────────────┘  └──────────────┘  └──────────────┘   │
 ├─────────────────────────────────────────────────────────┤
 │                    Core Libraries                        │
