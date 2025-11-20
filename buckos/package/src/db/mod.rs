@@ -2,6 +2,10 @@
 //!
 //! Uses SQLite for reliable, ACID-compliant storage of package metadata.
 
+pub mod collision;
+
+pub use collision::*;
+
 use crate::{Error, InstalledFile, InstalledPackage, PackageId, Result};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashSet;

@@ -54,13 +54,13 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - License-based masking
   - Location: `buckos/package/src/mask/`
 
-- [ ] **Preserved Libraries** - Handle shared library transitions
+- [x] **Preserved Libraries** - Handle shared library transitions
   - Track libraries in use by other packages
   - Preserve old libraries during upgrades
   - Rebuild dependents when safe
   - Location: `buckos/package/src/preserved_libs/`
 
-- [ ] **Configuration Protection** - Protect user config files
+- [x] **Configuration Protection** - Protect user config files
   - CONFIG_PROTECT and CONFIG_PROTECT_MASK
   - etc-update / dispatch-conf functionality
   - ._cfg0000_ file management
@@ -81,7 +81,7 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - Repository priorities
   - Location: `buckos/package/src/overlay/`
 
-- [ ] **News System** - Important notifications
+- [x] **News System** - Important notifications
   - GLEP 42 news items
   - Read/unread tracking
   - eselect news equivalent
@@ -101,19 +101,19 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - IDEPEND (install dependencies)
   - Location: `buckos/package/src/resolver/`
 
-- [ ] **Virtual Packages** - Provider abstraction
+- [x] **Virtual Packages** - Provider abstraction
   - virtual/* category support
   - Provider selection
   - Default provider configuration
   - Location: `buckos/package/src/virtual/`
 
-- [ ] **Blockers** - Package conflicts
+- [x] **Blockers** - Package conflicts
   - Hard blockers (!!category/package)
   - Soft blockers (!category/package)
   - Automatic blocker resolution
   - Location: `buckos/package/src/resolver/blocker.rs`
 
-- [ ] **Circular Dependency Handling** - Break dependency cycles
+- [x] **Circular Dependency Handling** - Break dependency cycles
   - Detection of circular deps
   - Bootstrap package support
   - USE-conditional dep breaking
@@ -121,13 +121,13 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ### Medium Priority
 
-- [ ] **Backtracking** - Better dependency solving
+- [x] **Backtracking** - Better dependency solving
   - Backtrack on conflicts
   - --backtrack option
   - Intelligent retry strategies
   - Location: `buckos/package/src/resolver/backtrack.rs`
 
-- [ ] **Autounmask** - Automatic keyword/USE adjustments
+- [x] **Autounmask** - Automatic keyword/USE adjustments
   - --autounmask
   - --autounmask-write
   - User confirmation for changes
@@ -139,7 +139,7 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ### High Priority
 
-- [ ] **Sandbox Support** - Isolated builds
+- [x] **Sandbox Support** - Isolated builds
   - FEATURES="sandbox"
   - Network isolation
   - Filesystem access control
@@ -151,7 +151,7 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - Load average limiting
   - Location: `buckos/package/src/build/parallel.rs`
 
-- [ ] **Distfile Management** - Source downloads
+- [x] **Distfile Management** - Source downloads
   - SRC_URI handling with mirrors
   - RESTRICT="fetch" support
   - Checksum verification (BLAKE2B, SHA512)
@@ -185,7 +185,7 @@ This document tracks features required to make Buckos work similar to Gentoo's P
   - Atomic updates
   - Location: `buckos/package/src/db/vdb.rs`
 
-- [ ] **File Collision Detection** - Prevent overwrites
+- [x] **File Collision Detection** - Prevent overwrites
   - COLLISION_IGNORE
   - Detect and warn on conflicts
   - Handle via blockers
@@ -209,7 +209,7 @@ This document tracks features required to make Buckos work similar to Gentoo's P
 
 ### High Priority
 
-- [ ] **GLSA Support** - Security advisories
+- [x] **GLSA Support** - Security advisories
   - glsa-check equivalent
   - CVE tracking
   - Affected package detection

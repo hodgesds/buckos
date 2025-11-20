@@ -2,6 +2,16 @@
 //!
 //! Uses the varisat SAT solver for optimal dependency resolution.
 
+pub mod autounmask;
+pub mod backtrack;
+pub mod blocker;
+pub mod circular;
+
+pub use autounmask::*;
+pub use backtrack::*;
+pub use blocker::*;
+pub use circular::*;
+
 use crate::db::PackageDb;
 use crate::repository::RepositoryManager;
 use crate::{Error, InstallOptions, PackageId, PackageInfo, Result};
