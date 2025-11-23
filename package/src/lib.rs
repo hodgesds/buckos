@@ -432,26 +432,60 @@ impl PackageManager {
     }
 
     /// Get the system set (essential system packages)
-    /// These match the packages defined in buckos-build's SYSTEM_PACKAGES
-    /// Uses glibc by default for maximum compatibility (can be changed to musl for minimal systems)
+    /// Reads from buckos-build's package_sets.bzl file
+    /// NOTE: Init system is NOT included in @system - it is user-selectable
     pub async fn get_system_set(&self) -> Result<WorldSet> {
-        // System packages are predefined essential packages
-        // Using buckos-build registry naming: category/name
-        let system_packages = vec![
-            PackageId::new("core", "glibc"),       // GNU C library (use "musl" for minimal systems)
-            PackageId::new("system/apps", "coreutils"),  // Core utilities
-            PackageId::new("core", "util-linux"),  // System utilities
-            PackageId::new("core", "procps-ng"),   // Process monitoring
-            PackageId::new("system/apps", "shadow"), // User/group management
-            PackageId::new("core", "file"),        // File type detection
-            PackageId::new("core", "bash"),        // Shell
-            PackageId::new("system/init", "systemd"), // Init system
-            PackageId::new("core", "zlib"),        // Compression library
-        ];
+        // Try to find package_sets.bzl file
+        let package_sets_path = self.find_package_sets_file()?;
+
+        // Parse package sets
+        let package_sets = buckos_config::PackageSets::from_file(&package_sets_path)
+            .map_err(|e| Error::Config(format!("Failed to parse package_sets.bzl: {}", e)))?;
+
+        // Convert to PackageId
+        let system_packages: Vec<PackageId> = package_sets
+            .get_system_packages()
+            .iter()
+            .filter_map(|pkg_str| PackageId::parse(pkg_str))
+            .collect();
 
         Ok(WorldSet {
             packages: system_packages.into_iter().collect(),
         })
+    }
+
+    /// Find the package_sets.bzl file
+    /// Looks in:
+    /// 1. Configured buck repo path (config.buck_repo)
+    /// 2. ../buckos-build/defs/package_sets.bzl (relative to working directory)
+    fn find_package_sets_file(&self) -> Result<PathBuf> {
+        // Check configured buck repo path
+        let path = self.config.buck_repo.join("defs/package_sets.bzl");
+        if path.exists() {
+            return Ok(path);
+        }
+
+        // Try relative path from current directory
+        let relative_path = PathBuf::from("../buckos-build/defs/package_sets.bzl");
+        if relative_path.exists() {
+            return Ok(relative_path);
+        }
+
+        // Try absolute path based on current directory
+        if let Ok(cwd) = std::env::current_dir() {
+            let path = cwd.parent()
+                .map(|p| p.join("buckos-build/defs/package_sets.bzl"));
+
+            if let Some(path) = path {
+                if path.exists() {
+                    return Ok(path);
+                }
+            }
+        }
+
+        Err(Error::Config(
+            "package_sets.bzl not found. Please ensure buckos-build repository is accessible.".to_string()
+        ))
     }
 
     /// Get the selected set (combined world + system)

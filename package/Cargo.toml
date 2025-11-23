@@ -75,6 +75,9 @@ which = "5.0"
 # Model
 model = { package = "buckos-model", version = "0.0.1", path = "../model" }
 
+# Config
+buckos-config = { version = "0.0.1", path = "../config" }
+
 # Misc
 url = { version = "2.5", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }

@@ -640,6 +640,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "blake3",
+ "buckos-config",
  "buckos-model",
  "chrono",
  "clap",

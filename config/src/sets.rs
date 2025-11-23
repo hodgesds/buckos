@@ -39,13 +39,14 @@ impl SetsConfig {
             },
         );
 
-        // System set (core packages)
+        // System set (core packages) - empty by default
+        // System packages are now loaded dynamically from package_sets.bzl
         config.sets.insert(
             "system".to_string(),
             PackageSet {
                 name: "system".to_string(),
-                description: "Core system packages".to_string(),
-                atoms: default_system_packages(),
+                description: "Core system packages (loaded from package_sets.bzl)".to_string(),
+                atoms: HashSet::new(),
                 is_system: true,
                 dependencies: vec![],
             },
@@ -303,60 +304,6 @@ impl PackageSet {
     }
 }
 
-/// Default system packages
-fn default_system_packages() -> HashSet<PackageAtom> {
-    let packages = vec![
-        // Core system
-        "sys-apps/baselayout",
-        "sys-apps/coreutils",
-        "sys-apps/util-linux",
-        "sys-apps/shadow",
-        "sys-apps/grep",
-        "sys-apps/sed",
-        "sys-apps/findutils",
-        "sys-apps/gawk",
-        "sys-apps/file",
-        "sys-apps/which",
-        "sys-apps/diffutils",
-        "sys-apps/less",
-        // Filesystem
-        "sys-fs/e2fsprogs",
-        // Process management
-        "sys-process/procps",
-        "sys-process/psmisc",
-        // Compression
-        "app-arch/gzip",
-        "app-arch/bzip2",
-        "app-arch/xz-utils",
-        "app-arch/tar",
-        // Network
-        "net-misc/wget",
-        "net-misc/curl",
-        "net-misc/iputils",
-        "sys-apps/iproute2",
-        // Kernel
-        "sys-kernel/linux-firmware",
-        // Development (minimal)
-        "sys-devel/gcc",
-        "sys-devel/binutils",
-        "sys-devel/make",
-        "sys-libs/glibc",
-        // Shell
-        "app-shells/bash",
-        // Text
-        "app-editors/nano",
-        // Init system
-        "sys-apps/systemd",
-        // Package management
-        "app-portage/eix",
-    ];
-
-    packages
-        .into_iter()
-        .filter_map(|p| p.parse().ok())
-        .collect()
-}
-
 /// Well-known set names
 pub mod well_known {
     /// The world set - user-selected packages
@@ -420,7 +367,8 @@ dev-vcs/git
         let config = SetsConfig::with_defaults();
         let system = config.get("system").unwrap();
 
-        assert!(system.contains("sys-apps", "coreutils"));
-        assert!(system.contains("sys-devel", "gcc"));
+        // System set is now empty by default - packages loaded from package_sets.bzl
+        assert_eq!(system.name, "system");
+        assert_eq!(system.is_system, true);
     }
 }

@@ -3050,82 +3050,60 @@ async fn cmd_set_show(set_name: &str) -> buckos_package::Result<()> {
     Ok(())
 }
 
-/// Get packages in a set
+/// Get packages in a set by reading from package_sets.bzl
 fn get_set_packages(set_name: &str) -> Vec<String> {
-    match set_name {
-        "minimal" => vec![
-            "core/bash".to_string(),
-            "core/busybox".to_string(),
-            "core/musl".to_string(),
-            "core/linux-headers".to_string(),
-        ],
-        "server" => vec![
-            "core/bash".to_string(),
-            "core/openssl".to_string(),
-            "core/zlib".to_string(),
-            "core/glibc".to_string(),
-            "network/openssh".to_string(),
-            "system/systemd".to_string(),
-        ],
-        "desktop" => vec![
-            "core/bash".to_string(),
-            "core/openssl".to_string(),
-            "graphics/mesa".to_string(),
-            "graphics/xorg-server".to_string(),
-            "audio/pipewire".to_string(),
-            "desktop/dbus".to_string(),
-        ],
-        "developer" => vec![
-            "core/bash".to_string(),
-            "dev-tools/gcc".to_string(),
-            "dev-tools/clang".to_string(),
-            "dev-tools/cmake".to_string(),
-            "dev-tools/git".to_string(),
-            "dev-tools/gdb".to_string(),
-        ],
-        "hardened" => vec![
-            "core/bash".to_string(),
-            "core/openssl".to_string(),
-            "security/audit".to_string(),
-            "security/libcap".to_string(),
-        ],
-        "web-server" => vec![
-            "www/nginx".to_string(),
-            "www/apache".to_string(),
-            "network/curl".to_string(),
-        ],
-        "database" => vec![
-            "database/postgresql".to_string(),
-            "database/mariadb".to_string(),
-            "database/sqlite".to_string(),
-        ],
-        "container" => vec![
-            "app-containers/docker".to_string(),
-            "app-containers/podman".to_string(),
-            "app-containers/containerd".to_string(),
-        ],
-        "gnome" => vec![
-            "desktop/gnome-shell".to_string(),
-            "desktop/gnome-terminal".to_string(),
-            "desktop/nautilus".to_string(),
-        ],
-        "kde" => vec![
-            "desktop/plasma-desktop".to_string(),
-            "desktop/konsole".to_string(),
-            "desktop/dolphin".to_string(),
-        ],
-        "xfce" => vec![
-            "desktop/xfce4-panel".to_string(),
-            "desktop/xfce4-terminal".to_string(),
-            "desktop/thunar".to_string(),
-        ],
-        "sway" => vec![
-            "desktop/sway".to_string(),
-            "desktop/foot".to_string(),
-            "desktop/waybar".to_string(),
-        ],
-        _ => Vec::new(),
+    // Try to load package sets from bzl file
+    match load_package_sets_bzl() {
+        Ok(package_sets) => {
+            // Handle @system specially
+            if set_name == "system" {
+                return package_sets.get_system_packages().to_vec();
+            }
+
+            // Resolve the set with inheritance
+            package_sets.resolve_set(set_name)
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to load package_sets.bzl: {}", e);
+            eprintln!("Using fallback minimal set");
+            // Return empty vec as fallback
+            Vec::new()
+        }
     }
+}
+
+/// Load package sets from bzl file
+fn load_package_sets_bzl() -> buckos_package::Result<buckos_config::PackageSets> {
+    // Try to find package_sets.bzl file
+    let paths_to_try = vec![
+        std::path::PathBuf::from("../buckos-build/defs/package_sets.bzl"),
+        std::path::PathBuf::from("../../buckos-build/defs/package_sets.bzl"),
+        std::path::PathBuf::from("defs/package_sets.bzl"),
+    ];
+
+    for path in paths_to_try {
+        if path.exists() {
+            return buckos_config::PackageSets::from_file(&path)
+                .map_err(|e| buckos_package::Error::Config(format!("Failed to parse package_sets.bzl: {}", e)));
+        }
+    }
+
+    // Try relative to current directory
+    if let Ok(cwd) = std::env::current_dir() {
+        let path = cwd.parent()
+            .map(|p| p.join("buckos-build/defs/package_sets.bzl"));
+
+        if let Some(path) = path {
+            if path.exists() {
+                return buckos_config::PackageSets::from_file(&path)
+                    .map_err(|e| buckos_package::Error::Config(format!("Failed to parse package_sets.bzl: {}", e)));
+            }
+        }
+    }
+
+    Err(buckos_package::Error::Config(
+        "package_sets.bzl not found. Please ensure buckos-build repository is accessible.".to_string()
+    ))
 }
 
 /// Install all packages in a set

@@ -1278,147 +1278,230 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
 
         update_progress("Mounting filesystems", 0.30, 1.0, "✓ Filesystems mounted");
 
-        // Step 5: Package installation (70% - this is the longest step)
-        update_progress("Installing packages", 0.35, 0.0, "Installing base system packages...");
+        // Step 5: Build rootfs with Buck2 (70% - this is the longest step)
+        update_progress("Building rootfs", 0.35, 0.0, "Generating custom rootfs target...");
 
-        // Collect all packages to install
-        let mut all_packages = Vec::new();
+        // Generate a custom BUCK file with rootfs based on user selections
+        // Create an install directory for the dynamic rootfs target
+        let install_dir = config.buckos_build_path.join("install");
+        std::fs::create_dir_all(&install_dir)?;
+        let install_buck_path = install_dir.join("BUCK");
+        let mut rootfs_packages = Vec::new();
 
-        // Base system packages
-        for package_set in config.profile.package_sets() {
-            all_packages.push(package_set.to_string());
-        }
+        // Add system packages
+        rootfs_packages.push("\"//packages/linux/system/apps:coreutils\"".to_string());
+        rootfs_packages.push("\"//packages/linux/core/util-linux:util-linux\"".to_string());
+        rootfs_packages.push("\"//packages/linux/core/procps-ng:procps-ng\"".to_string());
+        rootfs_packages.push("\"//packages/linux/system/apps/shadow:shadow\"".to_string());
+        rootfs_packages.push("\"//packages/linux/core/file:file\"".to_string());
+        rootfs_packages.push("\"//packages/linux/core/bash:bash\"".to_string());
+        rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
+        rootfs_packages.push("\"//packages/linux/core/glibc:glibc\"".to_string());
 
-        // Audio subsystem packages
-        all_packages.push(config.audio_subsystem.package_set().to_string());
+        // Add init system
+        let init_target = match config.init_system {
+            crate::types::InitSystem::Systemd => "\"//packages/linux/system/init:systemd\"",
+            crate::types::InitSystem::OpenRC => "\"//packages/linux/system/init:openrc\"",
+            crate::types::InitSystem::Runit => "\"//packages/linux/system/init:runit\"",
+            crate::types::InitSystem::S6 => "\"//packages/linux/system/init:s6\"",
+            crate::types::InitSystem::SysVinit => "\"//packages/linux/system/init:sysvinit\"",
+            crate::types::InitSystem::Dinit => "\"//packages/linux/system/init:dinit\"",
+            crate::types::InitSystem::BusyBoxInit => "\"//packages/linux/core:busybox\"",
+        };
+        rootfs_packages.push(init_target.to_string());
 
-        // Kernel and firmware
-        all_packages.push("@kernel".to_string());
-        all_packages.push("@firmware".to_string());
+        // Add networking basics
+        rootfs_packages.push("\"//packages/linux/network:openssl\"".to_string());
+        rootfs_packages.push("\"//packages/linux/network:curl\"".to_string());
+        rootfs_packages.push("\"//packages/linux/network:iproute2\"".to_string());
 
-        // Bootloader packages
-        if config.bootloader != crate::types::BootloaderType::None {
-            let bootloader_pkg = match config.bootloader {
-                crate::types::BootloaderType::Grub => "@grub",
-                crate::types::BootloaderType::Systemdboot => "@systemd-boot",
-                crate::types::BootloaderType::Refind => "@refind",
-                crate::types::BootloaderType::Limine => "@limine",
-                crate::types::BootloaderType::Efistub => "@efibootmgr",
-                crate::types::BootloaderType::None => "",
-            };
-            if !bootloader_pkg.is_empty() {
-                all_packages.push(bootloader_pkg.to_string());
+        // Add profile-specific packages based on selection
+        match &config.profile {
+            crate::types::InstallProfile::Minimal => {
+                // Minimal already has system packages
+            }
+            crate::types::InstallProfile::Server => {
+                rootfs_packages.push("\"//packages/linux/network:openssh\"".to_string());
+                rootfs_packages.push("\"//packages/linux/editors:vim\"".to_string());
+            }
+            crate::types::InstallProfile::Desktop(_) => {
+                rootfs_packages.push("\"//packages/linux/network:openssh\"".to_string());
+                rootfs_packages.push("\"//packages/linux/editors:vim\"".to_string());
+                // Desktop packages would be added here when available
+            }
+            crate::types::InstallProfile::Handheld(_) => {
+                rootfs_packages.push("\"//packages/linux/network:openssh\"".to_string());
+                rootfs_packages.push("\"//packages/linux/editors:vim\"".to_string());
+                // Gaming-specific packages would be added here
+            }
+            crate::types::InstallProfile::Custom => {
+                // Custom profile - user will select packages manually
             }
         }
 
-        // Hardware-specific packages
-        for hw_suggestion in &config.hardware_packages {
-            if hw_suggestion.selected {
-                all_packages.extend(hw_suggestion.packages.clone());
-            }
+        // Generate BUCK file content
+        let buck_content = format!(
+            r#"load("//defs:package_defs.bzl", "rootfs")
+
+rootfs(
+    name = "installer-rootfs",
+    packages = [
+        {},
+    ],
+    visibility = ["PUBLIC"],
+)
+"#,
+            rootfs_packages.join(",\n        ")
+        );
+
+        update_progress("Building rootfs", 0.36, 0.05, "Writing custom BUCK target...");
+        std::fs::write(&install_buck_path, buck_content)?;
+        tracing::info!("Generated installer BUCK file at: {}", install_buck_path.display());
+
+        // Check if Buck2 cache exists (for live CD installations with pre-built packages)
+        let buck_out_path = config.buckos_build_path.join("buck-out");
+        if buck_out_path.exists() {
+            tracing::info!("Buck2 cache directory found at: {}", buck_out_path.display());
+            update_progress("Building rootfs", 0.365, 0.08, "✓ Found Buck2 cache (using pre-built packages)");
+        } else {
+            tracing::info!("No Buck2 cache found, will build packages from scratch");
+            update_progress("Building rootfs", 0.365, 0.08, "Building packages from scratch (no cache found)");
         }
 
-        // Extra packages
-        all_packages.extend(config.extra_packages.clone());
+        // Build the rootfs with Buck2
+        // Buck2 will automatically use cached artifacts from buck-out if available
+        update_progress("Building rootfs", 0.37, 0.1, "Running buck2 build...");
 
-        // Install packages in groups for better progress tracking
-        let total_packages = all_packages.len() as f32;
-        let mut installed = 0;
-        let mut failed_packages = Vec::new();
+        // Buck2 refuses to run as root, so we need to run it as the original user
+        // who invoked the installer (typically via sudo)
+        let mut buck2_cmd = if system::is_root() {
+            // Get the original user from SUDO_USER environment variable
+            if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+                tracing::info!("Running buck2 as user: {}", sudo_user);
 
-        // Define essential packages that must install successfully
-        // @system must be installed for user management utilities (useradd, chpasswd)
-        // @kernel and @firmware are also critical but not yet available
-        let essential_packages = vec!["@system"];
-
-        // NOTE: When kernel and firmware packages are ready, add them here:
-        // let essential_packages = vec!["@system", "@kernel", "@firmware"];
-
-        // Determine buckos binary path - try multiple locations
-        // Note: buckos_build_path is the output directory for built packages, NOT the buckos binary
-        let buckos_bin = {
-            let candidates = vec![
-                // Try workspace root (one level up from installer) - release
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/release/buckos"),
-                // Try workspace root - debug
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/debug/buckos"),
-                // Try current directory - release
-                PathBuf::from("./target/release/buckos"),
-                // Try current directory - debug
-                PathBuf::from("./target/debug/buckos"),
-                // Try in PATH as last resort
-                PathBuf::from("buckos"),
-            ];
-
-            candidates.into_iter()
-                .find(|path| path.exists())
-                .ok_or_else(|| anyhow::anyhow!(
-                    "buckos binary not found. Tried:\n  {}\n  {}\n  ./target/release/buckos\n  ./target/debug/buckos\n  buckos (in PATH)\n\
-                    Please build buckos first with: cargo build --release",
-                    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/release/buckos").display(),
-                    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/debug/buckos").display()
-                ))?
+                // Run buck2 as the original user using sudo -u
+                let mut cmd = Command::new("sudo");
+                cmd.arg("-u")
+                    .arg(&sudo_user)
+                    .arg("buck2")
+                    .arg("build")
+                    .arg("//install:installer-rootfs")
+                    .arg("--target-platforms")
+                    .arg("//platforms:default")
+                    .current_dir(&config.buckos_build_path);
+                cmd
+            } else {
+                // No SUDO_USER found, try running as root anyway (may fail)
+                tracing::warn!("SUDO_USER not found, attempting to run buck2 as root (may fail)");
+                let mut cmd = Command::new("buck2");
+                cmd.arg("build")
+                    .arg("//install:installer-rootfs")
+                    .arg("--target-platforms")
+                    .arg("//platforms:default")
+                    .current_dir(&config.buckos_build_path);
+                cmd
+            }
+        } else {
+            // Not running as root, execute buck2 directly
+            let mut cmd = Command::new("buck2");
+            cmd.arg("build")
+                .arg("//install:installer-rootfs")
+                .arg("--target-platforms")
+                .arg("//platforms:default")
+                .current_dir(&config.buckos_build_path);
+            cmd
         };
 
-        tracing::info!("Using buckos binary at: {}", buckos_bin.display());
-        update_progress("Installing packages", 0.35, 0.0,
-            format!("Using buckos from: {}", buckos_bin.display()).as_str());
+        let output = buck2_cmd.output()
+            .map_err(|e| anyhow::anyhow!(
+                "Failed to execute buck2 command: {}. Make sure buck2 is installed and in PATH.",
+                e
+            ))?;
 
-        for (idx, package) in all_packages.iter().enumerate() {
-            let step = (idx as f32 + 1.0) / total_packages;
-            let overall = 0.35 + (step * 0.35);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            anyhow::bail!(
+                "Failed to build rootfs with buck2:\nstdout: {}\nstderr: {}",
+                stdout, stderr
+            );
+        }
 
-            update_progress("Installing packages", overall, step,
-                format!("Installing package {} of {}: {}", idx + 1, all_packages.len(), package).as_str());
+        update_progress("Building rootfs", 0.60, 0.7, "✓ Rootfs built successfully");
 
-            // Build buckos install command using full path
-            let mut install_cmd = Command::new(&buckos_bin);
-            install_cmd
-                .arg("--repo-path")
-                .arg(&config.buckos_build_path)
-                .arg("install")
-                .arg("--root")
-                .arg(&config.target_root)
-                .arg(package);
+        // Find the built rootfs directory
+        update_progress("Building rootfs", 0.61, 0.75, "Locating built rootfs...");
 
-            // Run the installation
-            let output = install_cmd.output()
-                .map_err(|e| anyhow::anyhow!(
-                    "Failed to execute buckos command at {} for package {}: {}.",
-                    buckos_bin.display(), package, e
-                ))?;
+        // Run buck2 as the original user if we're root (same approach as above)
+        let mut show_output_cmd = if system::is_root() {
+            if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+                let mut cmd = Command::new("sudo");
+                cmd.arg("-u")
+                    .arg(&sudo_user)
+                    .arg("buck2")
+                    .arg("build")
+                    .arg("//install:installer-rootfs")
+                    .arg("--show-output")
+                    .arg("--target-platforms")
+                    .arg("//platforms:default")
+                    .current_dir(&config.buckos_build_path);
+                cmd
+            } else {
+                let mut cmd = Command::new("buck2");
+                cmd.arg("build")
+                    .arg("//install:installer-rootfs")
+                    .arg("--show-output")
+                    .arg("--target-platforms")
+                    .arg("//platforms:default")
+                    .current_dir(&config.buckos_build_path);
+                cmd
+            }
+        } else {
+            let mut cmd = Command::new("buck2");
+            cmd.arg("build")
+                .arg("//install:installer-rootfs")
+                .arg("--show-output")
+                .arg("--target-platforms")
+                .arg("//platforms:default")
+                .current_dir(&config.buckos_build_path);
+            cmd
+        };
+
+        let show_output = show_output_cmd.output()
+            .map_err(|e| anyhow::anyhow!("Failed to get buck2 output path: {}", e))?;
+
+        let output_str = String::from_utf8_lossy(&show_output.stdout);
+        let rootfs_path = output_str
+            .lines()
+            .last()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .ok_or_else(|| anyhow::anyhow!("Failed to parse buck2 output path"))?;
+
+        tracing::info!("Built rootfs at: {}", rootfs_path);
+
+        // Copy the rootfs to target
+        update_progress("Building rootfs", 0.62, 0.8, "Extracting rootfs to target...");
+
+        let rootfs_src = PathBuf::from(rootfs_path);
+        if rootfs_src.is_dir() {
+            // Copy directory contents (not the directory itself)
+            // Use rsync or cp with /* to copy contents
+            let rootfs_path_with_contents = format!("{}/*", rootfs_path);
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(format!("cp -a {} {}", rootfs_path_with_contents, config.target_root.display()))
+                .output()
+                .map_err(|e| anyhow::anyhow!("Failed to copy rootfs: {}", e))?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                let stdout = String::from_utf8_lossy(&output.stdout);
-
-                failed_packages.push(package.clone());
-
-                // Check if this is an essential package
-                let is_essential = essential_packages.contains(&package.as_str());
-
-                if is_essential {
-                    anyhow::bail!(
-                        "Failed to install essential package {}: {}\nstdout: {}\nCannot continue without essential packages.",
-                        package, stderr, stdout
-                    );
-                } else {
-                    // Log the error but continue - some packages might fail due to optional deps
-                    update_progress("Installing packages", overall, step,
-                        format!("Warning: Failed to install {}: {}", package, stderr).as_str());
-
-                    tracing::warn!("Package installation failed for {}: stdout={}, stderr={}",
-                        package, stdout, stderr);
-                }
-            } else {
-                installed += 1;
-                update_progress("Installing packages", overall, step,
-                    format!("✓ Installed {} ({}/{} packages)", package, installed, all_packages.len()).as_str());
+                anyhow::bail!("Failed to copy rootfs to target: {}", stderr);
             }
+        } else {
+            anyhow::bail!("Expected rootfs directory at {}, but it doesn't exist or is not a directory", rootfs_path);
         }
 
-        update_progress("Installing packages", 0.70, 1.0,
-            format!("✓ Package installation complete ({}/{} packages installed)", installed, all_packages.len()).as_str());
+        update_progress("Building rootfs", 0.70, 1.0, "✓ Rootfs installation complete");
 
         // Step 6: System configuration (80%)
         update_progress("System configuration", 0.72, 0.0, "Configuring system...");

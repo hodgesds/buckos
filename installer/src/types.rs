@@ -238,6 +238,68 @@ pub struct NetworkInterfaceInfo {
     pub driver: Option<String>,
 }
 
+/// Init system type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum InitSystem {
+    Systemd,
+    OpenRC,
+    Runit,
+    S6,
+    SysVinit,
+    Dinit,
+    BusyBoxInit,
+}
+
+impl InitSystem {
+    pub fn name(&self) -> &'static str {
+        match self {
+            InitSystem::Systemd => "systemd",
+            InitSystem::OpenRC => "OpenRC",
+            InitSystem::Runit => "runit",
+            InitSystem::S6 => "s6",
+            InitSystem::SysVinit => "SysVinit",
+            InitSystem::Dinit => "dinit",
+            InitSystem::BusyBoxInit => "BusyBox init",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            InitSystem::Systemd => "Modern init system and service manager (recommended)",
+            InitSystem::OpenRC => "Dependency-based init system",
+            InitSystem::Runit => "Simple init with service supervision",
+            InitSystem::S6 => "Small and secure init system",
+            InitSystem::SysVinit => "Traditional SysV init system",
+            InitSystem::Dinit => "Service manager and init system",
+            InitSystem::BusyBoxInit => "Minimal init from BusyBox (included in @system)",
+        }
+    }
+
+    pub fn package_set(&self) -> &'static str {
+        match self {
+            InitSystem::Systemd => "@systemd",
+            InitSystem::OpenRC => "@openrc",
+            InitSystem::Runit => "@runit",
+            InitSystem::S6 => "@s6",
+            InitSystem::SysVinit => "@sysvinit",
+            InitSystem::Dinit => "@dinit",
+            InitSystem::BusyBoxInit => "@busybox-init",
+        }
+    }
+
+    pub fn all() -> Vec<InitSystem> {
+        vec![
+            InitSystem::Systemd,
+            InitSystem::OpenRC,
+            InitSystem::Runit,
+            InitSystem::S6,
+            InitSystem::SysVinit,
+            InitSystem::Dinit,
+            InitSystem::BusyBoxInit,
+        ]
+    }
+}
+
 /// Audio subsystem type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AudioSubsystem {
@@ -685,6 +747,8 @@ pub struct InstallConfig {
     pub timezone: TimezoneConfig,
     /// Locale configuration
     pub locale: LocaleConfig,
+    /// Init system choice
+    pub init_system: InitSystem,
     /// Audio subsystem choice
     pub audio_subsystem: AudioSubsystem,
     /// Detected hardware information
@@ -729,6 +793,7 @@ impl Default for InstallConfig {
                 locale: "en_US.UTF-8".to_string(),
                 keyboard: "us".to_string(),
             },
+            init_system: InitSystem::Systemd,
             audio_subsystem: AudioSubsystem::PipeWire,
             hardware_info: HardwareInfo::default(),
             hardware_packages: Vec::new(),
