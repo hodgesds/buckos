@@ -1482,11 +1482,12 @@ rootfs(
         // Copy the rootfs to target
         update_progress("Building rootfs", 0.62, 0.8, "Extracting rootfs to target...");
 
-        let rootfs_src = PathBuf::from(rootfs_path);
+        // Buck2 returns a relative path from buckos_build_path, so make it absolute
+        let rootfs_src = config.buckos_build_path.join(rootfs_path);
         if rootfs_src.is_dir() {
             // Copy directory contents (not the directory itself)
             // Use rsync or cp with /* to copy contents
-            let rootfs_path_with_contents = format!("{}/*", rootfs_path);
+            let rootfs_path_with_contents = format!("{}/*", rootfs_src.display());
             let output = Command::new("sh")
                 .arg("-c")
                 .arg(format!("cp -a {} {}", rootfs_path_with_contents, config.target_root.display()))
@@ -1498,7 +1499,7 @@ rootfs(
                 anyhow::bail!("Failed to copy rootfs to target: {}", stderr);
             }
         } else {
-            anyhow::bail!("Expected rootfs directory at {}, but it doesn't exist or is not a directory", rootfs_path);
+            anyhow::bail!("Expected rootfs directory at {}, but it doesn't exist or is not a directory", rootfs_src.display());
         }
 
         update_progress("Building rootfs", 0.70, 1.0, "✓ Rootfs installation complete");
@@ -2017,7 +2018,7 @@ rootfs(
         update_progress("Creating users", 0.92, 0.0, "Verifying user management utilities...");
 
         // Verify required utilities exist in the target system
-        let chpasswd_path = config.target_root.join("usr/bin/chpasswd");
+        let chpasswd_path = config.target_root.join("usr/sbin/chpasswd");
         let useradd_path = config.target_root.join("usr/sbin/useradd");
 
         if !chpasswd_path.exists() {
@@ -2049,7 +2050,7 @@ rootfs(
         let root_passwd_cmd = format!("root:{}", config.root_password);
         let output = Command::new("chroot")
             .arg(&config.target_root)
-            .arg("chpasswd")
+            .arg("/usr/sbin/chpasswd")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .and_then(|mut child| {
@@ -2112,7 +2113,7 @@ rootfs(
             let user_passwd_cmd = format!("{}:{}", user.username, user.password);
             let output = Command::new("chroot")
                 .arg(&config.target_root)
-                .arg("chpasswd")
+                .arg("/usr/sbin/chpasswd")
                 .stdin(std::process::Stdio::piped())
                 .spawn()
                 .and_then(|mut child| {
