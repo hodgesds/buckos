@@ -2127,6 +2127,38 @@ rootfs(
             tracing::info!("Created /etc/group");
         }
 
+        // Create PAM system-auth configuration if it doesn't exist
+        let pam_d_path = config.target_root.join("etc/pam.d");
+        std::fs::create_dir_all(&pam_d_path)
+            .map_err(|e| anyhow::anyhow!("Failed to create /etc/pam.d: {}", e))?;
+
+        let system_auth_path = pam_d_path.join("system-auth");
+        if !system_auth_path.exists() {
+            // Create basic system-auth PAM configuration
+            let system_auth_content = "#%PAM-1.0
+# System-wide authentication configuration
+
+# Authentication
+auth       required   pam_unix.so     try_first_pass nullok
+auth       optional   pam_permit.so
+
+# Account management
+account    required   pam_unix.so
+account    optional   pam_permit.so
+
+# Password management
+password   required   pam_unix.so     try_first_pass nullok sha512
+password   optional   pam_permit.so
+
+# Session management
+session    required   pam_unix.so
+session    optional   pam_permit.so
+";
+            std::fs::write(&system_auth_path, system_auth_content)
+                .map_err(|e| anyhow::anyhow!("Failed to create /etc/pam.d/system-auth: {}", e))?;
+            tracing::info!("Created /etc/pam.d/system-auth");
+        }
+
         update_progress("Creating users", 0.92, 0.2, "Setting root password...");
 
         // Set root password using chpasswd
