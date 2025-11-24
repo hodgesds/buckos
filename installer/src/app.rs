@@ -1293,10 +1293,22 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
         rootfs_packages.push("\"//packages/linux/core/util-linux:util-linux\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/procps-ng:procps-ng\"".to_string());
         rootfs_packages.push("\"//packages/linux/system/apps/shadow:shadow\"".to_string());
+        rootfs_packages.push("\"//packages/linux/system/security/auth/pam:pam\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/file:file\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/bash:bash\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/glibc:glibc\"".to_string());
+
+        // Add GRUB bootloader based on system type (EFI or BIOS)
+        // Note: xz is automatically included as a dependency of GRUB
+        let is_efi = system::is_efi_system();
+        if is_efi {
+            rootfs_packages.push("\"//packages/linux/boot/grub:grub\"".to_string());
+            // efibootmgr is required for EFI systems to manage boot entries
+            rootfs_packages.push("\"//packages/linux/boot/efibootmgr:efibootmgr\"".to_string());
+        } else {
+            rootfs_packages.push("\"//packages/linux/boot/grub:grub-bios\"".to_string());
+        }
 
         // Add init system
         let init_target = match config.init_system {
@@ -1707,7 +1719,40 @@ rootfs(
                                 .output();
                         }
 
-                        update_progress("Installing bootloader", 0.84, 0.2, "Running grub-install...");
+                        // Mount efivarfs for EFI systems (required for efibootmgr)
+                        if is_efi && PathBuf::from("/sys/firmware/efi/efivars").exists() {
+                            let efivars_target = config.target_root.join("sys/firmware/efi/efivars");
+                            std::fs::create_dir_all(&efivars_target)?;
+                            let output = Command::new("mount")
+                                .args(&["-t", "efivarfs", "efivarfs", efivars_target.to_str().unwrap()])
+                                .output();
+
+                            if let Ok(output) = output {
+                                if output.status.success() {
+                                    tracing::info!("Mounted efivarfs in chroot");
+                                } else {
+                                    tracing::warn!("Failed to mount efivarfs: {}", String::from_utf8_lossy(&output.stderr));
+                                }
+                            }
+                        }
+
+                        update_progress("Installing bootloader", 0.84, 0.15, "Updating library cache...");
+
+                        // Run ldconfig to update the dynamic linker cache
+                        let ldconfig_output = Command::new("chroot")
+                            .arg(&config.target_root)
+                            .arg("ldconfig")
+                            .output()
+                            .map_err(|e| anyhow::anyhow!("Failed to run ldconfig: {}", e))?;
+
+                        if !ldconfig_output.status.success() {
+                            let stderr = String::from_utf8_lossy(&ldconfig_output.stderr);
+                            tracing::warn!("ldconfig warning: {}", stderr);
+                        } else {
+                            tracing::info!("ldconfig completed successfully");
+                        }
+
+                        update_progress("Installing bootloader", 0.845, 0.2, "Running grub-install...");
 
                         // Create GRUB directory if it doesn't exist
                         let grub_dir = if is_efi {
@@ -1765,7 +1810,7 @@ rootfs(
                         // Generate GRUB configuration
                         let output = Command::new("chroot")
                             .arg(&config.target_root)
-                            .arg("grub-mkconfig")
+                            .arg("/usr/sbin/grub-mkconfig")
                             .arg("-o")
                             .arg("/boot/grub/grub.cfg")
                             .output()
