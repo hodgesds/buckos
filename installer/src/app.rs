@@ -2135,24 +2135,25 @@ rootfs(
         let system_auth_path = pam_d_path.join("system-auth");
         if !system_auth_path.exists() {
             // Create basic system-auth PAM configuration
+            // Use full paths to PAM modules since they're in /usr/lib/security
             let system_auth_content = "#%PAM-1.0
 # System-wide authentication configuration
 
 # Authentication
-auth       required   pam_unix.so     try_first_pass nullok
-auth       optional   pam_permit.so
+auth       required   /usr/lib/security/pam_unix.so     try_first_pass nullok
+auth       optional   /usr/lib/security/pam_permit.so
 
 # Account management
-account    required   pam_unix.so
-account    optional   pam_permit.so
+account    required   /usr/lib/security/pam_unix.so
+account    optional   /usr/lib/security/pam_permit.so
 
 # Password management
-password   required   pam_unix.so     try_first_pass nullok sha512
-password   optional   pam_permit.so
+password   required   /usr/lib/security/pam_unix.so     try_first_pass nullok sha512
+password   optional   /usr/lib/security/pam_permit.so
 
 # Session management
-session    required   pam_unix.so
-session    optional   pam_permit.so
+session    required   /usr/lib/security/pam_unix.so
+session    optional   /usr/lib/security/pam_permit.so
 ";
             std::fs::write(&system_auth_path, system_auth_content)
                 .map_err(|e| anyhow::anyhow!("Failed to create /etc/pam.d/system-auth: {}", e))?;
