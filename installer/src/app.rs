@@ -2089,6 +2089,44 @@ rootfs(
         tracing::info!("User management utilities verified: chpasswd and useradd found");
         update_progress("Creating users", 0.92, 0.1, "✓ User management utilities verified");
 
+        // Initialize /etc/passwd, /etc/shadow, and /etc/group if they don't exist
+        update_progress("Creating users", 0.92, 0.15, "Initializing user database...");
+        let passwd_path = config.target_root.join("etc/passwd");
+        let shadow_path = config.target_root.join("etc/shadow");
+        let group_path = config.target_root.join("etc/group");
+
+        if !passwd_path.exists() {
+            // Create basic /etc/passwd with root user
+            let passwd_content = "root:x:0:0:root:/root:/bin/bash\n";
+            std::fs::write(&passwd_path, passwd_content)
+                .map_err(|e| anyhow::anyhow!("Failed to create /etc/passwd: {}", e))?;
+            tracing::info!("Created /etc/passwd");
+        }
+
+        if !shadow_path.exists() {
+            // Create basic /etc/shadow with root user (locked password)
+            let shadow_content = "root:!:19000:0:99999:7:::\n";
+            std::fs::write(&shadow_path, shadow_content)
+                .map_err(|e| anyhow::anyhow!("Failed to create /etc/shadow: {}", e))?;
+            // Set proper permissions on /etc/shadow (600)
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let perms = std::fs::Permissions::from_mode(0o600);
+                std::fs::set_permissions(&shadow_path, perms)
+                    .map_err(|e| anyhow::anyhow!("Failed to set permissions on /etc/shadow: {}", e))?;
+            }
+            tracing::info!("Created /etc/shadow with proper permissions");
+        }
+
+        if !group_path.exists() {
+            // Create basic /etc/group with root group
+            let group_content = "root:x:0:\n";
+            std::fs::write(&group_path, group_content)
+                .map_err(|e| anyhow::anyhow!("Failed to create /etc/group: {}", e))?;
+            tracing::info!("Created /etc/group");
+        }
+
         update_progress("Creating users", 0.92, 0.2, "Setting root password...");
 
         // Set root password using chpasswd
