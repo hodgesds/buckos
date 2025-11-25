@@ -699,6 +699,87 @@ fn create_auto_partition_config(
     }
 }
 
+/// Parse buck2 output to extract progress information
+/// Returns a progress value between 0.0 and 1.0 if progress info is found
+fn parse_buck2_progress(line: &str) -> Option<f32> {
+    // Buck2 with --console simple outputs lines like:
+    // "[timestamp] Waiting on root//packages/linux/boot/grub:grub (...) -- action (ebuild grub) [local_execute], and 1 other actions"
+    // "[timestamp] BUILD SUCCEEDED"
+
+    // Try to parse "Waiting on" lines with action counts
+    if line.contains("Waiting on") {
+        // Extract the "X other actions" count if present
+        if let Some(and_pos) = line.find(", and ") {
+            let after_and = &line[and_pos + 6..];
+            if let Some(space_pos) = after_and.find(' ') {
+                let count_str = &after_and[..space_pos];
+                if let Ok(remaining) = count_str.parse::<u32>() {
+                    // More actions remaining = earlier in build
+                    // Use logarithmic scale: 1-2 actions = ~90%, 10 actions = ~70%, 100 actions = ~50%
+                    let progress = if remaining == 0 {
+                        0.95
+                    } else if remaining == 1 {
+                        0.90
+                    } else {
+                        let log_progress = 1.0 - ((remaining as f32).log10() / 2.5);
+                        log_progress.max(0.1).min(0.85)
+                    };
+                    return Some(progress);
+                }
+            }
+        } else {
+            // No "X other actions", so we're near the end (just one action remaining)
+            return Some(0.95);
+        }
+    }
+
+    // Try to parse "BUILD SUCCEEDED" or "BUILD FAILED"
+    if line.contains("BUILD SUCCEEDED") || line.contains("BUILD FAILED") {
+        return Some(1.0);
+    }
+
+    // Try to parse "Jobs completed: X" format (older buck2 versions)
+    if line.contains("Jobs completed:") {
+        if let Some(start) = line.find("Jobs completed:") {
+            let after = &line[start + 15..].trim();
+            if let Some(end) = after.find('.') {
+                let num_str = &after[..end].trim();
+                if let Ok(completed) = num_str.parse::<u32>() {
+                    // Estimate progress based on number of jobs
+                    // We don't know the total, so use a logarithmic scale
+                    let progress = (completed as f32).log10() / 3.0; // Assumes ~1000 max jobs
+                    return Some(progress.min(0.95)); // Cap at 95%
+                }
+            }
+        }
+    }
+
+    // Try to parse "[X/Y]" or "(X/Y)" format
+    if let Some(bracket_start) = line.rfind('[').or_else(|| line.rfind('(')) {
+        let bracket_end = if line[bracket_start..].starts_with('[') {
+            line[bracket_start..].find(']')
+        } else {
+            line[bracket_start..].find(')')
+        };
+
+        if let Some(end) = bracket_end {
+            let bracket_content = &line[bracket_start + 1..bracket_start + end];
+            if let Some(slash_pos) = bracket_content.find('/') {
+                let current_str = bracket_content[..slash_pos].trim();
+                let total_str = bracket_content[slash_pos + 1..].trim();
+
+                if let (Ok(current), Ok(total)) = (current_str.parse::<u32>(), total_str.parse::<u32>()) {
+                    if total > 0 {
+                        return Some((current as f32) / (total as f32));
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Run the installation process in the background
 fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>) {
     use anyhow::Result;
@@ -1400,7 +1481,11 @@ rootfs(
                     .arg("//install:installer-rootfs")
                     .arg("--target-platforms")
                     .arg("//platforms:default")
-                    .current_dir(&config.buckos_build_path);
+                    .arg("--console")
+                    .arg("simple")
+                    .current_dir(&config.buckos_build_path)
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped());
                 cmd
             } else {
                 // No SUDO_USER found, try running as root anyway (may fail)
@@ -1410,7 +1495,11 @@ rootfs(
                     .arg("//install:installer-rootfs")
                     .arg("--target-platforms")
                     .arg("//platforms:default")
-                    .current_dir(&config.buckos_build_path);
+                    .arg("--console")
+                    .arg("simple")
+                    .current_dir(&config.buckos_build_path)
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped());
                 cmd
             }
         } else {
@@ -1420,22 +1509,60 @@ rootfs(
                 .arg("//install:installer-rootfs")
                 .arg("--target-platforms")
                 .arg("//platforms:default")
-                .current_dir(&config.buckos_build_path);
+                .arg("--console")
+                .arg("simple")
+                .current_dir(&config.buckos_build_path)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
             cmd
         };
 
-        let output = buck2_cmd.output()
+        let mut child = buck2_cmd.spawn()
             .map_err(|e| anyhow::anyhow!(
                 "Failed to execute buck2 command: {}. Make sure buck2 is installed and in PATH.",
                 e
             ))?;
 
+        // Capture and process buck2 output in real-time
+        use std::io::{BufRead, BufReader};
+
+        let stderr = child.stderr.take().ok_or_else(|| anyhow::anyhow!("Failed to capture buck2 stderr"))?;
+        let reader = BufReader::new(stderr);
+
+        let mut last_progress_update = std::time::Instant::now();
+        let mut accumulated_output = String::new();
+
+        for line in reader.lines() {
+            let line = line?;
+            accumulated_output.push_str(&line);
+            accumulated_output.push('\n');
+
+            // Parse buck2 progress from the line
+            // Buck2 outputs lines like "Jobs completed: 5. Time elapsed: 1.2s."
+            // or "Action: xyz [1/100]"
+            if let Some(progress_info) = parse_buck2_progress(&line) {
+                let elapsed = last_progress_update.elapsed();
+                // Throttle updates to avoid overwhelming the UI (update at most every 100ms)
+                if elapsed.as_millis() > 100 {
+                    // Map buck2 progress (0.0-1.0) to our step progress (0.1-0.7)
+                    let step_progress = 0.1 + (progress_info * 0.6);
+                    update_progress("Building rootfs", 0.37 + (progress_info * 0.23), step_progress, &format!("Building: {}", line));
+                    last_progress_update = std::time::Instant::now();
+                }
+            }
+
+            // Log the output for debugging
+            tracing::debug!("buck2: {}", line);
+        }
+
+        let output = child.wait_with_output()
+            .map_err(|e| anyhow::anyhow!("Failed to wait for buck2 process: {}", e))?;
+
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
             anyhow::bail!(
                 "Failed to build rootfs with buck2:\nstdout: {}\nstderr: {}",
-                stdout, stderr
+                stdout, accumulated_output
             );
         }
 
