@@ -571,7 +571,9 @@ fn create_auto_partition_config(
     // Swap partition (for all layouts except Simple)
     if !matches!(layout, DiskLayoutPreset::Simple) {
         // Use smaller swap for removable media (1GB) vs internal drives (min of 8GB or 2x RAM)
-        let swap_size = if disk.removable {
+        tracing::info!("Disk {} is {}", disk.device, if disk.removable { "removable" } else { "non-removable" });
+
+        let desired_swap = if disk.removable {
             1 * 1024 * 1024 * 1024  // 1 GB for USB drives
         } else {
             std::cmp::min(
@@ -579,6 +581,12 @@ fn create_auto_partition_config(
                 sysinfo::System::new_all().total_memory() * 2,
             )
         };
+
+        // Safety check: Cap swap at 20% of total disk size to prevent partition errors
+        let max_swap_for_disk = (disk.size as f64 * 0.20) as u64;
+        let swap_size = std::cmp::min(desired_swap, max_swap_for_disk);
+        tracing::info!("Swap size: desired={} MB, max_for_disk={} MB, final={} MB",
+            desired_swap / 1024 / 1024, max_swap_for_disk / 1024 / 1024, swap_size / 1024 / 1024);
         partitions.push(PartitionConfig {
             device: format!("{}{}", disk.device, part_num),
             size: swap_size,
