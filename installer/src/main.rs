@@ -4,6 +4,9 @@
 //! while maintaining the flexibility for manual installation similar to Gentoo.
 
 mod app;
+mod disk;
+mod install;
+mod kernel_config;
 mod steps;
 mod system;
 mod types;

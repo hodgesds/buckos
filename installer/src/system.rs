@@ -20,6 +20,7 @@ const REQUIRED_TOOLS: &[(&str, &str)] = &[
 ];
 
 /// Optional but recommended tools
+#[allow(dead_code)]
 const RECOMMENDED_TOOLS: &[(&str, &str)] = &[
     ("parted", "parted"),
     ("mkfs.btrfs", "btrfs-progs"),
@@ -57,6 +58,7 @@ pub fn check_requirements() -> Result<()> {
 }
 
 /// Check which recommended tools are available
+#[allow(dead_code)]
 pub fn check_recommended_tools() -> Vec<(&'static str, &'static str, bool)> {
     RECOMMENDED_TOOLS
         .iter()
@@ -102,7 +104,9 @@ pub struct SystemInfo {
     pub cpu_count: usize,
     pub cpu_brand: Option<String>,
     pub kernel_version: Option<String>,
+    #[allow(dead_code)]
     pub os_version: Option<String>,
+    #[allow(dead_code)]
     pub hostname: Option<String>,
 }
 
@@ -263,6 +267,7 @@ pub fn format_size(bytes: u64) -> String {
 }
 
 /// Execute a command and return its output
+#[allow(dead_code)]
 pub fn run_command(cmd: &str, args: &[&str]) -> Result<String> {
     let output = Command::new(cmd)
         .args(args)
@@ -278,6 +283,7 @@ pub fn run_command(cmd: &str, args: &[&str]) -> Result<String> {
 }
 
 /// Mount a filesystem
+#[allow(dead_code)]
 pub fn mount_filesystem(
     device: &str,
     target: &str,
@@ -302,6 +308,7 @@ pub fn mount_filesystem(
 }
 
 /// Unmount a filesystem
+#[allow(dead_code)]
 pub fn unmount_filesystem(target: &str) -> Result<()> {
     run_command("umount", &[target])?;
     tracing::info!("Unmounted {}", target);
@@ -309,6 +316,7 @@ pub fn unmount_filesystem(target: &str) -> Result<()> {
 }
 
 /// Create a directory
+#[allow(dead_code)]
 pub fn ensure_directory(path: &Path) -> Result<()> {
     if !path.exists() {
         std::fs::create_dir_all(path)

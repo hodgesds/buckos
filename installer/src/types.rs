@@ -142,6 +142,7 @@ pub enum InstallProfile {
 }
 
 impl InstallProfile {
+    #[allow(dead_code)]
     pub fn description(&self) -> &'static str {
         match self {
             InstallProfile::Minimal => "Base system with essential utilities only",
@@ -302,6 +303,7 @@ pub enum InitSystem {
 }
 
 impl InitSystem {
+    #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
         match self {
             InitSystem::Systemd => "systemd",
@@ -314,6 +316,7 @@ impl InitSystem {
         }
     }
 
+    #[allow(dead_code)]
     pub fn description(&self) -> &'static str {
         match self {
             InitSystem::Systemd => "Modern init system and service manager (recommended)",
@@ -326,6 +329,7 @@ impl InitSystem {
         }
     }
 
+    #[allow(dead_code)]
     pub fn package_set(&self) -> &'static str {
         match self {
             InitSystem::Systemd => "@systemd",
@@ -338,6 +342,7 @@ impl InitSystem {
         }
     }
 
+    #[allow(dead_code)]
     pub fn all() -> Vec<InitSystem> {
         vec![
             InitSystem::Systemd,
@@ -593,6 +598,7 @@ impl FilesystemType {
         }
     }
 
+    #[allow(dead_code)]
     pub fn mkfs_command(&self) -> Option<&'static str> {
         match self {
             FilesystemType::Ext4 => Some("mkfs.ext4"),
@@ -810,6 +816,8 @@ pub struct InstallConfig {
     pub hardware_info: HardwareInfo,
     /// Hardware-based package suggestions
     pub hardware_packages: Vec<HardwarePackageSuggestion>,
+    /// Hardware-based kernel config fragment
+    pub kernel_config_fragment: Option<String>,
     /// Additional packages to install
     pub extra_packages: Vec<String>,
     /// Dry run mode
@@ -853,6 +861,7 @@ impl Default for InstallConfig {
             kernel_channel: KernelChannel::default(),
             hardware_info: HardwareInfo::default(),
             hardware_packages: Vec::new(),
+            kernel_config_fragment: None,
             extra_packages: Vec::new(),
             dry_run: false,
         }
@@ -972,6 +981,7 @@ pub struct PartitionInfo {
     /// Mount point (if mounted)
     pub mount_point: Option<String>,
     /// Partition label
+    #[allow(dead_code)]
     pub label: Option<String>,
 }
 

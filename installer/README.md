@@ -10,6 +10,8 @@ buckos-installer provides an intuitive GUI for installing Buckos while maintaini
 
 - **Graphical Interface**: Easy-to-use wizard with progress tracking
 - **Hardware Detection**: Automatic detection of GPUs, network interfaces, audio devices, and more
+- **Hardware-Optimized Kernel**: Dynamic kernel configuration based on detected hardware
+- **Kernel Selection**: Choose between LTS, Stable, or Mainline kernel versions
 - **Installation Profiles**: Desktop (9 DE choices), Server, Handheld/Gaming, Minimal, Custom
 - **Disk Encryption**: LUKS encryption support with multiple encryption schemes
 - **Multiple Bootloaders**: GRUB, systemd-boot, rEFInd, Limine, EFISTUB
@@ -58,6 +60,18 @@ Base system with only essential utilities. Build your system from scratch.
 ### Custom Profile
 Select packages manually after installation.
 
+## Kernel Selection
+
+Choose from three kernel channels:
+
+| Channel | Version | Description |
+|---------|---------|-------------|
+| LTS (Long-term Support) | 6.6 LTS | Maximum stability, recommended for servers (server-optimized config) |
+| Stable | 6.12 | Latest stable kernel, balance of features and stability (default config) |
+| Mainline | Latest | Cutting edge features, frequent updates (minimal config) |
+
+Each kernel is automatically optimized based on your detected hardware.
+
 ## Bootloader Options
 
 | Bootloader | Boot Mode | Description |
@@ -92,8 +106,9 @@ Select packages manually after installation.
 
 ## Hardware Detection
 
-The installer automatically detects and suggests packages for:
+The installer automatically detects your hardware and optimizes the system accordingly:
 
+### Automatic Package Selection
 - **GPUs**: NVIDIA, AMD, Intel drivers
 - **Network**: WiFi, Ethernet, Bluetooth
 - **Audio**: PipeWire, PulseAudio, or ALSA
@@ -102,6 +117,22 @@ The installer automatically detects and suggests packages for:
 - **Virtual Machines**: VirtualBox/VMware/QEMU guest tools
 - **CPU Microcode**: Intel/AMD microcode updates
 - **Touchscreen**: Input drivers for touch devices
+- **Firmware**: linux-firmware for WiFi, Bluetooth, and GPU drivers
+
+### Dynamic Kernel Configuration
+
+The installer generates hardware-specific kernel configuration fragments based on detected hardware:
+
+- **GPU Drivers**: Enables AMDGPU, Nouveau, i915, or VM graphics drivers
+- **Network**: Enables WiFi (cfg80211, mac80211) and Ethernet support
+- **Storage**: Optimizes for NVMe, AHCI, VirtIO, USB, or RAID controllers
+- **Virtual Machines**: Enables hypervisor guest support and paravirtualization
+- **Laptop**: Adds ACPI battery, CPU frequency scaling, suspend/hibernate support
+- **Bluetooth**: Enables Bluetooth subsystem and HID protocols
+- **Touchscreen**: Enables touch input support
+- **CPU**: Enables vendor-specific optimizations (Intel P-State, AMD P-State, AES-NI, AVX2)
+
+The kernel config fragment is saved to `hardware-kernel.config` in the buckos-build directory and can be merged with the base kernel config during builds.
 
 ## Building
 

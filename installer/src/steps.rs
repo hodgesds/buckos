@@ -79,9 +79,15 @@ pub fn render_welcome(ui: &mut Ui, system_info: &SystemInfo) {
 pub fn render_hardware_detection(
     ui: &mut Ui,
     hardware: &HardwareInfo,
-    suggestions: &mut Vec<HardwarePackageSuggestion>,
+    _suggestions: &mut Vec<HardwarePackageSuggestion>,
 ) {
-    ui.label("We've detected the following hardware in your system. Select which drivers and tools to install.");
+    ui.label("We've detected the following hardware in your system.");
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new("Hardware-specific drivers and packages will be automatically included based on your profile selection.")
+            .small()
+            .weak(),
+    );
 
     ui.add_space(16.0);
 
@@ -140,40 +146,6 @@ pub fn render_hardware_detection(
             ui.label("Touchscreen detected");
         }
     });
-
-    ui.add_space(16.0);
-    ui.separator();
-    ui.add_space(8.0);
-
-    // Package suggestions
-    ui.label(RichText::new("Recommended Packages").strong());
-    ui.label(
-        RichText::new("Based on your hardware, we recommend installing the following packages:")
-            .small()
-            .weak(),
-    );
-
-    ui.add_space(8.0);
-
-    egui::ScrollArea::vertical()
-        .max_height(250.0)
-        .show(ui, |ui| {
-            for suggestion in suggestions.iter_mut() {
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut suggestion.selected, "");
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(&suggestion.category).strong());
-                        ui.label(RichText::new(&suggestion.reason).small().weak());
-                        ui.label(
-                            RichText::new(suggestion.packages.join(", "))
-                                .monospace()
-                                .small(),
-                        );
-                    });
-                });
-                ui.add_space(4.0);
-            }
-        });
 }
 
 /// Render the disk setup step
@@ -1068,26 +1040,12 @@ pub fn render_summary(
             }
         });
 
-        // Hardware packages
-        let selected_hw_packages: Vec<_> = config
-            .hardware_packages
-            .iter()
-            .filter(|p| p.selected)
-            .collect();
-
-        if !selected_hw_packages.is_empty() {
-            ui.add_space(8.0);
-            ui.label(RichText::new("Hardware-Specific Packages:").strong());
-            ui.indent("hw_packages", |ui| {
-                for suggestion in selected_hw_packages {
-                    ui.label(format!(
-                        "• {} ({})",
-                        suggestion.category,
-                        suggestion.packages.join(", ")
-                    ));
-                }
-            });
-        }
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new("Hardware-specific drivers will be automatically included")
+                .small()
+                .weak(),
+        );
 
         ui.add_space(16.0);
         ui.separator();
@@ -1103,10 +1061,10 @@ pub fn render_summary(
             );
             ui.add_space(8.0);
 
-            egui::Frame::none()
+            egui::Frame::new()
                 .fill(egui::Color32::from_rgb(50, 20, 20))
                 .inner_margin(12.0)
-                .rounding(4.0)
+                .corner_radius(4.0)
                 .show(ui, |ui| {
                     ui.label(
                         RichText::new("The following operations will PERMANENTLY DESTROY DATA:")
