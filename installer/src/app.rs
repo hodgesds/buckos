@@ -9,7 +9,7 @@ use crate::system;
 use crate::types::{
     AudioSubsystem, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType, FilesystemType,
     HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig, InstallProfile,
-    InstallProgress, InstallStep, MountPoint, PartitionConfig, UserConfig,
+    InstallProgress, InstallStep, KernelChannel, MountPoint, PartitionConfig, UserConfig,
 };
 
 /// Main installer application state
@@ -46,6 +46,7 @@ struct UiState {
     selected_de: DesktopEnvironment,
     selected_handheld: HandheldDevice,
     audio_subsystem: AudioSubsystem,
+    kernel_channel: KernelChannel,
 
     // Disk setup
     selected_disk_index: usize,
@@ -98,6 +99,7 @@ impl Default for UiState {
             selected_de: DesktopEnvironment::Gnome,
             selected_handheld: HandheldDevice::SteamDeck,
             audio_subsystem: AudioSubsystem::PipeWire,
+            kernel_channel: KernelChannel::default(),
             selected_disk_index: 0,
             auto_partition: true,
             show_partition_editor: false,
@@ -240,6 +242,7 @@ impl InstallerApp {
                     other => other.clone(),
                 };
                 self.config.audio_subsystem = self.ui_state.audio_subsystem.clone();
+                self.config.kernel_channel = self.ui_state.kernel_channel.clone();
             }
             InstallStep::DiskSetup => {
                 // Validate encryption passphrase
@@ -469,6 +472,7 @@ impl eframe::App for InstallerApp {
                     &mut self.ui_state.selected_de,
                     &mut self.ui_state.selected_handheld,
                     &mut self.ui_state.audio_subsystem,
+                    &mut self.ui_state.kernel_channel,
                 ),
                 InstallStep::DiskSetup => steps::render_disk_setup(
                     ui,
@@ -1397,8 +1401,11 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
         rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/glibc:glibc\"".to_string());
 
-        // Add Linux kernel
-        rootfs_packages.push("\"//packages/linux/kernel:default\"".to_string());
+        // Add Linux kernel (user-selected channel)
+        rootfs_packages.push(config.kernel_channel.package_target().to_string());
+
+        // Add dracut for initramfs generation
+        rootfs_packages.push("\"//packages/linux/system/initramfs/dracut:dracut\"".to_string());
 
         // Add GRUB bootloader based on system type (EFI or BIOS)
         // Note: xz is automatically included as a dependency of GRUB
@@ -1964,6 +1971,53 @@ rootfs(
                         }
 
                         tracing::info!("grub-install completed successfully");
+                        update_progress("Installing bootloader", 0.86, 0.5, "Generating initramfs...");
+
+                        // Detect kernel version from installed kernel
+                        let boot_dir = config.target_root.join("boot");
+                        let kernel_version = std::fs::read_dir(&boot_dir)
+                            .ok()
+                            .and_then(|entries| {
+                                entries
+                                    .filter_map(|e| e.ok())
+                                    .find(|e| {
+                                        e.file_name().to_string_lossy().starts_with("vmlinuz-")
+                                    })
+                                    .and_then(|e| {
+                                        let name = e.file_name();
+                                        let name_str = name.to_string_lossy();
+                                        name_str.strip_prefix("vmlinuz-").map(|v| v.to_string())
+                                    })
+                            })
+                            .unwrap_or_else(|| "6.12.6".to_string());
+
+                        tracing::info!("Detected kernel version: {}", kernel_version);
+
+                        // Generate initramfs with dracut
+                        tracing::info!("Generating initramfs with dracut for kernel {}", kernel_version);
+                        let dracut_output = Command::new("chroot")
+                            .arg(&config.target_root)
+                            .arg("/usr/bin/dracut")
+                            .arg("--force")
+                            .arg("--hostonly")
+                            .arg("--kver")
+                            .arg(&kernel_version)
+                            .output()
+                            .map_err(|e| anyhow::anyhow!(
+                                "Failed to execute dracut command: {}. Make sure dracut is installed in the rootfs.",
+                                e
+                            ))?;
+
+                        if !dracut_output.status.success() {
+                            let stderr = String::from_utf8_lossy(&dracut_output.stderr);
+                            let stdout = String::from_utf8_lossy(&dracut_output.stdout);
+                            tracing::warn!("dracut output:\nstdout: {}\nstderr: {}", stdout, stderr);
+                            // Don't fail the installation if dracut fails, but warn the user
+                            tracing::warn!("Failed to generate initramfs. The system may not boot without it.");
+                        } else {
+                            tracing::info!("Initramfs generated successfully");
+                        }
+
                         update_progress("Installing bootloader", 0.87, 0.6, "Generating GRUB configuration...");
 
                         // Generate GRUB configuration

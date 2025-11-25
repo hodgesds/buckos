@@ -6,7 +6,7 @@ use crate::system::{self, SystemInfo};
 use crate::types::{
     AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType,
     HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig, InstallProfile,
-    InstallProgress, NetworkInterfaceType, UserConfig,
+    InstallProgress, KernelChannel, NetworkInterfaceType, UserConfig,
 };
 
 /// Render the welcome step
@@ -494,6 +494,7 @@ pub fn render_profile_selection(
     selected_de: &mut DesktopEnvironment,
     selected_handheld: &mut HandheldDevice,
     audio_subsystem: &mut AudioSubsystem,
+    kernel_channel: &mut KernelChannel,
 ) {
     ui.label("Select an installation profile. This determines the default package set to install.");
 
@@ -642,6 +643,26 @@ pub fn render_profile_selection(
                 ui.label(RichText::new(desc).small().weak());
             });
         }
+    }
+
+    // Kernel version selection (always shown)
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    ui.label(RichText::new("Linux Kernel").strong());
+    ui.add_space(4.0);
+
+    for kernel in KernelChannel::all() {
+        let is_selected = *kernel_channel == kernel;
+        let response = ui.selectable_label(is_selected, kernel.name());
+        if response.clicked() {
+            *kernel_channel = kernel.clone();
+        }
+        let desc = kernel.description();
+        ui.indent("kernel_desc", |ui| {
+            ui.label(RichText::new(desc).small().weak());
+        });
     }
 
     ui.add_space(16.0);

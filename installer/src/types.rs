@@ -238,6 +238,57 @@ pub struct NetworkInterfaceInfo {
     pub driver: Option<String>,
 }
 
+/// Kernel version channel
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum KernelChannel {
+    LTS,      // Long-term support (e.g., 6.6 LTS)
+    Stable,   // Latest stable (e.g., 6.12)
+    Mainline, // Rolling/bleeding edge
+}
+
+impl KernelChannel {
+    pub fn name(&self) -> &'static str {
+        match self {
+            KernelChannel::LTS => "LTS (Long-term Support)",
+            KernelChannel::Stable => "Stable",
+            KernelChannel::Mainline => "Mainline (Rolling)",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            KernelChannel::LTS => "6.6 LTS - Long-term support, maximum stability (recommended)",
+            KernelChannel::Stable => "6.12 Stable - Latest stable kernel, balance of new features and stability",
+            KernelChannel::Mainline => "Latest mainline - Cutting edge features, frequent updates",
+        }
+    }
+
+    pub fn package_target(&self) -> &'static str {
+        match self {
+            // LTS: Server-optimized for stability
+            KernelChannel::LTS => "\"//packages/linux/kernel/buckos-kernel:buckos-kernel-server\"",
+            // Stable: Default balanced configuration
+            KernelChannel::Stable => "\"//packages/linux/kernel/buckos-kernel:buckos-kernel\"",
+            // Mainline: Minimal for latest features
+            KernelChannel::Mainline => "\"//packages/linux/kernel/buckos-kernel:buckos-kernel-minimal\"",
+        }
+    }
+
+    pub fn all() -> Vec<KernelChannel> {
+        vec![
+            KernelChannel::LTS,
+            KernelChannel::Stable,
+            KernelChannel::Mainline,
+        ]
+    }
+}
+
+impl Default for KernelChannel {
+    fn default() -> Self {
+        KernelChannel::LTS
+    }
+}
+
 /// Init system type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum InitSystem {
@@ -753,6 +804,8 @@ pub struct InstallConfig {
     pub init_system: InitSystem,
     /// Audio subsystem choice
     pub audio_subsystem: AudioSubsystem,
+    /// Kernel channel choice
+    pub kernel_channel: KernelChannel,
     /// Detected hardware information
     pub hardware_info: HardwareInfo,
     /// Hardware-based package suggestions
@@ -797,6 +850,7 @@ impl Default for InstallConfig {
             },
             init_system: InitSystem::Systemd,
             audio_subsystem: AudioSubsystem::PipeWire,
+            kernel_channel: KernelChannel::default(),
             hardware_info: HardwareInfo::default(),
             hardware_packages: Vec::new(),
             extra_packages: Vec::new(),
