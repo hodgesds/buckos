@@ -1397,6 +1397,9 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
         rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/glibc:glibc\"".to_string());
 
+        // Add Linux kernel
+        rootfs_packages.push("\"//packages/linux/kernel:default\"".to_string());
+
         // Add GRUB bootloader based on system type (EFI or BIOS)
         // Note: xz is automatically included as a dependency of GRUB
         let is_efi = system::is_efi_system();
@@ -1419,9 +1422,6 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
             crate::types::InitSystem::BusyBoxInit => "\"//packages/linux/core:busybox\"",
         };
         rootfs_packages.push(init_target.to_string());
-
-        // Add BuckOS package manager CLI
-        rootfs_packages.push("\"//packages/buckos:buckos\"".to_string());
 
         // Add networking basics
         rootfs_packages.push("\"//packages/linux/network:openssl\"".to_string());
