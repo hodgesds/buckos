@@ -609,6 +609,8 @@ pub struct DiskConfig {
     pub partitions: Vec<PartitionConfig>,
     /// Wipe the entire disk
     pub wipe_disk: bool,
+    /// Is this a removable/USB drive
+    pub removable: bool,
 }
 
 /// Bootloader type

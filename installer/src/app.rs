@@ -570,10 +570,15 @@ fn create_auto_partition_config(
 
     // Swap partition (for all layouts except Simple)
     if !matches!(layout, DiskLayoutPreset::Simple) {
-        let swap_size = std::cmp::min(
-            8 * 1024 * 1024 * 1024,
-            sysinfo::System::new_all().total_memory() * 2,
-        );
+        // Use smaller swap for removable media (1GB) vs internal drives (min of 8GB or 2x RAM)
+        let swap_size = if disk.removable {
+            1 * 1024 * 1024 * 1024  // 1 GB for USB drives
+        } else {
+            std::cmp::min(
+                8 * 1024 * 1024 * 1024,
+                sysinfo::System::new_all().total_memory() * 2,
+            )
+        };
         partitions.push(PartitionConfig {
             device: format!("{}{}", disk.device, part_num),
             size: swap_size,
@@ -696,6 +701,7 @@ fn create_auto_partition_config(
         use_gpt: is_efi,
         partitions,
         wipe_disk: true,
+        removable: disk.removable,
     }
 }
 
@@ -1375,6 +1381,9 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
         rootfs_packages.push("\"//packages/linux/core/procps-ng:procps-ng\"".to_string());
         rootfs_packages.push("\"//packages/linux/system/apps/shadow:shadow\"".to_string());
         rootfs_packages.push("\"//packages/linux/system/security/auth/pam:pam\"".to_string());
+        // Add PAM dependencies explicitly (needed for pam_unix.so to load)
+        rootfs_packages.push("\"//packages/linux/system/libs/network/libnsl:libnsl\"".to_string());
+        rootfs_packages.push("\"//packages/linux/system/libs/ipc/libtirpc:libtirpc\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/file:file\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/bash:bash\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
@@ -1402,6 +1411,9 @@ fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>
             crate::types::InitSystem::BusyBoxInit => "\"//packages/linux/core:busybox\"",
         };
         rootfs_packages.push(init_target.to_string());
+
+        // Add BuckOS package manager CLI
+        rootfs_packages.push("\"//packages/buckos:buckos\"".to_string());
 
         // Add networking basics
         rootfs_packages.push("\"//packages/linux/network:openssl\"".to_string());
@@ -1783,8 +1795,8 @@ rootfs(
                         tracing::info!("Found GRUB binaries, proceeding with installation");
 
                         // Find boot device (disk, not partition)
-                        let boot_device = if let Some(disk_config) = &config.disk {
-                            disk_config.device.clone()
+                        let (boot_device, is_removable) = if let Some(disk_config) = &config.disk {
+                            (disk_config.device.clone(), disk_config.removable)
                         } else {
                             anyhow::bail!("No disk configuration found for GRUB installation");
                         };
@@ -1847,7 +1859,8 @@ rootfs(
                         }
 
                         // Mount efivarfs for EFI systems (required for efibootmgr)
-                        if is_efi && PathBuf::from("/sys/firmware/efi/efivars").exists() {
+                        // Skip for removable media to prevent modifying host system's EFI variables
+                        if is_efi && !is_removable && PathBuf::from("/sys/firmware/efi/efivars").exists() {
                             let efivars_target = config.target_root.join("sys/firmware/efi/efivars");
                             std::fs::create_dir_all(&efivars_target)?;
                             let output = Command::new("mount")
@@ -1861,6 +1874,8 @@ rootfs(
                                     tracing::warn!("Failed to mount efivarfs: {}", String::from_utf8_lossy(&output.stderr));
                                 }
                             }
+                        } else if is_removable {
+                            tracing::info!("Skipping efivarfs mount for removable media to protect host EFI variables");
                         }
 
                         update_progress("Installing bootloader", 0.84, 0.15, "Updating library cache...");
@@ -1883,7 +1898,7 @@ rootfs(
 
                         // Create GRUB directory if it doesn't exist
                         let grub_dir = if is_efi {
-                            config.target_root.join("boot/efi/EFI/GRUB")
+                            config.target_root.join("boot/efi/EFI/BuckOS")
                         } else {
                             config.target_root.join("boot/grub")
                         };
@@ -1899,8 +1914,17 @@ rootfs(
                             grub_install_cmd
                                 .arg("--target=x86_64-efi")
                                 .arg("--efi-directory=/boot/efi")
-                                .arg("--bootloader-id=GRUB")
+                                .arg("--bootloader-id=BuckOS")
                                 .arg("--recheck");
+
+                            // For removable media, use --no-nvram to prevent modifying host EFI variables
+                            if is_removable {
+                                grub_install_cmd.arg("--no-nvram");
+                                grub_install_cmd.arg("--removable");
+                                tracing::info!("Installing GRUB for removable media (--no-nvram --removable)");
+                            }
+
+                            grub_install_cmd.arg(&boot_device);
                         } else {
                             grub_install_cmd
                                 .arg("--target=i386-pc")
@@ -2141,21 +2165,30 @@ rootfs(
                 crate::types::BootloaderType::Efistub => {
                     update_progress("Installing bootloader", 0.84, 0.3, "Creating EFISTUB boot entry...");
 
-                    // Find root partition
-                    let root_dev = if let Some(disk_config) = &config.disk {
-                        if let Some(root_part) = disk_config.partitions.iter()
-                            .find(|p| p.mount_point == crate::types::MountPoint::Root)
-                        {
-                            root_part.device.clone()
+                    // Check if installing to removable media
+                    let is_removable = config.disk.as_ref().map(|d| d.removable).unwrap_or(false);
+
+                    if is_removable {
+                        tracing::warn!("EFISTUB bootloader is not recommended for removable media");
+                        tracing::warn!("Skipping efibootmgr to prevent modifying host EFI variables");
+                        update_progress("Installing bootloader", 0.90, 1.0,
+                            "⚠ EFISTUB installation skipped for removable media. Use GRUB or systemd-boot instead.");
+                    } else {
+                        // Find root partition
+                        let root_dev = if let Some(disk_config) = &config.disk {
+                            if let Some(root_part) = disk_config.partitions.iter()
+                                .find(|p| p.mount_point == crate::types::MountPoint::Root)
+                            {
+                                root_part.device.clone()
+                            } else {
+                                "/dev/sda2".to_string()
+                            }
                         } else {
                             "/dev/sda2".to_string()
-                        }
-                    } else {
-                        "/dev/sda2".to_string()
-                    };
+                        };
 
-                    // Create UEFI boot entry using efibootmgr
-                    let output = Command::new("chroot")
+                        // Create UEFI boot entry using efibootmgr
+                        let output = Command::new("chroot")
                         .arg(&config.target_root)
                         .arg("efibootmgr")
                         .arg("--create")
@@ -2171,9 +2204,10 @@ rootfs(
                             e
                         ))?;
 
-                    if !output.status.success() {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        anyhow::bail!("Failed to create EFISTUB boot entry: {}", stderr);
+                        if !output.status.success() {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            anyhow::bail!("Failed to create EFISTUB boot entry: {}", stderr);
+                        }
                     }
                 }
 
@@ -2262,25 +2296,25 @@ rootfs(
         let system_auth_path = pam_d_path.join("system-auth");
         if !system_auth_path.exists() {
             // Create basic system-auth PAM configuration
-            // Use full paths to PAM modules since they're in /usr/lib/security
+            // Use module names without paths - PAM will search in /lib64/security (configured via --enable-securedir)
             let system_auth_content = "#%PAM-1.0
 # System-wide authentication configuration
 
 # Authentication
-auth       required   /usr/lib/security/pam_unix.so     try_first_pass nullok
-auth       optional   /usr/lib/security/pam_permit.so
+auth       required   pam_unix.so     try_first_pass nullok
+auth       optional   pam_permit.so
 
 # Account management
-account    required   /usr/lib/security/pam_unix.so
-account    optional   /usr/lib/security/pam_permit.so
+account    required   pam_unix.so
+account    optional   pam_permit.so
 
 # Password management
-password   required   /usr/lib/security/pam_unix.so     try_first_pass nullok sha512
-password   optional   /usr/lib/security/pam_permit.so
+password   required   pam_unix.so     try_first_pass nullok sha512
+password   optional   pam_permit.so
 
 # Session management
-session    required   /usr/lib/security/pam_unix.so
-session    optional   /usr/lib/security/pam_permit.so
+session    required   pam_unix.so
+session    optional   pam_permit.so
 ";
             std::fs::write(&system_auth_path, system_auth_content)
                 .map_err(|e| anyhow::anyhow!("Failed to create /etc/pam.d/system-auth: {}", e))?;
