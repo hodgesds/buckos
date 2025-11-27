@@ -5,8 +5,8 @@ use egui::{self, RichText, Ui};
 use crate::system::{self, SystemInfo};
 use crate::types::{
     AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType,
-    HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig, InstallProfile,
-    InstallProgress, KernelChannel, NetworkInterfaceType, UserConfig,
+    HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InitSystem, InstallConfig,
+    InstallProfile, InstallProgress, KernelChannel, NetworkInterfaceType, UserConfig,
 };
 
 /// Render the welcome step
@@ -466,7 +466,6 @@ pub fn render_profile_selection(
     selected_de: &mut DesktopEnvironment,
     selected_handheld: &mut HandheldDevice,
     audio_subsystem: &mut AudioSubsystem,
-    kernel_channel: &mut KernelChannel,
 ) {
     ui.label("Select an installation profile. This determines the default package set to install.");
 
@@ -617,26 +616,6 @@ pub fn render_profile_selection(
         }
     }
 
-    // Kernel version selection (always shown)
-    ui.add_space(16.0);
-    ui.separator();
-    ui.add_space(8.0);
-
-    ui.label(RichText::new("Linux Kernel").strong());
-    ui.add_space(4.0);
-
-    for kernel in KernelChannel::all() {
-        let is_selected = *kernel_channel == kernel;
-        let response = ui.selectable_label(is_selected, kernel.name());
-        if response.clicked() {
-            *kernel_channel = kernel.clone();
-        }
-        let desc = kernel.description();
-        ui.indent("kernel_desc", |ui| {
-            ui.label(RichText::new(desc).small().weak());
-        });
-    }
-
     ui.add_space(16.0);
     ui.separator();
     ui.add_space(8.0);
@@ -647,6 +626,136 @@ pub fn render_profile_selection(
             ui.label(format!("• {}", pkg_set));
         }
     });
+}
+
+/// Render the kernel selection step
+pub fn render_kernel_selection(
+    ui: &mut Ui,
+    kernel_channel: &mut KernelChannel,
+    init_system: &mut InitSystem,
+) {
+    ui.label("Select the Linux kernel version and init system for your installation.");
+
+    ui.add_space(16.0);
+
+    // Kernel version selection
+    ui.label(RichText::new("Linux Kernel").strong());
+    ui.label(
+        RichText::new("Choose the kernel version that best fits your needs:")
+            .small()
+            .weak(),
+    );
+    ui.add_space(8.0);
+
+    for kernel in KernelChannel::all() {
+        let is_selected = *kernel_channel == kernel;
+        let response = ui.selectable_label(is_selected, RichText::new(kernel.name()).strong());
+        if response.clicked() {
+            *kernel_channel = kernel.clone();
+        }
+        ui.indent("kernel_desc", |ui| {
+            ui.label(RichText::new(kernel.description()).small());
+        });
+        ui.add_space(4.0);
+    }
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Kernel-specific notes
+    match kernel_channel {
+        KernelChannel::LTS => {
+            ui.label(RichText::new("LTS Kernel Notes:").strong());
+            ui.indent("lts_notes", |ui| {
+                ui.label("• Recommended for servers and production systems");
+                ui.label("• Receives security updates for several years");
+                ui.label("• Maximum stability and reliability");
+                ui.label("• May lack support for newest hardware");
+            });
+        }
+        KernelChannel::Stable => {
+            ui.label(RichText::new("Stable Kernel Notes:").strong());
+            ui.indent("stable_notes", |ui| {
+                ui.label("• Good balance of features and stability");
+                ui.label("• Recommended for most desktop users");
+                ui.label("• Regular updates with new features");
+                ui.label("• Better support for recent hardware");
+            });
+        }
+        KernelChannel::Mainline => {
+            ui.label(RichText::new("Mainline Kernel Notes:").strong());
+            ui.indent("mainline_notes", |ui| {
+                ui.label("• Cutting-edge features and drivers");
+                ui.label("• Best for newest hardware support");
+                ui.label("• May have occasional regressions");
+                ui.label("• Recommended for developers and enthusiasts");
+            });
+        }
+    }
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Init system selection
+    ui.label(RichText::new("Init System").strong());
+    ui.label(
+        RichText::new("Choose the init system and service manager:")
+            .small()
+            .weak(),
+    );
+    ui.add_space(8.0);
+
+    for init in InitSystem::all() {
+        let is_selected = *init_system == init;
+        let response = ui.selectable_label(is_selected, RichText::new(init.name()).strong());
+        if response.clicked() {
+            *init_system = init.clone();
+        }
+        ui.indent("init_desc", |ui| {
+            ui.label(RichText::new(init.description()).small());
+        });
+        ui.add_space(4.0);
+    }
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Init system-specific notes
+    match init_system {
+        InitSystem::Systemd => {
+            ui.label(RichText::new("systemd Notes:").strong());
+            ui.indent("systemd_notes", |ui| {
+                ui.label("• Most widely used init system");
+                ui.label("• Comprehensive service management");
+                ui.label("• Best desktop integration");
+                ui.label("• Required by some desktop environments");
+            });
+        }
+        InitSystem::OpenRC => {
+            ui.label(RichText::new("OpenRC Notes:").strong());
+            ui.indent("openrc_notes", |ui| {
+                ui.label("• Lightweight and fast boot times");
+                ui.label("• Simple shell-based init scripts");
+                ui.label("• Popular on Gentoo and Alpine");
+                ui.label("• Good for servers and minimal systems");
+            });
+        }
+        InitSystem::Runit => {
+            ui.label(RichText::new("runit Notes:").strong());
+            ui.indent("runit_notes", |ui| {
+                ui.label("• Very simple and reliable");
+                ui.label("• Process supervision built-in");
+                ui.label("• Minimal resource usage");
+                ui.label("• Used by Void Linux");
+            });
+        }
+        _ => {
+            ui.label(RichText::new("Advanced init system selected").small().weak());
+        }
+    }
 }
 
 /// Render the user setup step

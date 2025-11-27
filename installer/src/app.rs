@@ -46,6 +46,8 @@ struct UiState {
     selected_de: DesktopEnvironment,
     selected_handheld: HandheldDevice,
     audio_subsystem: AudioSubsystem,
+
+    // Kernel selection
     kernel_channel: KernelChannel,
 
     // Disk setup
@@ -174,6 +176,12 @@ impl InstallerApp {
             .unwrap_or(0);
         ui_state.selected_keyboard_index = 0; // "us"
 
+        // Prefer removable disks as default selection (safer for installation)
+        ui_state.selected_disk_index = available_disks
+            .iter()
+            .position(|d| d.removable)
+            .unwrap_or(0);
+
         Self {
             current_step: InstallStep::Welcome,
             config,
@@ -190,6 +198,7 @@ impl InstallerApp {
             InstallStep::Welcome => true,
             InstallStep::HardwareDetection => true,
             InstallStep::ProfileSelection => true,
+            InstallStep::KernelSelection => true,
             InstallStep::DiskSetup => {
                 // Need at least one disk available or manual setup
                 let disk_ok = !self.available_disks.is_empty() || !self.ui_state.auto_partition;
@@ -251,6 +260,9 @@ impl InstallerApp {
                     other => other.clone(),
                 };
                 self.config.audio_subsystem = self.ui_state.audio_subsystem.clone();
+            }
+            InstallStep::KernelSelection => {
+                // Update config with selected kernel and init system
                 self.config.kernel_channel = self.ui_state.kernel_channel.clone();
             }
             InstallStep::DiskSetup => {
@@ -481,7 +493,11 @@ impl eframe::App for InstallerApp {
                     &mut self.ui_state.selected_de,
                     &mut self.ui_state.selected_handheld,
                     &mut self.ui_state.audio_subsystem,
+                ),
+                InstallStep::KernelSelection => steps::render_kernel_selection(
+                    ui,
                     &mut self.ui_state.kernel_channel,
+                    &mut self.config.init_system,
                 ),
                 InstallStep::DiskSetup => steps::render_disk_setup(
                     ui,

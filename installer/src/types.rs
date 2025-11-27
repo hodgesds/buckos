@@ -874,6 +874,7 @@ pub enum InstallStep {
     Welcome,
     HardwareDetection,
     ProfileSelection,
+    KernelSelection,
     DiskSetup,
     Bootloader,
     UserSetup,
@@ -890,6 +891,7 @@ impl InstallStep {
             InstallStep::Welcome => "Welcome",
             InstallStep::HardwareDetection => "Hardware Detection",
             InstallStep::ProfileSelection => "Profile Selection",
+            InstallStep::KernelSelection => "Kernel Selection",
             InstallStep::DiskSetup => "Disk Setup",
             InstallStep::Bootloader => "Bootloader",
             InstallStep::UserSetup => "User Setup",
@@ -905,7 +907,8 @@ impl InstallStep {
         match self {
             InstallStep::Welcome => Some(InstallStep::HardwareDetection),
             InstallStep::HardwareDetection => Some(InstallStep::ProfileSelection),
-            InstallStep::ProfileSelection => Some(InstallStep::DiskSetup),
+            InstallStep::ProfileSelection => Some(InstallStep::KernelSelection),
+            InstallStep::KernelSelection => Some(InstallStep::DiskSetup),
             InstallStep::DiskSetup => Some(InstallStep::Bootloader),
             InstallStep::Bootloader => Some(InstallStep::UserSetup),
             InstallStep::UserSetup => Some(InstallStep::NetworkSetup),
@@ -922,7 +925,8 @@ impl InstallStep {
             InstallStep::Welcome => None,
             InstallStep::HardwareDetection => Some(InstallStep::Welcome),
             InstallStep::ProfileSelection => Some(InstallStep::HardwareDetection),
-            InstallStep::DiskSetup => Some(InstallStep::ProfileSelection),
+            InstallStep::KernelSelection => Some(InstallStep::ProfileSelection),
+            InstallStep::DiskSetup => Some(InstallStep::KernelSelection),
             InstallStep::Bootloader => Some(InstallStep::DiskSetup),
             InstallStep::UserSetup => Some(InstallStep::Bootloader),
             InstallStep::NetworkSetup => Some(InstallStep::UserSetup),
@@ -938,19 +942,20 @@ impl InstallStep {
             InstallStep::Welcome => 0,
             InstallStep::HardwareDetection => 1,
             InstallStep::ProfileSelection => 2,
-            InstallStep::DiskSetup => 3,
-            InstallStep::Bootloader => 4,
-            InstallStep::UserSetup => 5,
-            InstallStep::NetworkSetup => 6,
-            InstallStep::Timezone => 7,
-            InstallStep::Summary => 8,
-            InstallStep::Installing => 9,
-            InstallStep::Complete => 10,
+            InstallStep::KernelSelection => 3,
+            InstallStep::DiskSetup => 4,
+            InstallStep::Bootloader => 5,
+            InstallStep::UserSetup => 6,
+            InstallStep::NetworkSetup => 7,
+            InstallStep::Timezone => 8,
+            InstallStep::Summary => 9,
+            InstallStep::Installing => 10,
+            InstallStep::Complete => 11,
         }
     }
 
     pub fn total_steps() -> usize {
-        11
+        12
     }
 }
 
