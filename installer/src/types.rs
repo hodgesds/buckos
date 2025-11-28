@@ -842,7 +842,7 @@ impl Default for InstallConfig {
             root_password: String::new(),
             users: Vec::new(),
             network: NetworkConfig {
-                hostname: "buckos".to_string(),
+                hostname: "BuckOs".to_string(),
                 use_dhcp: true,
                 static_ip: None,
                 gateway: None,

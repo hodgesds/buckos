@@ -119,7 +119,7 @@ impl Default for UiState {
             new_user_admin: true,
             root_password: String::new(),
             confirm_root_password: String::new(),
-            hostname: "buckos".to_string(),
+            hostname: "BuckOs".to_string(),
             selected_timezone_index: 0,
             selected_locale_index: 0,
             selected_keyboard_index: 0,

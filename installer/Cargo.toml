@@ -1,9 +1,9 @@
 [package]
 name = "buckos-installer"
 version = "0.0.1"
-authors = ["Daniel Hodges <dsh@buckos.org>", "Buckos"]
+authors = ["Daniel Hodges <dsh@buckos.org>", "BuckOs"]
 edition = "2021"
-description = "Graphical installer for Buckos - beginner-friendly system installation"
+description = "Graphical installer for BuckOs - beginner-friendly system installation"
 repository = "https://github.com/hodgesds/buckos"
 license = "Apache-2.0"
 
