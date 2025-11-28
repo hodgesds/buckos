@@ -935,11 +935,17 @@ rootfs(
             .map_err(|e| anyhow::anyhow!("Failed to get buck2 output path: {}", e))?;
 
         let output_str = String::from_utf8_lossy(&show_output.stdout);
+        let stderr_str = String::from_utf8_lossy(&show_output.stderr);
+        tracing::debug!("buck2 --show-output stdout: {:?}", output_str);
+        tracing::debug!("buck2 --show-output stderr: {:?}", stderr_str);
+        tracing::debug!("buck2 --show-output exit status: {:?}", show_output.status);
         let rootfs_path = output_str
             .lines()
+            .filter(|line| !line.trim().is_empty())
             .last()
             .and_then(|line| line.split_whitespace().nth(1))
-            .ok_or_else(|| anyhow::anyhow!("Failed to parse buck2 output path"))?;
+            .ok_or_else(|| anyhow::anyhow!("Failed to parse buck2 output path. stdout={:?}, stderr={:?}, status={:?}",
+                output_str, stderr_str, show_output.status))?;
 
         tracing::info!("Built rootfs at: {}", rootfs_path);
 
