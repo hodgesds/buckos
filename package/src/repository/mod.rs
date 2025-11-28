@@ -60,6 +60,17 @@ impl RepositoryManager {
             SyncType::Rsync => self.sync_rsync(repo).await,
             SyncType::Http => self.sync_http(repo).await,
             SyncType::Local => Ok(()), // No sync needed
+            SyncType::Mercurial => {
+                warn!(
+                    "Mercurial sync not yet implemented for repository {}",
+                    repo.name
+                );
+                Ok(())
+            }
+            SyncType::Svn => {
+                warn!("SVN sync not yet implemented for repository {}", repo.name);
+                Ok(())
+            }
         }
     }
 

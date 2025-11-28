@@ -159,6 +159,8 @@ pub enum SyncType {
     Rsync,
     Http,
     Local,
+    Mercurial,
+    Svn,
 }
 
 fn detect_arch() -> String {

@@ -396,6 +396,12 @@ impl OverlayManager {
             SyncType::Local => {
                 debug!("Local overlay {} does not need syncing", name);
             }
+            SyncType::Mercurial => {
+                warn!("Mercurial sync not yet implemented for overlay {}", name);
+            }
+            SyncType::Svn => {
+                warn!("SVN sync not yet implemented for overlay {}", name);
+            }
         }
 
         // Update last sync time
@@ -564,10 +570,327 @@ impl OverlayManager {
     }
 
     /// Fetch overlay list from a specific URL
-    async fn fetch_overlay_list_from_url(&self, _url: &str) -> Result<Vec<OverlayInfo>> {
-        // TODO: Parse different formats (XML for Gentoo, JSON for others)
-        // For now, return an empty list as placeholder
-        Ok(Vec::new())
+    ///
+    /// Supports multiple formats:
+    /// - Gentoo repositories.xml format
+    /// - JSON format (for custom overlay lists)
+    async fn fetch_overlay_list_from_url(&self, url: &str) -> Result<Vec<OverlayInfo>> {
+        // Fetch the content
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| Error::NetworkError(format!("Failed to create HTTP client: {}", e)))?;
+
+        let response = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| Error::NetworkError(format!("Failed to fetch {}: {}", url, e)))?;
+
+        if !response.status().is_success() {
+            return Err(Error::NetworkError(format!(
+                "Failed to fetch {}: HTTP {}",
+                url,
+                response.status()
+            )));
+        }
+
+        let content = response
+            .text()
+            .await
+            .map_err(|e| Error::NetworkError(format!("Failed to read response: {}", e)))?;
+
+        // Determine format and parse
+        if url.ends_with(".xml")
+            || content.trim().starts_with("<?xml")
+            || content.contains("<repositories")
+        {
+            self.parse_gentoo_xml(&content)
+        } else if url.ends_with(".json")
+            || content.trim().starts_with('{')
+            || content.trim().starts_with('[')
+        {
+            self.parse_json_overlay_list(&content)
+        } else {
+            // Try XML first, then JSON
+            self.parse_gentoo_xml(&content)
+                .or_else(|_| self.parse_json_overlay_list(&content))
+        }
+    }
+
+    /// Parse Gentoo repositories.xml format
+    ///
+    /// Format example:
+    /// ```xml
+    /// <repositories>
+    ///   <repo quality="experimental" status="unofficial">
+    ///     <name>overlay-name</name>
+    ///     <description>Description text</description>
+    ///     <homepage>https://example.com</homepage>
+    ///     <owner><email>owner@example.com</email></owner>
+    ///     <source type="git">https://github.com/example/overlay.git</source>
+    ///   </repo>
+    /// </repositories>
+    /// ```
+    fn parse_gentoo_xml(&self, content: &str) -> Result<Vec<OverlayInfo>> {
+        let mut overlays = Vec::new();
+
+        // Find all <repo> elements
+        let mut pos = 0;
+        while let Some(repo_start) = content[pos..].find("<repo") {
+            let repo_start = pos + repo_start;
+            let repo_end = match content[repo_start..].find("</repo>") {
+                Some(end) => repo_start + end + "</repo>".len(),
+                None => break,
+            };
+            let repo_content = &content[repo_start..repo_end];
+
+            // Extract repo attributes
+            let quality = self
+                .extract_xml_attr(repo_content, "repo", "quality")
+                .unwrap_or_else(|| "experimental".to_string());
+
+            // Extract name
+            let name = match self.extract_xml_element_text(repo_content, "name") {
+                Some(n) => n,
+                None => {
+                    pos = repo_end;
+                    continue;
+                }
+            };
+
+            // Extract description
+            let description = self
+                .extract_xml_element_text(repo_content, "description")
+                .unwrap_or_default();
+
+            // Extract homepage
+            let homepage = self.extract_xml_element_text(repo_content, "homepage");
+
+            // Extract owner email
+            let owner = self.extract_xml_element_text(repo_content, "email");
+
+            // Extract source (sync URI and type)
+            let (sync_type, sync_uri) = self.extract_source_info(repo_content);
+
+            // Determine quality enum
+            let quality_enum = match quality.to_lowercase().as_str() {
+                "core" | "official" => OverlayQuality::Official,
+                "stable" | "community" => OverlayQuality::Community,
+                _ => OverlayQuality::Experimental,
+            };
+
+            overlays.push(OverlayInfo {
+                name: name.clone(),
+                description,
+                homepage,
+                sync_type,
+                sync_uri,
+                location: self.config.storage_dir.join(&name),
+                priority: 50, // Default priority for remote overlays
+                enabled: false,
+                is_local: false,
+                owner,
+                quality: quality_enum,
+                masters: vec!["gentoo".to_string()],
+                auto_sync: true,
+                last_sync: None,
+            });
+
+            pos = repo_end;
+        }
+
+        debug!("Parsed {} overlays from XML", overlays.len());
+        Ok(overlays)
+    }
+
+    /// Extract text content of an XML element
+    fn extract_xml_element_text(&self, content: &str, element: &str) -> Option<String> {
+        let start_tag = format!("<{}", element);
+        let end_tag = format!("</{}>", element);
+
+        let start_pos = content.find(&start_tag)?;
+        let tag_end = content[start_pos..].find('>')? + start_pos + 1;
+        let end_pos = content[tag_end..].find(&end_tag)? + tag_end;
+
+        let text = &content[tag_end..end_pos];
+        // Clean up whitespace and decode XML entities
+        let cleaned = text
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'")
+            .trim()
+            .to_string();
+
+        if cleaned.is_empty() {
+            None
+        } else {
+            Some(cleaned)
+        }
+    }
+
+    /// Extract XML attribute value
+    fn extract_xml_attr(&self, content: &str, element: &str, attr: &str) -> Option<String> {
+        let start_tag = format!("<{}", element);
+        let start_pos = content.find(&start_tag)?;
+        let tag_content = &content[start_pos..];
+        let tag_end = tag_content.find('>')?;
+        let tag_str = &tag_content[..tag_end];
+
+        // Look for attr="value" or attr='value'
+        let patterns = [format!("{}=\"", attr), format!("{}='", attr)];
+        let delimiters = ['"', '\''];
+
+        for (pattern, delimiter) in patterns.iter().zip(delimiters.iter()) {
+            if let Some(attr_start) = tag_str.find(pattern.as_str()) {
+                let value_start = attr_start + pattern.len();
+                if let Some(value_end) = tag_str[value_start..].find(*delimiter) {
+                    return Some(tag_str[value_start..value_start + value_end].to_string());
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Extract source information (sync type and URI)
+    fn extract_source_info(&self, content: &str) -> (SyncType, String) {
+        // Look for <source type="git">uri</source>
+        if let Some(source_start) = content.find("<source") {
+            let source_end = content[source_start..]
+                .find("</source>")
+                .map(|e| source_start + e);
+
+            if let Some(end) = source_end {
+                let source_content = &content[source_start..end];
+
+                // Extract type attribute
+                let sync_type = self
+                    .extract_xml_attr(source_content, "source", "type")
+                    .map(|t| match t.to_lowercase().as_str() {
+                        "git" => SyncType::Git,
+                        "rsync" => SyncType::Rsync,
+                        "mercurial" | "hg" => SyncType::Mercurial,
+                        "svn" | "subversion" => SyncType::Svn,
+                        _ => SyncType::Git,
+                    })
+                    .unwrap_or(SyncType::Git);
+
+                // Extract URI (text content)
+                let tag_end = source_content.find('>').unwrap_or(0) + 1;
+                let uri = source_content[tag_end..].trim().to_string();
+
+                return (sync_type, uri);
+            }
+        }
+
+        (SyncType::Git, String::new())
+    }
+
+    /// Parse JSON overlay list format
+    ///
+    /// Expected format:
+    /// ```json
+    /// {
+    ///   "overlays": [
+    ///     {
+    ///       "name": "overlay-name",
+    ///       "description": "Description",
+    ///       "homepage": "https://example.com",
+    ///       "sync_type": "git",
+    ///       "sync_uri": "https://github.com/example/overlay.git",
+    ///       "owner": "owner@example.com",
+    ///       "quality": "community"
+    ///     }
+    ///   ]
+    /// }
+    /// ```
+    fn parse_json_overlay_list(&self, content: &str) -> Result<Vec<OverlayInfo>> {
+        #[derive(Deserialize)]
+        struct JsonOverlayList {
+            overlays: Vec<JsonOverlay>,
+        }
+
+        #[derive(Deserialize)]
+        struct JsonOverlay {
+            name: String,
+            #[serde(default)]
+            description: String,
+            homepage: Option<String>,
+            #[serde(default = "default_sync_type")]
+            sync_type: String,
+            #[serde(default)]
+            sync_uri: String,
+            owner: Option<String>,
+            #[serde(default = "default_quality")]
+            quality: String,
+            #[serde(default)]
+            masters: Vec<String>,
+        }
+
+        fn default_sync_type() -> String {
+            "git".to_string()
+        }
+
+        fn default_quality() -> String {
+            "experimental".to_string()
+        }
+
+        // Try to parse as array or object with "overlays" key
+        let json_overlays: Vec<JsonOverlay> = if content.trim().starts_with('[') {
+            serde_json::from_str(content)
+                .map_err(|e| Error::ParseError(format!("Failed to parse JSON: {}", e)))?
+        } else {
+            let list: JsonOverlayList = serde_json::from_str(content)
+                .map_err(|e| Error::ParseError(format!("Failed to parse JSON: {}", e)))?;
+            list.overlays
+        };
+
+        let overlays: Vec<OverlayInfo> = json_overlays
+            .into_iter()
+            .map(|jo| {
+                let sync_type = match jo.sync_type.to_lowercase().as_str() {
+                    "git" => SyncType::Git,
+                    "rsync" => SyncType::Rsync,
+                    "mercurial" | "hg" => SyncType::Mercurial,
+                    "svn" | "subversion" => SyncType::Svn,
+                    _ => SyncType::Git,
+                };
+
+                let quality = match jo.quality.to_lowercase().as_str() {
+                    "official" | "core" => OverlayQuality::Official,
+                    "community" | "stable" => OverlayQuality::Community,
+                    "local" => OverlayQuality::Local,
+                    _ => OverlayQuality::Experimental,
+                };
+
+                OverlayInfo {
+                    name: jo.name.clone(),
+                    description: jo.description,
+                    homepage: jo.homepage,
+                    sync_type,
+                    sync_uri: jo.sync_uri,
+                    location: self.config.storage_dir.join(&jo.name),
+                    priority: 50,
+                    enabled: false,
+                    is_local: false,
+                    owner: jo.owner,
+                    quality,
+                    masters: if jo.masters.is_empty() {
+                        vec!["gentoo".to_string()]
+                    } else {
+                        jo.masters
+                    },
+                    auto_sync: true,
+                    last_sync: None,
+                }
+            })
+            .collect();
+
+        debug!("Parsed {} overlays from JSON", overlays.len());
+        Ok(overlays)
     }
 
     /// Search overlays by name or description
