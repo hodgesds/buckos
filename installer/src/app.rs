@@ -1,4 +1,4 @@
-//! Main GUI application for the Buckos installer
+//! Main GUI application for the BuckOs installer
 
 use eframe::egui;
 use std::path::PathBuf;
@@ -395,7 +395,7 @@ impl eframe::App for InstallerApp {
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.heading("Buckos Installer");
+                ui.heading("BuckOs Installer");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if self.config.dry_run {
                         ui.label(

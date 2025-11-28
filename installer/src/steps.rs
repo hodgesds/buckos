@@ -11,11 +11,11 @@ use crate::types::{
 
 /// Render the welcome step
 pub fn render_welcome(ui: &mut Ui, system_info: &SystemInfo) {
-    ui.label("Welcome to the Buckos installer! This wizard will guide you through installing Buckos on your system.");
+    ui.label("Welcome to the BuckOs installer! This wizard will guide you through installing BuckOs on your system.");
 
     ui.add_space(16.0);
 
-    ui.label(RichText::new("What is Buckos?").strong());
+    ui.label(RichText::new("What is BuckOs?").strong());
     ui.label("Buckos is a source-based Linux distribution inspired by Gentoo, designed for users who want control over their system while maintaining ease of use.");
 
     ui.add_space(16.0);
@@ -1312,7 +1312,7 @@ pub fn render_complete(ui: &mut Ui, config: &InstallConfig) {
 
     ui.add_space(16.0);
 
-    ui.label("Buckos has been successfully installed to your system.");
+    ui.label("BuckOs has been successfully installed to your system.");
 
     ui.add_space(16.0);
 
@@ -1337,5 +1337,5 @@ pub fn render_complete(ui: &mut Ui, config: &InstallConfig) {
 
     ui.add_space(16.0);
 
-    ui.label(RichText::new("Thank you for choosing Buckos!").strong());
+    ui.label(RichText::new("Thank you for choosing BuckOs!").strong());
 }

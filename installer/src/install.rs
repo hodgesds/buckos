@@ -1535,7 +1535,7 @@ rootfs(
 
                     let entry_path = entries_dir.join("buckos.conf");
                     let entry_content = format!(
-                        "title   Buckos\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions root=UUID={} rw\n",
+                        "title   BuckOs\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions root=UUID={} rw\n",
                         root_uuid
                     );
                     std::fs::write(&entry_path, entry_content)?;
@@ -1607,7 +1607,7 @@ rootfs(
 
                     // Create Limine configuration
                     let limine_cfg_path = config.target_root.join("boot/limine.cfg");
-                    let limine_cfg = "TIMEOUT=5\n\n:Buckos\nPROTOCOL=linux\nKERNEL_PATH=boot:///vmlinuz-linux\nKERNEL_CMDLINE=root=/dev/sda2 rw\nMODULE_PATH=boot:///initramfs-linux.img\n";
+                    let limine_cfg = "TIMEOUT=5\n\n:BuckOs\nPROTOCOL=linux\nKERNEL_PATH=boot:///vmlinuz-linux\nKERNEL_CMDLINE=root=/dev/sda2 rw\nMODULE_PATH=boot:///initramfs-linux.img\n";
                     std::fs::write(&limine_cfg_path, limine_cfg)?;
                 }
 
@@ -1647,7 +1647,7 @@ rootfs(
                         .arg("--create")
                         .arg("--disk").arg("/dev/sda")
                         .arg("--part").arg("1")
-                        .arg("--label").arg("Buckos")
+                        .arg("--label").arg("buckos")
                         .arg("--loader").arg("/vmlinuz-linux")
                         .arg("--unicode")
                         .arg(format!("root={} rw initrd=\\initramfs-linux.img", root_dev))
