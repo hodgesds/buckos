@@ -160,33 +160,279 @@ impl GlsaChecker {
     }
 
     /// Parse a GLSA XML file
+    ///
+    /// GLSA XML format follows a specific structure with elements like:
+    /// - `<glsa id="...">` - Advisory ID
+    /// - `<title>` - Title
+    /// - `<synopsis>` - Short description
+    /// - `<affected>` - Affected packages with version ranges
+    /// - `<severity>` - Severity level
+    /// - `<announced>` / `<revised>` - Dates
     fn parse_advisory(&self, path: &PathBuf) -> Result<SecurityAdvisory> {
-        // This is a simplified parser - real implementation would use XML parser
         let content = std::fs::read_to_string(path)?;
 
-        // Extract GLSA ID from filename
-        let id = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default();
+        // Extract GLSA ID from filename (fallback) or from XML
+        let id = self
+            .extract_xml_attr(&content, "glsa", "id")
+            .unwrap_or_else(|| {
+                path.file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            });
 
-        // Create a basic advisory structure
-        // In production, this would properly parse the XML
+        // Extract basic fields using simple regex-based parsing
+        let title = self
+            .extract_xml_element(&content, "title")
+            .unwrap_or_else(|| "Unknown".to_string());
+        let synopsis = self
+            .extract_xml_element(&content, "synopsis")
+            .unwrap_or_default();
+        let description = self
+            .extract_xml_element(&content, "description")
+            .unwrap_or_default();
+        let impact = self
+            .extract_xml_element(&content, "impact")
+            .unwrap_or_default();
+        let resolution = self
+            .extract_xml_element(&content, "resolution")
+            .unwrap_or_default();
+        let background = self.extract_xml_element(&content, "background");
+        let workaround = self.extract_xml_element(&content, "workaround");
+
+        // Parse severity
+        let severity = self
+            .extract_xml_attr(&content, "impact", "type")
+            .map(|s| match s.to_lowercase().as_str() {
+                "low" => Severity::Low,
+                "normal" => Severity::Normal,
+                "high" => Severity::High,
+                "critical" => Severity::Critical,
+                _ => Severity::Normal,
+            })
+            .unwrap_or(Severity::Normal);
+
+        // Parse dates
+        let announced = self
+            .extract_xml_element(&content, "announced")
+            .and_then(|s| chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok())
+            .unwrap_or_else(|| chrono::Local::now().date_naive());
+        let revised = self
+            .extract_xml_element(&content, "revised")
+            .and_then(|s| {
+                // Revised format might be "2024-01-01: r1"
+                let date_part = s.split(':').next().unwrap_or(&s).trim();
+                chrono::NaiveDate::parse_from_str(date_part, "%Y-%m-%d").ok()
+            })
+            .unwrap_or(announced);
+
+        // Parse affected packages
+        let affected = self.parse_affected_packages(&content);
+
+        // Parse references (CVE, etc.)
+        let references = self.parse_references(&content);
+
         Ok(SecurityAdvisory {
             id,
-            title: "Unknown".to_string(),
-            synopsis: String::new(),
-            affected: Vec::new(),
-            background: None,
-            description: String::new(),
-            impact: String::new(),
-            workaround: None,
-            resolution: String::new(),
-            references: Vec::new(),
-            severity: Severity::Normal,
-            announced: chrono::Local::now().date_naive(),
-            revised: chrono::Local::now().date_naive(),
+            title,
+            synopsis,
+            affected,
+            background,
+            description,
+            impact,
+            workaround,
+            resolution,
+            references,
+            severity,
+            announced,
+            revised,
         })
+    }
+
+    /// Extract an XML element's text content
+    fn extract_xml_element(&self, content: &str, element: &str) -> Option<String> {
+        let start_tag = format!("<{}", element);
+        let end_tag = format!("</{}>", element);
+
+        let start_pos = content.find(&start_tag)?;
+        let tag_end = content[start_pos..].find('>')? + start_pos + 1;
+        let end_pos = content[tag_end..].find(&end_tag)? + tag_end;
+
+        let text = &content[tag_end..end_pos];
+        // Clean up whitespace and XML entities
+        let cleaned = text
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .trim()
+            .to_string();
+
+        if cleaned.is_empty() {
+            None
+        } else {
+            Some(cleaned)
+        }
+    }
+
+    /// Extract an XML attribute value
+    fn extract_xml_attr(&self, content: &str, element: &str, attr: &str) -> Option<String> {
+        let start_tag = format!("<{}", element);
+        let start_pos = content.find(&start_tag)?;
+        let tag_content = &content[start_pos..];
+        let tag_end = tag_content.find('>')?;
+        let tag_str = &tag_content[..tag_end];
+
+        // Look for attr="value" or attr='value'
+        let attr_pattern = format!("{}=\"", attr);
+        let alt_pattern = format!("{}='", attr);
+
+        if let Some(attr_start) = tag_str.find(&attr_pattern) {
+            let value_start = attr_start + attr_pattern.len();
+            let value_end = tag_str[value_start..].find('"')? + value_start;
+            return Some(tag_str[value_start..value_end].to_string());
+        }
+
+        if let Some(attr_start) = tag_str.find(&alt_pattern) {
+            let value_start = attr_start + alt_pattern.len();
+            let value_end = tag_str[value_start..].find('\'')? + value_start;
+            return Some(tag_str[value_start..value_end].to_string());
+        }
+
+        None
+    }
+
+    /// Parse affected packages from the XML content
+    fn parse_affected_packages(&self, content: &str) -> Vec<AffectedPackage> {
+        let mut affected = Vec::new();
+
+        // Find all <package> elements within <affected>
+        let affected_start = match content.find("<affected>") {
+            Some(pos) => pos,
+            None => return affected,
+        };
+        let affected_end = match content[affected_start..].find("</affected>") {
+            Some(pos) => affected_start + pos,
+            None => return affected,
+        };
+        let affected_content = &content[affected_start..affected_end];
+
+        // Simple state machine to find package elements
+        let mut pos = 0;
+        while let Some(pkg_start) = affected_content[pos..].find("<package") {
+            let pkg_start = pos + pkg_start;
+            let pkg_end = match affected_content[pkg_start..].find("</package>") {
+                Some(end) => pkg_start + end + "</package>".len(),
+                None => break,
+            };
+            let pkg_content = &affected_content[pkg_start..pkg_end];
+
+            // Extract package name
+            let name = self
+                .extract_xml_attr(pkg_content, "package", "name")
+                .unwrap_or_default();
+            let arch = self
+                .extract_xml_attr(pkg_content, "package", "arch")
+                .unwrap_or_else(|| "*".to_string());
+
+            if let Some(pkg_id) = PackageId::parse(&name) {
+                // Parse version ranges
+                let mut ranges = Vec::new();
+                let mut fixed_version = None;
+
+                // Look for <vulnerable> and <unaffected> elements
+                if let Some(vuln) = self.extract_xml_element(pkg_content, "vulnerable") {
+                    if let Some(range_type) =
+                        self.extract_xml_attr(pkg_content, "vulnerable", "range")
+                    {
+                        ranges.push(VersionRange {
+                            range_type: self.parse_range_type(&range_type),
+                            version: vuln,
+                        });
+                    }
+                }
+
+                if let Some(unaffected) = self.extract_xml_element(pkg_content, "unaffected") {
+                    fixed_version = Some(unaffected);
+                }
+
+                affected.push(AffectedPackage {
+                    package: pkg_id,
+                    affected_versions: ranges,
+                    fixed_version,
+                    arch,
+                });
+            }
+
+            pos = pkg_end;
+        }
+
+        affected
+    }
+
+    /// Parse range type string
+    fn parse_range_type(&self, s: &str) -> RangeType {
+        match s.to_lowercase().as_str() {
+            "lt" | "less" => RangeType::Lt,
+            "le" | "lessequal" => RangeType::Le,
+            "eq" | "equal" => RangeType::Eq,
+            "ge" | "greaterequal" => RangeType::Ge,
+            "rlt" | "rle" | "rge" | "rgt" => RangeType::Range,
+            _ => RangeType::Lt, // Default to less-than
+        }
+    }
+
+    /// Parse references (CVE IDs, URLs) from the XML content
+    fn parse_references(&self, content: &str) -> Vec<Reference> {
+        let mut refs = Vec::new();
+
+        // Find references section
+        let refs_start = match content.find("<references>") {
+            Some(pos) => pos,
+            None => return refs,
+        };
+        let refs_end = match content[refs_start..].find("</references>") {
+            Some(pos) => refs_start + pos,
+            None => return refs,
+        };
+        let refs_content = &content[refs_start..refs_end];
+
+        // Parse <uri> elements
+        let mut pos = 0;
+        while let Some(uri_start) = refs_content[pos..].find("<uri") {
+            let uri_start = pos + uri_start;
+            let uri_end = match refs_content[uri_start..].find("</uri>") {
+                Some(end) => uri_start + end + "</uri>".len(),
+                None => break,
+            };
+            let uri_content = &refs_content[uri_start..uri_end];
+
+            if let Some(link) = self.extract_xml_attr(uri_content, "uri", "link") {
+                let ref_type = if link.contains("cve.mitre.org") || link.contains("nvd.nist.gov") {
+                    "CVE"
+                } else {
+                    "URL"
+                };
+
+                // Try to extract CVE ID from link
+                let id = if ref_type == "CVE" {
+                    link.split('/')
+                        .last()
+                        .map(|s| s.to_string())
+                        .unwrap_or(link.clone())
+                } else {
+                    link.clone()
+                };
+
+                refs.push(Reference {
+                    ref_type: ref_type.to_string(),
+                    id,
+                });
+            }
+
+            pos = uri_end;
+        }
+
+        refs
     }
 
     /// Add an advisory programmatically

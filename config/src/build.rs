@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug)]
 struct GoConfig {
     // https://pkg.go.dev/cmd/go#hdr-Build_constraints

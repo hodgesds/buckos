@@ -89,6 +89,8 @@ fn glibc_2_38() -> PackageInfo {
         buck_target: "//sys-libs/glibc:glibc-2.38".to_string(),
         size: 18_500_000,
         installed_size: 45_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -123,6 +125,8 @@ fn glibc_2_39() -> PackageInfo {
         buck_target: "//sys-libs/glibc:glibc-2.39".to_string(),
         size: 18_800_000,
         installed_size: 46_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -149,6 +153,8 @@ fn musl_1_2_4() -> PackageInfo {
         buck_target: "//sys-libs/musl:musl-1.2.4".to_string(),
         size: 1_100_000,
         installed_size: 3_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -175,6 +181,8 @@ fn musl_1_2_5() -> PackageInfo {
         buck_target: "//sys-libs/musl:musl-1.2.5".to_string(),
         size: 1_150_000,
         installed_size: 3_600_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -200,6 +208,8 @@ fn libgcc_13_2_0() -> PackageInfo {
         buck_target: "//sys-libs/libgcc:libgcc-13.2.0".to_string(),
         size: 150_000,
         installed_size: 500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -221,6 +231,8 @@ fn libgcc_14_1_0() -> PackageInfo {
         buck_target: "//sys-libs/libgcc:libgcc-14.1.0".to_string(),
         size: 160_000,
         installed_size: 520_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -246,6 +258,8 @@ fn linux_headers_6_6() -> PackageInfo {
         buck_target: "//sys-kernel/linux-headers:linux-headers-6.6".to_string(),
         size: 1_500_000,
         installed_size: 8_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -275,6 +289,8 @@ fn linux_headers_6_8() -> PackageInfo {
         buck_target: "//sys-kernel/linux-headers:linux-headers-6.8".to_string(),
         size: 1_550_000,
         installed_size: 8_200_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -304,6 +320,8 @@ fn libxcrypt_4_4_36() -> PackageInfo {
         buck_target: "//sys-libs/libxcrypt:libxcrypt-4.4.36".to_string(),
         size: 400_000,
         installed_size: 1_200_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -329,6 +347,8 @@ fn timezone_data_2024a() -> PackageInfo {
         buck_target: "//sys-libs/timezone-data:timezone-data-2024a".to_string(),
         size: 450_000,
         installed_size: 2_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -360,6 +380,8 @@ fn ncurses_6_4() -> PackageInfo {
         buck_target: "//sys-libs/ncurses:ncurses-6.4".to_string(),
         size: 3_500_000,
         installed_size: 8_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -386,6 +408,8 @@ fn readline_8_2() -> PackageInfo {
         buck_target: "//sys-libs/readline:readline-8.2".to_string(),
         size: 3_000_000,
         installed_size: 5_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -417,6 +441,8 @@ fn libffi_3_4_6() -> PackageInfo {
         buck_target: "//dev-libs/libffi:libffi-3.4.6".to_string(),
         size: 1_400_000,
         installed_size: 2_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -444,6 +470,8 @@ fn gmp_6_3_0() -> PackageInfo {
         buck_target: "//dev-libs/gmp:gmp-6.3.0".to_string(),
         size: 2_100_000,
         installed_size: 4_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -467,6 +495,8 @@ fn mpfr_4_2_1() -> PackageInfo {
         buck_target: "//dev-libs/mpfr:mpfr-4.2.1".to_string(),
         size: 1_500_000,
         installed_size: 3_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -491,6 +521,8 @@ fn mpc_1_3_1() -> PackageInfo {
         buck_target: "//dev-libs/mpc:mpc-1.3.1".to_string(),
         size: 750_000,
         installed_size: 1_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -524,6 +556,8 @@ fn pam_1_6_1() -> PackageInfo {
         buck_target: "//sys-libs/pam:pam-1.6.1".to_string(),
         size: 1_200_000,
         installed_size: 3_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -553,6 +587,8 @@ fn libcap_2_69() -> PackageInfo {
         buck_target: "//sys-libs/libcap:libcap-2.69".to_string(),
         size: 120_000,
         installed_size: 400_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -579,6 +615,8 @@ fn libseccomp_2_5_5() -> PackageInfo {
         buck_target: "//sys-libs/libseccomp:libseccomp-2.5.5".to_string(),
         size: 600_000,
         installed_size: 1_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -610,6 +648,8 @@ fn attr_2_5_2() -> PackageInfo {
         buck_target: "//sys-libs/attr:attr-2.5.2".to_string(),
         size: 350_000,
         installed_size: 900_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -641,5 +681,7 @@ fn acl_2_3_2() -> PackageInfo {
         buck_target: "//sys-libs/acl:acl-2.3.2".to_string(),
         size: 400_000,
         installed_size: 1_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }

@@ -344,17 +344,17 @@ impl RepositoryManager {
                 };
 
                 // Try to parse version
-                let version = semver::Version::parse(&version_str)
-                    .unwrap_or_else(|_| {
-                        warn!("Failed to parse version '{}' for {}", version_str, package_id_str);
-                        semver::Version::new(0, 0, 1)
-                    });
+                let version = semver::Version::parse(&version_str).unwrap_or_else(|_| {
+                    warn!(
+                        "Failed to parse version '{}' for {}",
+                        version_str, package_id_str
+                    );
+                    semver::Version::new(0, 0, 1)
+                });
 
                 // Extract additional metadata for this package
-                let (slot, license, description) = self.extract_package_metadata(
-                    &content,
-                    package_id_str
-                );
+                let (slot, license, description) =
+                    self.extract_package_metadata(&content, package_id_str);
 
                 packages.push(PackageInfo {
                     id: pkg_id.clone(),
@@ -370,9 +370,14 @@ impl RepositoryManager {
                     runtime_dependencies: Vec::new(),
                     source_url: None,
                     source_hash: None,
-                    buck_target: format!("//packages/linux/{}/{}:{}", pkg_id.category, pkg_id.name, pkg_id.name),
+                    buck_target: format!(
+                        "//packages/linux/{}/{}:{}",
+                        pkg_id.category, pkg_id.name, pkg_id.name
+                    ),
                     size: 0,
                     installed_size: 0,
+                    required_use: String::new(),
+                    blockers: Vec::new(),
                 });
             } else {
                 warn!("Failed to parse package ID: {}", package_id_str);
@@ -389,7 +394,8 @@ impl RepositoryManager {
         package_id: &str,
     ) -> (Option<String>, Option<String>, Option<String>) {
         // Find the package entry and its version metadata
-        let package_start = content.find(&format!("\"{}\"", package_id))
+        let package_start = content
+            .find(&format!("\"{}\"", package_id))
             .or_else(|| content.find(&format!("'{}'", package_id)));
 
         if let Some(start) = package_start {
@@ -398,9 +404,10 @@ impl RepositoryManager {
             let search_area = &content[start..search_end];
 
             // Extract slot
-            let slot = if let Some(slot_match) = regex::Regex::new(r#"["']slot["']\s*:\s*["']([^"']+)["']"#)
-                .ok()
-                .and_then(|re| re.captures(search_area))
+            let slot = if let Some(slot_match) =
+                regex::Regex::new(r#"["']slot["']\s*:\s*["']([^"']+)["']"#)
+                    .ok()
+                    .and_then(|re| re.captures(search_area))
             {
                 Some(slot_match[1].to_string())
             } else {
@@ -450,6 +457,8 @@ impl RepositoryManager {
             buck_target: format!("//packages/{}/{}:package", category, name),
             size: metadata.size.unwrap_or(0),
             installed_size: metadata.installed_size.unwrap_or(0),
+            required_use: metadata.required_use.unwrap_or_default(),
+            blockers: metadata.blockers,
         })
     }
 
@@ -496,4 +505,8 @@ struct PackageMetadata {
     source_hash: Option<String>,
     size: Option<u64>,
     installed_size: Option<u64>,
+    #[serde(default)]
+    required_use: Option<String>,
+    #[serde(default)]
+    blockers: Vec<String>,
 }

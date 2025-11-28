@@ -109,6 +109,8 @@ fn systemd_255() -> PackageInfo {
         buck_target: "//sys-apps/systemd:systemd-255".to_string(),
         size: 15_000_000,
         installed_size: 45_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -181,6 +183,8 @@ fn systemd_256() -> PackageInfo {
         buck_target: "//sys-apps/systemd:systemd-256".to_string(),
         size: 16_000_000,
         installed_size: 48_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -221,6 +225,8 @@ fn openrc_0_54() -> PackageInfo {
         buck_target: "//sys-apps/openrc:openrc-0.54".to_string(),
         size: 700_000,
         installed_size: 2_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -259,6 +265,8 @@ fn dbus_1_14_10() -> PackageInfo {
         buck_target: "//sys-apps/dbus:dbus-1.14.10".to_string(),
         size: 2_000_000,
         installed_size: 6_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -296,6 +304,8 @@ fn eudev_3_2_14() -> PackageInfo {
         buck_target: "//sys-fs/eudev:eudev-3.2.14".to_string(),
         size: 600_000,
         installed_size: 3_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -339,6 +349,8 @@ fn polkit_124() -> PackageInfo {
         buck_target: "//sys-auth/polkit:polkit-124".to_string(),
         size: 700_000,
         installed_size: 3_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -381,6 +393,8 @@ fn elogind_252_9() -> PackageInfo {
         buck_target: "//sys-auth/elogind:elogind-252.9".to_string(),
         size: 1_500_000,
         installed_size: 5_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -413,5 +427,7 @@ fn cronie_1_7_2() -> PackageInfo {
         buck_target: "//sys-process/cronie:cronie-1.7.2".to_string(),
         size: 250_000,
         installed_size: 700_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }

@@ -392,6 +392,8 @@ mod tests {
             buck_target: String::new(),
             size: 0,
             installed_size: 0,
+            required_use: String::new(),
+            blockers: Vec::new(),
         }
     }
 

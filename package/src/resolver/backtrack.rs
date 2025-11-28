@@ -59,6 +59,17 @@ struct Decision {
     reason: String,
 }
 
+/// A decision made during resolution (public version)
+#[derive(Debug, Clone)]
+pub struct ResolutionDecision {
+    /// Package that was selected
+    pub package: PackageId,
+    /// Version that was selected
+    pub version: semver::Version,
+    /// Human-readable reason for this decision
+    pub reason: String,
+}
+
 /// Result of backtracking resolution
 #[derive(Debug, Clone)]
 pub struct BacktrackResult {
@@ -67,7 +78,7 @@ pub struct BacktrackResult {
     /// Number of backtracks performed
     pub backtracks: usize,
     /// Decisions made during resolution
-    pub decisions: Vec<String>,
+    pub decisions: Vec<ResolutionDecision>,
 }
 
 /// Backtracking dependency resolver
@@ -141,7 +152,15 @@ impl BacktrackResolver {
                     return Ok(BacktrackResult {
                         packages: state.selected.into_iter().collect(),
                         backtracks: self.backtrack_count,
-                        decisions: state.decisions.into_iter().map(|d| d.reason).collect(),
+                        decisions: state
+                            .decisions
+                            .into_iter()
+                            .map(|d| ResolutionDecision {
+                                package: d.package,
+                                version: d.version,
+                                reason: d.reason,
+                            })
+                            .collect(),
                     });
                 }
                 StepResult::Conflict(reason) => {

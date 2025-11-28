@@ -256,22 +256,28 @@ impl ParallelExecutor {
             let handle = tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap();
                 let result = f(item);
-                (idx, result)
+                results.lock().push((idx, result));
             });
 
             handles.push(handle);
         }
 
-        let mut indexed_results = Vec::new();
+        // Wait for all tasks to complete
         for handle in handles {
-            let (idx, result) = handle.await.map_err(|e| Error::Other(e.to_string()))?;
-            indexed_results.push((idx, result));
+            handle
+                .await
+                .map_err(|e| Error::Other(format!("Task join error: {}", e)))?;
         }
 
-        // Sort by index
+        // Extract results from shared state
+        let mut indexed_results = Arc::try_unwrap(results)
+            .map_err(|_| Error::Other("Failed to unwrap results".to_string()))?
+            .into_inner();
+
+        // Sort by index to preserve order
         indexed_results.sort_by_key(|(idx, _)| *idx);
 
-        // Extract results
+        // Extract results, propagating any errors
         indexed_results.into_iter().map(|(_, r)| r).collect()
     }
 

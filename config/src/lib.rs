@@ -117,6 +117,7 @@ pub use sets::{PackageSet, SetsConfig};
 pub use use_flags::{PackageUseEntry, UseConfig, UseExpandVariable, UseFlag, UseFlagDescription};
 
 // Re-export legacy types
+#[allow(unused_imports)]
 pub use build::*;
 pub use security::*;
 pub use version::*;

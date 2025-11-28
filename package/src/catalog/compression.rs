@@ -67,6 +67,8 @@ fn zlib_1_3_1() -> PackageInfo {
         buck_target: "//sys-libs/zlib:zlib-1.3.1".to_string(),
         size: 600_000,
         installed_size: 1_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -100,6 +102,8 @@ fn xz_utils_5_4_6() -> PackageInfo {
         buck_target: "//app-arch/xz-utils:xz-utils-5.4.6".to_string(),
         size: 1_400_000,
         installed_size: 3_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -137,6 +141,8 @@ fn xz_utils_5_6_1() -> PackageInfo {
         buck_target: "//app-arch/xz-utils:xz-utils-5.6.1".to_string(),
         size: 1_500_000,
         installed_size: 3_700_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -175,6 +181,8 @@ fn zstd_1_5_5() -> PackageInfo {
         buck_target: "//app-arch/zstd:zstd-1.5.5".to_string(),
         size: 2_000_000,
         installed_size: 5_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -217,6 +225,8 @@ fn zstd_1_5_6() -> PackageInfo {
         buck_target: "//app-arch/zstd:zstd-1.5.6".to_string(),
         size: 2_100_000,
         installed_size: 5_200_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -244,6 +254,8 @@ fn bzip2_1_0_8() -> PackageInfo {
         buck_target: "//app-arch/bzip2:bzip2-1.0.8".to_string(),
         size: 800_000,
         installed_size: 1_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -270,6 +282,8 @@ fn lz4_1_9_4() -> PackageInfo {
         buck_target: "//app-arch/lz4:lz4-1.9.4".to_string(),
         size: 400_000,
         installed_size: 1_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -302,6 +316,8 @@ fn brotli_1_1_0() -> PackageInfo {
         buck_target: "//app-arch/brotli:brotli-1.1.0".to_string(),
         size: 500_000,
         installed_size: 1_200_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -356,6 +372,8 @@ fn libarchive_3_7_2() -> PackageInfo {
         buck_target: "//app-arch/libarchive:libarchive-3.7.2".to_string(),
         size: 7_000_000,
         installed_size: 15_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -383,6 +401,8 @@ fn pigz_2_8() -> PackageInfo {
         buck_target: "//app-arch/pigz:pigz-2.8".to_string(),
         size: 80_000,
         installed_size: 200_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -411,6 +431,8 @@ fn pbzip2_1_1_13() -> PackageInfo {
         buck_target: "//app-arch/pbzip2:pbzip2-1.1.13".to_string(),
         size: 50_000,
         installed_size: 150_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -442,6 +464,8 @@ fn snappy_1_1_10() -> PackageInfo {
         buck_target: "//app-arch/snappy:snappy-1.1.10".to_string(),
         size: 500_000,
         installed_size: 1_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -467,6 +491,8 @@ fn lzip_1_24() -> PackageInfo {
         buck_target: "//app-arch/lzip:lzip-1.24".to_string(),
         size: 150_000,
         installed_size: 400_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -490,5 +516,7 @@ fn lzop_1_04() -> PackageInfo {
         buck_target: "//app-arch/lzop:lzop-1.04".to_string(),
         size: 150_000,
         installed_size: 300_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }

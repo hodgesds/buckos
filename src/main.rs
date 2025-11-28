@@ -78,6 +78,10 @@ async fn main() -> Result<()> {
             println!("Buckos Build Repository");
             println!("=======================");
             println!("Location: {}", repo_path.display());
+            println!(
+                "Default path: {}",
+                repository::default_repository_path().display()
+            );
             println!();
             println!("Standard repository locations:");
             for location in repository::STANDARD_REPO_LOCATIONS {

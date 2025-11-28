@@ -73,6 +73,8 @@ fn openssl_3_2_1() -> PackageInfo {
         buck_target: "//dev-libs/openssl:openssl-3.2.1".to_string(),
         size: 15_000_000,
         installed_size: 40_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -110,6 +112,8 @@ fn openssl_3_3_0() -> PackageInfo {
         buck_target: "//dev-libs/openssl:openssl-3.3.0".to_string(),
         size: 15_500_000,
         installed_size: 42_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -166,6 +170,8 @@ fn curl_8_6_0() -> PackageInfo {
         buck_target: "//net-misc/curl:curl-8.6.0".to_string(),
         size: 2_600_000,
         installed_size: 8_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -216,6 +222,8 @@ fn curl_8_7_1() -> PackageInfo {
         buck_target: "//net-misc/curl:curl-8.7.1".to_string(),
         size: 2_700_000,
         installed_size: 8_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -263,6 +271,8 @@ fn wget_1_21_4() -> PackageInfo {
         buck_target: "//net-misc/wget:wget-1.21.4".to_string(),
         size: 4_800_000,
         installed_size: 10_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -307,6 +317,8 @@ fn wget_1_24_5() -> PackageInfo {
         buck_target: "//net-misc/wget:wget-1.24.5".to_string(),
         size: 5_000_000,
         installed_size: 11_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -332,6 +344,8 @@ fn ca_certificates_20240203() -> PackageInfo {
         buck_target: "//app-misc/ca-certificates:ca-certificates-20240203".to_string(),
         size: 200_000,
         installed_size: 600_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -371,6 +385,8 @@ fn nghttp2_1_60_0() -> PackageInfo {
         buck_target: "//net-libs/nghttp2:nghttp2-1.60.0".to_string(),
         size: 1_600_000,
         installed_size: 4_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -404,6 +420,8 @@ fn libssh2_1_11_0() -> PackageInfo {
         buck_target: "//net-libs/libssh2:libssh2-1.11.0".to_string(),
         size: 1_000_000,
         installed_size: 2_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -459,6 +477,8 @@ fn gnutls_3_8_4() -> PackageInfo {
         buck_target: "//net-libs/gnutls:gnutls-3.8.4".to_string(),
         size: 6_000_000,
         installed_size: 15_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -504,6 +524,8 @@ fn openssh_9_7() -> PackageInfo {
         buck_target: "//net-misc/openssh:openssh-9.7".to_string(),
         size: 1_800_000,
         installed_size: 5_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -544,6 +566,8 @@ fn iproute2_6_7_0() -> PackageInfo {
         buck_target: "//sys-apps/iproute2:iproute2-6.7.0".to_string(),
         size: 1_000_000,
         installed_size: 3_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -580,6 +604,8 @@ fn iputils_20240117() -> PackageInfo {
         buck_target: "//net-misc/iputils:iputils-20240117".to_string(),
         size: 350_000,
         installed_size: 800_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -616,6 +642,8 @@ fn net_tools_2_10() -> PackageInfo {
         buck_target: "//sys-apps/net-tools:net-tools-2.10".to_string(),
         size: 350_000,
         installed_size: 1_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -652,5 +680,7 @@ fn bind_tools_9_18_24() -> PackageInfo {
         buck_target: "//net-dns/bind-tools:bind-tools-9.18.24".to_string(),
         size: 5_000_000,
         installed_size: 8_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }

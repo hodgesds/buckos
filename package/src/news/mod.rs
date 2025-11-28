@@ -343,7 +343,7 @@ impl Default for NewsManager {
 }
 
 /// Format news listing
-pub fn format_news_list(items: &[&NewsItem], show_read: bool) -> String {
+pub fn format_news_list(items: &[&NewsItem], _show_read: bool) -> String {
     if items.is_empty() {
         return "No news items.\n".to_string();
     }

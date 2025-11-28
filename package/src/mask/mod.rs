@@ -284,6 +284,20 @@ impl MaskManager {
         }
     }
 
+    /// Get the root directory
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Resolve a path relative to the root directory
+    pub fn resolve_path(&self, path: &Path) -> PathBuf {
+        if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            self.root.join(path)
+        }
+    }
+
     /// Load all mask and keyword configuration
     pub fn load(&mut self) -> Result<()> {
         // Load package.mask

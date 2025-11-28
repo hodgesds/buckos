@@ -352,12 +352,15 @@ impl BlockerResolver {
     }
 
     /// Extract blockers from a package's dependencies
+    ///
+    /// This parses blocker strings (e.g., `!sys-apps/openrc`, `!!sys-apps/sysvinit`)
+    /// from the package's blockers field and registers them with this resolver.
     pub fn extract_blockers_from_package(&mut self, pkg: &PackageInfo) {
-        // This would parse PDEPEND and other dependency fields for blockers
-        // In practice, this information comes from the ebuild
-
-        // Example: if pkg has blocker strings in its metadata
-        // For now, this is a placeholder for the actual implementation
+        for blocker_str in &pkg.blockers {
+            if let Ok(blocker) = Self::parse_blocker(blocker_str, &pkg.id, &pkg.version) {
+                self.add_blocker(blocker);
+            }
+        }
     }
 }
 

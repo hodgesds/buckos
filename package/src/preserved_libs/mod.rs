@@ -171,7 +171,7 @@ impl PreservedLibsManager {
             .collect();
 
         for path in paths_to_remove {
-            if let Some(lib) = self.libs.remove(&path) {
+            if let Some(_lib) = self.libs.remove(&path) {
                 // Remove the symlink
                 if path.is_symlink() {
                     std::fs::remove_file(&path)?;

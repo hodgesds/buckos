@@ -332,7 +332,110 @@ impl BuckIntegration {
             return Err(Error::BuckError(format!("Clean failed: {}", stderr)));
         }
 
+        // Also clean our local output cache
+        if self.output_dir.exists() {
+            std::fs::remove_dir_all(&self.output_dir)
+                .map_err(|e| Error::BuckError(format!("Failed to clean output cache: {}", e)))?;
+        }
+
         Ok(())
+    }
+
+    /// Get the output cache directory
+    pub fn output_dir(&self) -> &PathBuf {
+        &self.output_dir
+    }
+
+    /// Get cached output path for a target
+    pub fn cached_output_path(&self, target: &str) -> PathBuf {
+        // Convert target like "//packages/sys-libs/glibc:glibc" to path
+        let sanitized = target.trim_start_matches("//").replace([':', '/'], "_");
+        self.output_dir.join(sanitized)
+    }
+
+    /// Check if a target has cached output
+    pub fn has_cached_output(&self, target: &str) -> bool {
+        self.cached_output_path(target).exists()
+    }
+
+    /// Cache build output for a target
+    ///
+    /// Copies the build output to the local cache directory for faster subsequent access.
+    pub async fn cache_output(&self, target: &str, source_path: &PathBuf) -> Result<PathBuf> {
+        let cache_path = self.cached_output_path(target);
+
+        // Ensure output directory exists
+        if let Some(parent) = cache_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                Error::BuckError(format!("Failed to create cache directory: {}", e))
+            })?;
+        }
+
+        // Copy or link the output
+        if source_path.is_dir() {
+            self.copy_dir_recursive(source_path, &cache_path)?;
+        } else {
+            std::fs::copy(source_path, &cache_path)
+                .map_err(|e| Error::BuckError(format!("Failed to cache output: {}", e)))?;
+        }
+
+        info!("Cached build output for {} at {:?}", target, cache_path);
+        Ok(cache_path)
+    }
+
+    /// Recursively copy a directory
+    fn copy_dir_recursive(&self, src: &PathBuf, dst: &PathBuf) -> Result<()> {
+        std::fs::create_dir_all(dst)
+            .map_err(|e| Error::BuckError(format!("Failed to create directory: {}", e)))?;
+
+        for entry in std::fs::read_dir(src)
+            .map_err(|e| Error::BuckError(format!("Failed to read directory: {}", e)))?
+        {
+            let entry =
+                entry.map_err(|e| Error::BuckError(format!("Failed to read entry: {}", e)))?;
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+
+            if src_path.is_dir() {
+                self.copy_dir_recursive(&src_path, &dst_path)?;
+            } else {
+                std::fs::copy(&src_path, &dst_path)
+                    .map_err(|e| Error::BuckError(format!("Failed to copy file: {}", e)))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get output size in bytes (for reporting)
+    pub fn output_cache_size(&self) -> Result<u64> {
+        if !self.output_dir.exists() {
+            return Ok(0);
+        }
+        self.dir_size(&self.output_dir)
+    }
+
+    /// Calculate directory size recursively
+    fn dir_size(&self, path: &PathBuf) -> Result<u64> {
+        let mut size = 0;
+        if path.is_dir() {
+            for entry in std::fs::read_dir(path)
+                .map_err(|e| Error::BuckError(format!("Failed to read directory: {}", e)))?
+            {
+                let entry =
+                    entry.map_err(|e| Error::BuckError(format!("Failed to read entry: {}", e)))?;
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    size += self.dir_size(&entry_path)?;
+                } else {
+                    size += entry
+                        .metadata()
+                        .map_err(|e| Error::BuckError(format!("Failed to get metadata: {}", e)))?
+                        .len();
+                }
+            }
+        }
+        Ok(size)
     }
 
     /// Find build output for a target
@@ -357,7 +460,9 @@ impl BuckIntegration {
             // Parse output like "//path/to/target <TAB/SPACE> /path/to/output"
             for line in stdout.lines() {
                 // Try tab first, then space
-                if let Some((_target, path)) = line.split_once('\t').or_else(|| line.split_once(' ')) {
+                if let Some((_target, path)) =
+                    line.split_once('\t').or_else(|| line.split_once(' '))
+                {
                     let path_str = path.trim();
                     // Path is relative to repo_path, make it absolute
                     let abs_path = self.repo_path.join(path_str);

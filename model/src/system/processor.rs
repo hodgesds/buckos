@@ -1,6 +1,7 @@
 use serde::Deserialize;
 // use url::Url;
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct Processor {
     architecture: String,

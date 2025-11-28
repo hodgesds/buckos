@@ -47,6 +47,8 @@ pub fn get_packages() -> Vec<PackageInfo> {
         // Python
         python_3_11_9(),
         python_3_12_3(),
+        // Perl
+        perl_5_38_2(),
     ]
 }
 
@@ -102,6 +104,8 @@ fn gcc_13_2_0() -> PackageInfo {
         buck_target: "//sys-devel/gcc:gcc-13.2.0".to_string(),
         size: 85_000_000,
         installed_size: 350_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -153,6 +157,8 @@ fn gcc_14_1_0() -> PackageInfo {
         buck_target: "//sys-devel/gcc:gcc-14.1.0".to_string(),
         size: 88_000_000,
         installed_size: 360_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -195,6 +201,8 @@ fn llvm_17_0_6() -> PackageInfo {
         buck_target: "//sys-devel/llvm:llvm-17.0.6".to_string(),
         size: 60_000_000,
         installed_size: 250_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -237,6 +245,8 @@ fn llvm_18_1_0() -> PackageInfo {
         buck_target: "//sys-devel/llvm:llvm-18.1.0".to_string(),
         size: 65_000_000,
         installed_size: 280_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -272,6 +282,8 @@ fn clang_17_0_6() -> PackageInfo {
         buck_target: "//sys-devel/clang:clang-17.0.6".to_string(),
         size: 35_000_000,
         installed_size: 120_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -307,6 +319,8 @@ fn clang_18_1_0() -> PackageInfo {
         buck_target: "//sys-devel/clang:clang-18.1.0".to_string(),
         size: 38_000_000,
         installed_size: 130_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -345,6 +359,8 @@ fn binutils_2_41() -> PackageInfo {
         buck_target: "//sys-devel/binutils:binutils-2.41".to_string(),
         size: 25_000_000,
         installed_size: 95_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -387,6 +403,8 @@ fn binutils_2_42() -> PackageInfo {
         buck_target: "//sys-devel/binutils:binutils-2.42".to_string(),
         size: 26_000_000,
         installed_size: 98_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -414,6 +432,8 @@ fn make_4_4_1() -> PackageInfo {
         buck_target: "//sys-devel/make:make-4.4.1".to_string(),
         size: 2_300_000,
         installed_size: 3_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -437,6 +457,8 @@ fn autoconf_2_72() -> PackageInfo {
         buck_target: "//sys-devel/autoconf:autoconf-2.72".to_string(),
         size: 1_300_000,
         installed_size: 3_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -460,6 +482,8 @@ fn automake_1_16_5() -> PackageInfo {
         buck_target: "//sys-devel/automake:automake-1.16.5".to_string(),
         size: 1_500_000,
         installed_size: 4_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -486,6 +510,8 @@ fn libtool_2_4_7() -> PackageInfo {
         buck_target: "//sys-devel/libtool:libtool-2.4.7".to_string(),
         size: 1_000_000,
         installed_size: 2_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -512,6 +538,8 @@ fn m4_1_4_19() -> PackageInfo {
         buck_target: "//sys-devel/m4:m4-1.4.19".to_string(),
         size: 1_600_000,
         installed_size: 2_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -539,6 +567,8 @@ fn bison_3_8_2() -> PackageInfo {
         buck_target: "//sys-devel/bison:bison-3.8.2".to_string(),
         size: 2_800_000,
         installed_size: 6_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -570,6 +600,8 @@ fn flex_2_6_4() -> PackageInfo {
         buck_target: "//sys-devel/flex:flex-2.6.4".to_string(),
         size: 1_400_000,
         installed_size: 2_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -604,6 +636,8 @@ fn gettext_0_22_5() -> PackageInfo {
         buck_target: "//sys-devel/gettext:gettext-0.22.5".to_string(),
         size: 10_000_000,
         installed_size: 25_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -632,6 +666,8 @@ fn pkgconf_2_1_1() -> PackageInfo {
         buck_target: "//dev-util/pkgconf:pkgconf-2.1.1".to_string(),
         size: 300_000,
         installed_size: 600_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -672,6 +708,8 @@ fn rust_1_77_0() -> PackageInfo {
         buck_target: "//dev-lang/rust:rust-1.77.0".to_string(),
         size: 200_000_000,
         installed_size: 800_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -712,6 +750,8 @@ fn rust_1_79_0() -> PackageInfo {
         buck_target: "//dev-lang/rust:rust-1.79.0".to_string(),
         size: 210_000_000,
         installed_size: 850_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -735,6 +775,8 @@ fn go_1_22_0() -> PackageInfo {
         buck_target: "//dev-lang/go:go-1.22.0".to_string(),
         size: 27_000_000,
         installed_size: 450_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -783,6 +825,8 @@ fn python_3_11_9() -> PackageInfo {
         buck_target: "//dev-lang/python:python-3.11.9".to_string(),
         size: 20_000_000,
         installed_size: 100_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -835,6 +879,8 @@ fn python_3_12_3() -> PackageInfo {
         buck_target: "//dev-lang/python:python-3.12.3".to_string(),
         size: 21_000_000,
         installed_size: 105_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -866,5 +912,7 @@ fn perl_5_38_2() -> PackageInfo {
         buck_target: "//dev-lang/perl:perl-5.38.2".to_string(),
         size: 12_500_000,
         installed_size: 55_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }

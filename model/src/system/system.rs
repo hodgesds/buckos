@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::time::Duration;
 use url::Url;
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct System {
     uri: Option<Url>,

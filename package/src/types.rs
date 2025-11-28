@@ -151,6 +151,12 @@ pub struct PackageInfo {
     pub buck_target: String,
     pub size: u64,
     pub installed_size: u64,
+    /// REQUIRED_USE constraints (e.g., "|| ( foo bar )", "^^ ( a b )", "foo? ( bar )")
+    #[serde(default)]
+    pub required_use: String,
+    /// Package blockers (e.g., "!sys-apps/openrc", "!!sys-apps/sysvinit")
+    #[serde(default)]
+    pub blockers: Vec<String>,
 }
 
 /// USE flag definition

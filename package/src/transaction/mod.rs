@@ -29,6 +29,7 @@ pub enum Operation {
 /// Transaction for package operations
 pub struct Transaction {
     db: Arc<RwLock<PackageDb>>,
+    #[allow(dead_code)]
     cache: Arc<PackageCache>,
     buck: Arc<BuckIntegration>,
     operations: Vec<Operation>,
@@ -123,7 +124,7 @@ impl Transaction {
         }
     }
 
-    async fn execute_operations(&self, executor: &ParallelExecutor) -> Result<()> {
+    async fn execute_operations(&self, _executor: &ParallelExecutor) -> Result<()> {
         // Group operations by type
         let mut installs = Vec::new();
         let mut removes = Vec::new();
@@ -236,7 +237,7 @@ impl Transaction {
     async fn install_files(
         &self,
         build_output_path: &Path,
-        pkg_id: &PackageId,
+        _pkg_id: &PackageId,
     ) -> Result<Vec<InstalledFile>> {
         // Buck output is a DESTDIR-structured directory (usr/lib, usr/include, etc.)
         // not a tarball, so we walk it directly

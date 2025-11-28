@@ -3083,26 +3083,33 @@ fn load_package_sets_bzl() -> buckos_package::Result<buckos_config::PackageSets>
 
     for path in paths_to_try {
         if path.exists() {
-            return buckos_config::PackageSets::from_file(&path)
-                .map_err(|e| buckos_package::Error::Config(format!("Failed to parse package_sets.bzl: {}", e)));
+            return buckos_config::PackageSets::from_file(&path).map_err(|e| {
+                buckos_package::Error::Config(format!("Failed to parse package_sets.bzl: {}", e))
+            });
         }
     }
 
     // Try relative to current directory
     if let Ok(cwd) = std::env::current_dir() {
-        let path = cwd.parent()
+        let path = cwd
+            .parent()
             .map(|p| p.join("buckos-build/defs/package_sets.bzl"));
 
         if let Some(path) = path {
             if path.exists() {
-                return buckos_config::PackageSets::from_file(&path)
-                    .map_err(|e| buckos_package::Error::Config(format!("Failed to parse package_sets.bzl: {}", e)));
+                return buckos_config::PackageSets::from_file(&path).map_err(|e| {
+                    buckos_package::Error::Config(format!(
+                        "Failed to parse package_sets.bzl: {}",
+                        e
+                    ))
+                });
             }
         }
     }
 
     Err(buckos_package::Error::Config(
-        "package_sets.bzl not found. Please ensure buckos-build repository is accessible.".to_string()
+        "package_sets.bzl not found. Please ensure buckos-build repository is accessible."
+            .to_string(),
     ))
 }
 

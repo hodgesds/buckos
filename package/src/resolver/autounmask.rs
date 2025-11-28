@@ -3,6 +3,7 @@
 //! When packages are masked or have keyword restrictions, this module
 //! can automatically suggest or apply unmasking to satisfy dependencies.
 
+use crate::resolver::required_use::validate_required_use;
 use crate::{PackageId, PackageInfo, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -310,25 +311,27 @@ impl AutounmaskResolver {
     }
 
     fn get_required_use_changes(&self, pkg: &PackageInfo) -> (Vec<String>, Vec<String>) {
-        // TODO: Implement REQUIRED_USE validation when required_use field is added to PackageInfo
-        //
-        // REQUIRED_USE specifies constraints on USE flags that must be satisfied:
-        // - Simple flag: "foo" means foo must be enabled
-        // - Negation: "!foo" means foo must be disabled
-        // - Any-of group: "|| ( foo bar )" means at least one must be enabled
-        // - Exactly-one-of: "^^ ( foo bar )" means exactly one must be enabled
-        // - At-most-one-of: "?? ( foo bar )" means at most one can be enabled
-        // - Use-conditional: "foo? ( bar )" means if foo is enabled, bar must be enabled
-        //
-        // When REQUIRED_USE is not satisfied, this function should:
-        // 1. Parse the REQUIRED_USE string (similar to dependency syntax)
-        // 2. Evaluate constraints against current USE flag configuration
-        // 3. Return (flags_to_enable, flags_to_disable) to satisfy constraints
-        // 4. If multiple solutions exist, prefer minimal changes
-        // 5. If no solution exists, return empty (package will remain masked)
-        //
-        // For now, return empty changes as REQUIRED_USE field is not yet in PackageInfo
-        (Vec::new(), Vec::new())
+        // Skip if no REQUIRED_USE constraints
+        if pkg.required_use.is_empty() {
+            return (Vec::new(), Vec::new());
+        }
+
+        // Get currently enabled USE flags for this package
+        let enabled_flags: HashSet<String> =
+            self.current_use.get(&pkg.id).cloned().unwrap_or_default();
+
+        // Get all available USE flags for this package
+        let available_flags: HashSet<String> =
+            pkg.use_flags.iter().map(|f| f.name.clone()).collect();
+
+        // Validate REQUIRED_USE constraints and get suggestions
+        let validation = validate_required_use(&pkg.required_use, &enabled_flags, &available_flags);
+
+        if validation.satisfied {
+            return (Vec::new(), Vec::new());
+        }
+
+        (validation.suggest_enable, validation.suggest_disable)
     }
 
     fn format_changes(&self, changes: &[AutounmaskChange]) -> String {

@@ -3,7 +3,7 @@
 //! Reads package sets from the buckos-build repository's package_sets.bzl file
 //! and converts Buck targets to package IDs.
 
-use crate::{ConfigError, PackageAtom, Result};
+use crate::{ConfigError, Result};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -28,8 +28,7 @@ pub struct PackageSets {
 impl PackageSets {
     /// Parse package sets from a bzl file
     pub fn from_file(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ConfigError::Io(e))?;
+        let content = std::fs::read_to_string(path).map_err(|e| ConfigError::Io(e))?;
 
         Self::parse(&content)
     }
@@ -50,7 +49,8 @@ impl PackageSets {
         // Find SYSTEM_PACKAGES_GLIBC = [ ... ]
         let start_marker = "SYSTEM_PACKAGES_GLIBC = [";
 
-        let start_pos = content.find(start_marker)
+        let start_pos = content
+            .find(start_marker)
             .ok_or_else(|| ConfigError::Invalid("SYSTEM_PACKAGES_GLIBC not found".to_string()))?;
 
         // Find the matching closing bracket
@@ -69,13 +69,19 @@ impl PackageSets {
         sets.extend(Self::parse_set_category(content, "PROFILE_PACKAGE_SETS")?);
         sets.extend(Self::parse_set_category(content, "TASK_PACKAGE_SETS")?);
         sets.extend(Self::parse_set_category(content, "INIT_SYSTEM_SETS")?);
-        sets.extend(Self::parse_set_category(content, "DESKTOP_ENVIRONMENT_SETS")?);
+        sets.extend(Self::parse_set_category(
+            content,
+            "DESKTOP_ENVIRONMENT_SETS",
+        )?);
 
         Ok(sets)
     }
 
     /// Parse a set category (e.g., PROFILE_PACKAGE_SETS)
-    fn parse_set_category(content: &str, category: &str) -> Result<HashMap<String, PackageSetInfo>> {
+    fn parse_set_category(
+        content: &str,
+        category: &str,
+    ) -> Result<HashMap<String, PackageSetInfo>> {
         let start_marker = format!("{} = {{", category);
 
         let start_pos = match content.find(&start_marker) {
@@ -151,12 +157,14 @@ impl PackageSets {
     fn extract_string_field(content: &str, field_name: &str) -> Result<String> {
         let pattern = format!(r#""{}":\s*""#, field_name);
 
-        let start_pos = content.find(&pattern)
+        let start_pos = content
+            .find(&pattern)
             .ok_or_else(|| ConfigError::Invalid(format!("Field '{}' not found", field_name)))?;
 
         let value_start = start_pos + pattern.len();
-        let quote_end = content[value_start..].find('"')
-            .ok_or_else(|| ConfigError::Invalid(format!("Unterminated string for field '{}'", field_name)))?;
+        let quote_end = content[value_start..].find('"').ok_or_else(|| {
+            ConfigError::Invalid(format!("Unterminated string for field '{}'", field_name))
+        })?;
 
         Ok(content[value_start..value_start + quote_end].to_string())
     }
@@ -385,15 +393,14 @@ mod tests {
         );
 
         // Set reference
-        assert_eq!(
-            PackageSets::buck_target_to_package_id("@world"),
-            "@world"
-        );
+        assert_eq!(PackageSets::buck_target_to_package_id("@world"), "@world");
 
         // Verify the fix: these should all be different
         let bash = PackageSets::buck_target_to_package_id("//packages/linux/core:bash");
-        let shadow = PackageSets::buck_target_to_package_id("//packages/linux/system/apps/shadow:shadow");
-        let coreutils = PackageSets::buck_target_to_package_id("//packages/linux/system/apps:coreutils");
+        let shadow =
+            PackageSets::buck_target_to_package_id("//packages/linux/system/apps/shadow:shadow");
+        let coreutils =
+            PackageSets::buck_target_to_package_id("//packages/linux/system/apps:coreutils");
 
         assert_eq!(bash, "core/bash");
         assert_eq!(shadow, "system/apps/shadow");

@@ -95,6 +95,8 @@ fn coreutils_9_4() -> PackageInfo {
         buck_target: "//sys-apps/coreutils:coreutils-9.4".to_string(),
         size: 5_500_000,
         installed_size: 18_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -141,6 +143,8 @@ fn coreutils_9_5() -> PackageInfo {
         buck_target: "//sys-apps/coreutils:coreutils-9.5".to_string(),
         size: 5_600_000,
         installed_size: 18_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -200,6 +204,8 @@ fn util_linux_2_39() -> PackageInfo {
         buck_target: "//sys-apps/util-linux:util-linux-2.39".to_string(),
         size: 8_000_000,
         installed_size: 25_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -263,6 +269,8 @@ fn util_linux_2_40() -> PackageInfo {
         buck_target: "//sys-apps/util-linux:util-linux-2.40".to_string(),
         size: 8_200_000,
         installed_size: 26_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -293,6 +301,8 @@ fn findutils_4_9_0() -> PackageInfo {
         buck_target: "//sys-apps/findutils:findutils-4.9.0".to_string(),
         size: 2_000_000,
         installed_size: 4_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -323,6 +333,8 @@ fn grep_3_11() -> PackageInfo {
         buck_target: "//sys-apps/grep:grep-3.11".to_string(),
         size: 1_600_000,
         installed_size: 2_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -354,6 +366,8 @@ fn sed_4_9() -> PackageInfo {
         buck_target: "//sys-apps/sed:sed-4.9".to_string(),
         size: 1_400_000,
         installed_size: 2_200_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -384,6 +398,8 @@ fn gawk_5_3_0() -> PackageInfo {
         buck_target: "//sys-apps/gawk:gawk-5.3.0".to_string(),
         size: 3_200_000,
         installed_size: 7_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -413,6 +429,8 @@ fn diffutils_3_10() -> PackageInfo {
         buck_target: "//sys-apps/diffutils:diffutils-3.10".to_string(),
         size: 1_500_000,
         installed_size: 2_800_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -439,6 +457,8 @@ fn patch_2_7_6() -> PackageInfo {
         buck_target: "//sys-devel/patch:patch-2.7.6".to_string(),
         size: 800_000,
         installed_size: 1_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -476,6 +496,8 @@ fn file_5_45() -> PackageInfo {
         buck_target: "//sys-apps/file:file-5.45".to_string(),
         size: 1_100_000,
         installed_size: 4_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -499,6 +521,8 @@ fn which_2_21() -> PackageInfo {
         buck_target: "//sys-apps/which:which-2.21".to_string(),
         size: 150_000,
         installed_size: 300_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -525,6 +549,8 @@ fn less_643() -> PackageInfo {
         buck_target: "//sys-apps/less:less-643".to_string(),
         size: 400_000,
         installed_size: 800_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -551,6 +577,8 @@ fn gzip_1_13() -> PackageInfo {
         buck_target: "//app-arch/gzip:gzip-1.13".to_string(),
         size: 800_000,
         installed_size: 1_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -582,6 +610,8 @@ fn tar_1_35() -> PackageInfo {
         buck_target: "//app-arch/tar:tar-1.35".to_string(),
         size: 2_200_000,
         installed_size: 4_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -608,6 +638,8 @@ fn cpio_2_15() -> PackageInfo {
         buck_target: "//app-arch/cpio:cpio-2.15".to_string(),
         size: 1_200_000,
         installed_size: 2_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -645,6 +677,8 @@ fn procps_4_0_4() -> PackageInfo {
         buck_target: "//sys-process/procps:procps-4.0.4".to_string(),
         size: 1_000_000,
         installed_size: 3_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -677,6 +711,8 @@ fn psmisc_23_6() -> PackageInfo {
         buck_target: "//sys-process/psmisc:psmisc-23.6".to_string(),
         size: 400_000,
         installed_size: 1_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -721,6 +757,8 @@ fn shadow_4_14_6() -> PackageInfo {
         buck_target: "//sys-apps/shadow:shadow-4.14.6".to_string(),
         size: 1_800_000,
         installed_size: 5_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -756,6 +794,8 @@ fn sudo_1_9_15() -> PackageInfo {
         buck_target: "//app-admin/sudo:sudo-1.9.15".to_string(),
         size: 4_500_000,
         installed_size: 10_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -791,5 +831,7 @@ fn e2fsprogs_1_47_0() -> PackageInfo {
         buck_target: "//sys-fs/e2fsprogs:e2fsprogs-1.47.0".to_string(),
         size: 8_000_000,
         installed_size: 20_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }

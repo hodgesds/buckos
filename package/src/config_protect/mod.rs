@@ -320,7 +320,7 @@ impl ConfigProtect {
 
         // Read original and new files
         let original = std::fs::read_to_string(&update.path)?;
-        let new = std::fs::read_to_string(&update.temp_path)?;
+        let _new = std::fs::read_to_string(&update.temp_path)?;
 
         // Simple merge: append new lines
         let mut merged = original;

@@ -6,11 +6,13 @@ pub mod autounmask;
 pub mod backtrack;
 pub mod blocker;
 pub mod circular;
+pub mod required_use;
 
 pub use autounmask::*;
 pub use backtrack::*;
 pub use blocker::*;
 pub use circular::*;
+pub use required_use::*;
 
 use crate::db::PackageDb;
 use crate::repository::RepositoryManager;
@@ -424,7 +426,7 @@ impl DependencyResolver {
         }
 
         // Add edges for all dependency types
-        for (idx, pkg) in packages.iter().enumerate() {
+        for pkg in packages.iter() {
             let pkg_node = node_map[&pkg.id];
 
             // Regular dependencies

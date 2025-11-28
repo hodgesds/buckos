@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 
 /// Standard locations for buckos-build repository (in search order)
 pub const STANDARD_REPO_LOCATIONS: &[&str] = &[
-    "/var/db/repos/buckos-build",  // Gentoo-style standard location
-    "/usr/share/buckos-build",     // System-wide read-only (live USB)
-    "/opt/buckos-build",            // Alternative system location
+    "/var/db/repos/buckos-build", // Gentoo-style standard location
+    "/usr/share/buckos-build",    // System-wide read-only (live USB)
+    "/opt/buckos-build",          // Alternative system location
 ];
 
 /// Detect buckos-build repository path
@@ -42,10 +42,7 @@ pub fn detect_repository_path(custom_path: Option<&str>) -> Result<PathBuf> {
                     return Ok(p);
                 }
                 Err(e) => {
-                    eprintln!(
-                        "Warning: BUCKOS_BUILD_PATH set but invalid: {}",
-                        e
-                    );
+                    eprintln!("Warning: BUCKOS_BUILD_PATH set but invalid: {}", e);
                 }
             }
         }
@@ -112,15 +109,15 @@ pub fn detect_repository_path(custom_path: Option<&str>) -> Result<PathBuf> {
 /// - defs/use_flags.bzl (USE flag system)
 pub fn validate_repository(path: &Path) -> Result<PathBuf> {
     // Canonicalize the path to get absolute path
-    let canonical_path = path.canonicalize().with_context(|| {
-        format!(
-            "Failed to resolve repository path: {}",
-            path.display()
-        )
-    })?;
+    let canonical_path = path
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve repository path: {}", path.display()))?;
 
     if !canonical_path.exists() {
-        bail!("Repository path does not exist: {}", canonical_path.display());
+        bail!(
+            "Repository path does not exist: {}",
+            canonical_path.display()
+        );
     }
 
     if !canonical_path.is_dir() {
@@ -168,6 +165,11 @@ pub fn validate_repository(path: &Path) -> Result<PathBuf> {
 ///
 /// Returns the first standard location that exists and is valid,
 /// or the primary standard location if none exist yet.
+///
+/// This function is useful for:
+/// - Configuration defaults
+/// - Quick checks without full validation
+/// - Determining where to install a new repository
 pub fn default_repository_path() -> PathBuf {
     // Try to find an existing valid repository
     for location in STANDARD_REPO_LOCATIONS {

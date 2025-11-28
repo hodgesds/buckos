@@ -134,8 +134,12 @@ impl PackageManager {
         }
 
         // Create transaction
-        let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
+        let mut transaction = transaction::Transaction::new(
+            self.db.clone(),
+            self.cache.clone(),
+            self.buck.clone(),
+            self.config.root.clone(),
+        );
 
         // Add install operations
         for pkg in &resolution.packages {
@@ -193,8 +197,12 @@ impl PackageManager {
         }
 
         // Create transaction
-        let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
+        let mut transaction = transaction::Transaction::new(
+            self.db.clone(),
+            self.cache.clone(),
+            self.buck.clone(),
+            self.config.root.clone(),
+        );
 
         // Add remove operations
         for pkg in to_remove {
@@ -250,8 +258,12 @@ impl PackageManager {
         info!("Found {} updates", updates.len());
 
         // Create transaction
-        let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
+        let mut transaction = transaction::Transaction::new(
+            self.db.clone(),
+            self.cache.clone(),
+            self.buck.clone(),
+            self.config.root.clone(),
+        );
 
         // Add upgrade operations
         for (old, new) in updates {
@@ -473,7 +485,8 @@ impl PackageManager {
 
         // Try absolute path based on current directory
         if let Ok(cwd) = std::env::current_dir() {
-            let path = cwd.parent()
+            let path = cwd
+                .parent()
                 .map(|p| p.join("buckos-build/defs/package_sets.bzl"));
 
             if let Some(path) = path {
@@ -484,7 +497,8 @@ impl PackageManager {
         }
 
         Err(Error::Config(
-            "package_sets.bzl not found. Please ensure buckos-build repository is accessible.".to_string()
+            "package_sets.bzl not found. Please ensure buckos-build repository is accessible."
+                .to_string(),
         ))
     }
 
@@ -658,8 +672,12 @@ impl PackageManager {
         }
 
         // Create transaction for removal
-        let mut transaction =
-            transaction::Transaction::new(self.db.clone(), self.cache.clone(), self.buck.clone(), self.config.root.clone());
+        let mut transaction = transaction::Transaction::new(
+            self.db.clone(),
+            self.cache.clone(),
+            self.buck.clone(),
+            self.config.root.clone(),
+        );
 
         for pkg in to_remove {
             transaction.add_remove(pkg);

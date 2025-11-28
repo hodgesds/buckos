@@ -66,6 +66,8 @@ fn cmake_3_28_3() -> PackageInfo {
         buck_target: "//dev-util/cmake:cmake-3.28.3".to_string(),
         size: 11_000_000,
         installed_size: 55_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -108,6 +110,8 @@ fn cmake_3_29_0() -> PackageInfo {
         buck_target: "//dev-util/cmake:cmake-3.29.0".to_string(),
         size: 11_200_000,
         installed_size: 56_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -134,6 +138,8 @@ fn meson_1_3_2() -> PackageInfo {
         buck_target: "//dev-util/meson:meson-1.3.2".to_string(),
         size: 2_100_000,
         installed_size: 8_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -164,6 +170,8 @@ fn meson_1_4_0() -> PackageInfo {
         buck_target: "//dev-util/meson:meson-1.4.0".to_string(),
         size: 2_200_000,
         installed_size: 8_500_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -197,6 +205,8 @@ fn ninja_1_11_1() -> PackageInfo {
         buck_target: "//dev-util/ninja:ninja-1.11.1".to_string(),
         size: 240_000,
         installed_size: 600_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -234,6 +244,8 @@ fn ninja_1_12_0() -> PackageInfo {
         buck_target: "//dev-util/ninja:ninja-1.12.0".to_string(),
         size: 250_000,
         installed_size: 620_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -262,6 +274,8 @@ fn scons_4_7_0() -> PackageInfo {
         buck_target: "//dev-util/scons:scons-4.7.0".to_string(),
         size: 3_000_000,
         installed_size: 12_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -288,6 +302,8 @@ fn bazel_7_1_0() -> PackageInfo {
         buck_target: "//dev-util/bazel:bazel-7.1.0".to_string(),
         size: 350_000_000,
         installed_size: 400_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
 
@@ -314,5 +330,7 @@ fn buck2_2024_01() -> PackageInfo {
         buck_target: "//dev-util/buck2:buck2-2024.01".to_string(),
         size: 50_000_000,
         installed_size: 150_000_000,
+        required_use: String::new(),
+        blockers: Vec::new(),
     }
 }
