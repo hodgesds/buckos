@@ -135,7 +135,12 @@ impl Default for UiState {
 }
 
 impl InstallerApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>, target: String, dry_run: bool, buckos_build_path: PathBuf) -> Self {
+    pub fn new(
+        _cc: &eframe::CreationContext<'_>,
+        target: String,
+        dry_run: bool,
+        buckos_build_path: PathBuf,
+    ) -> Self {
         let available_disks = system::get_available_disks().unwrap_or_default();
         let system_info = system::get_system_info();
 
@@ -242,11 +247,16 @@ impl InstallerApp {
                 self.config.hardware_packages = self.ui_state.hardware_suggestions.clone();
 
                 // Generate kernel config fragments based on detected hardware
-                let fragments = crate::kernel_config::generate_hardware_config_fragments(&self.config.hardware_info);
+                let fragments = crate::kernel_config::generate_hardware_config_fragments(
+                    &self.config.hardware_info,
+                );
                 let config_content = crate::kernel_config::fragments_to_config_file(&fragments);
                 self.config.kernel_config_fragment = Some(config_content);
 
-                tracing::info!("Generated kernel config with {} hardware-specific fragments", fragments.len());
+                tracing::info!(
+                    "Generated kernel config with {} hardware-specific fragments",
+                    fragments.len()
+                );
             }
             InstallStep::ProfileSelection => {
                 // Update config with selected profile and audio subsystem
@@ -557,4 +567,3 @@ impl eframe::App for InstallerApp {
         });
     }
 }
-

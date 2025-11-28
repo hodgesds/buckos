@@ -781,7 +781,11 @@ pub fn detect_buckos_build_path(custom_path: Option<&str>) -> Result<std::path::
                     return Ok(p);
                 }
                 Err(e) => {
-                    tracing::debug!("Path {} exists but validation failed: {}", path.display(), e);
+                    tracing::debug!(
+                        "Path {} exists but validation failed: {}",
+                        path.display(),
+                        e
+                    );
                     continue;
                 }
             }
@@ -804,9 +808,9 @@ pub fn detect_buckos_build_path(custom_path: Option<&str>) -> Result<std::path::
 
 /// Validate that a path contains a valid buckos-build repository
 fn validate_buckos_build_path(path: &std::path::Path) -> Result<std::path::PathBuf> {
-    let path = path.canonicalize().with_context(|| {
-        format!("Failed to resolve path: {}", path.display())
-    })?;
+    let path = path
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
     if !path.exists() {
         bail!("Path does not exist: {}", path.display());

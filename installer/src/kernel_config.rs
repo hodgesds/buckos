@@ -85,7 +85,10 @@ pub fn generate_hardware_config_fragments(hardware: &HardwareInfo) -> Vec<Kernel
 
     // CPU-specific optimizations
     if !hardware.cpu_vendor.is_empty() {
-        fragments.push(generate_cpu_config(&hardware.cpu_vendor, &hardware.cpu_flags));
+        fragments.push(generate_cpu_config(
+            &hardware.cpu_vendor,
+            &hardware.cpu_flags,
+        ));
     }
 
     fragments
@@ -155,13 +158,11 @@ fn generate_gpu_config(vendor: &GpuVendor) -> KernelConfigFragment {
         GpuVendor::VirtualBox => (
             "vbox-gpu",
             "VirtualBox graphics support",
-            vec![
-                ConfigOption {
-                    key: "CONFIG_DRM_VBOXVIDEO".to_string(),
-                    value: ConfigValue::Module,
-                    comment: Some("VirtualBox graphics".to_string()),
-                },
-            ],
+            vec![ConfigOption {
+                key: "CONFIG_DRM_VBOXVIDEO".to_string(),
+                value: ConfigValue::Module,
+                comment: Some("VirtualBox graphics".to_string()),
+            }],
         ),
         GpuVendor::VMware => (
             "vmware-gpu",
@@ -182,13 +183,11 @@ fn generate_gpu_config(vendor: &GpuVendor) -> KernelConfigFragment {
         GpuVendor::Unknown => (
             "generic-gpu",
             "Generic GPU support",
-            vec![
-                ConfigOption {
-                    key: "CONFIG_DRM_FBDEV_EMULATION".to_string(),
-                    value: ConfigValue::Yes,
-                    comment: Some("Framebuffer emulation".to_string()),
-                },
-            ],
+            vec![ConfigOption {
+                key: "CONFIG_DRM_FBDEV_EMULATION".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("Framebuffer emulation".to_string()),
+            }],
         ),
     };
 
@@ -200,17 +199,19 @@ fn generate_gpu_config(vendor: &GpuVendor) -> KernelConfigFragment {
 }
 
 /// Generate network interface configuration
-fn generate_network_config(interfaces: &[crate::types::NetworkInterfaceInfo]) -> KernelConfigFragment {
-    let mut options = vec![
-        ConfigOption {
-            key: "CONFIG_NETDEVICES".to_string(),
-            value: ConfigValue::Yes,
-            comment: Some("Network device support".to_string()),
-        },
-    ];
+fn generate_network_config(
+    interfaces: &[crate::types::NetworkInterfaceInfo],
+) -> KernelConfigFragment {
+    let mut options = vec![ConfigOption {
+        key: "CONFIG_NETDEVICES".to_string(),
+        value: ConfigValue::Yes,
+        comment: Some("Network device support".to_string()),
+    }];
 
     // Check for WiFi interfaces
-    let has_wifi = interfaces.iter().any(|i| i.interface_type == NetworkInterfaceType::Wifi);
+    let has_wifi = interfaces
+        .iter()
+        .any(|i| i.interface_type == NetworkInterfaceType::Wifi);
     if has_wifi {
         options.extend(vec![
             ConfigOption {
@@ -331,13 +332,11 @@ fn generate_storage_config(controller: &StorageControllerType) -> KernelConfigFr
         StorageControllerType::Unknown => (
             "generic-storage",
             "Generic storage support",
-            vec![
-                ConfigOption {
-                    key: "CONFIG_SCSI".to_string(),
-                    value: ConfigValue::Yes,
-                    comment: Some("SCSI device support".to_string()),
-                },
-            ],
+            vec![ConfigOption {
+                key: "CONFIG_SCSI".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("SCSI device support".to_string()),
+            }],
         ),
     };
 
@@ -548,7 +547,11 @@ pub fn fragments_to_config_file(fragments: &[KernelConfigFragment]) -> String {
                     config.push_str(&format!("# {} is not set\n", option.key));
                 }
                 _ => {
-                    config.push_str(&format!("{}={}\n", option.key, option.value.to_config_string()));
+                    config.push_str(&format!(
+                        "{}={}\n",
+                        option.key,
+                        option.value.to_config_string()
+                    ));
                 }
             }
         }
@@ -567,7 +570,10 @@ mod tests {
         assert_eq!(ConfigValue::Yes.to_config_string(), "y");
         assert_eq!(ConfigValue::Module.to_config_string(), "m");
         assert_eq!(ConfigValue::No.to_config_string(), "n");
-        assert_eq!(ConfigValue::String("test".to_string()).to_config_string(), "\"test\"");
+        assert_eq!(
+            ConfigValue::String("test".to_string()).to_config_string(),
+            "\"test\""
+        );
         assert_eq!(ConfigValue::Number(42).to_config_string(), "42");
     }
 }

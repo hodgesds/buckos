@@ -103,7 +103,9 @@ fn check_display_environment() -> Result<()> {
 
     // Warn if we're missing Wayland-specific variables even though WAYLAND_DISPLAY is set
     if has_wayland && !has_xdg_runtime {
-        tracing::warn!("WAYLAND_DISPLAY is set but XDG_RUNTIME_DIR is missing. This may cause issues.");
+        tracing::warn!(
+            "WAYLAND_DISPLAY is set but XDG_RUNTIME_DIR is missing. This may cause issues."
+        );
         eprintln!("\n⚠️  WARNING: XDG_RUNTIME_DIR is not set.");
         eprintln!("    The installer may have trouble connecting to Wayland.\n");
         eprintln!("    Consider running with:");
@@ -180,7 +182,12 @@ fn run_gui_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Resu
         Box::new(move |cc| {
             // Setup custom fonts and styles
             setup_custom_styles(&cc.egui_ctx);
-            Ok(Box::new(app::InstallerApp::new(cc, target, dry_run, buckos_build_path)))
+            Ok(Box::new(app::InstallerApp::new(
+                cc,
+                target,
+                dry_run,
+                buckos_build_path,
+            )))
         }),
     )
     .map_err(|e| anyhow::anyhow!("GUI error: {}", e))

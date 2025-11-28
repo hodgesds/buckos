@@ -259,7 +259,9 @@ impl KernelChannel {
     pub fn description(&self) -> &'static str {
         match self {
             KernelChannel::LTS => "6.6 LTS - Long-term support, maximum stability (recommended)",
-            KernelChannel::Stable => "6.12 Stable - Latest stable kernel, balance of new features and stability",
+            KernelChannel::Stable => {
+                "6.12 Stable - Latest stable kernel, balance of new features and stability"
+            }
             KernelChannel::Mainline => "Latest mainline - Cutting edge features, frequent updates",
         }
     }
@@ -271,7 +273,9 @@ impl KernelChannel {
             // Stable: Default balanced configuration
             KernelChannel::Stable => "\"//packages/linux/kernel/buckos-kernel:buckos-kernel\"",
             // Mainline: Minimal for latest features
-            KernelChannel::Mainline => "\"//packages/linux/kernel/buckos-kernel:buckos-kernel-minimal\"",
+            KernelChannel::Mainline => {
+                "\"//packages/linux/kernel/buckos-kernel:buckos-kernel-minimal\""
+            }
         }
     }
 

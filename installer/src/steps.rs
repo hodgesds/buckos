@@ -263,10 +263,26 @@ pub fn render_disk_setup(
 
         // Filesystem options (only show filesystem types suitable for root)
         let filesystem_options = [
-            (crate::types::FilesystemType::Ext4, "ext4", "Ext4 - Standard journaling filesystem (recommended)"),
-            (crate::types::FilesystemType::Btrfs, "btrfs", "Btrfs - Advanced copy-on-write filesystem with snapshots"),
-            (crate::types::FilesystemType::Xfs, "xfs", "XFS - High-performance journaling filesystem"),
-            (crate::types::FilesystemType::F2fs, "f2fs", "F2FS - Flash-Friendly File System (for SSDs)"),
+            (
+                crate::types::FilesystemType::Ext4,
+                "ext4",
+                "Ext4 - Standard journaling filesystem (recommended)",
+            ),
+            (
+                crate::types::FilesystemType::Btrfs,
+                "btrfs",
+                "Btrfs - Advanced copy-on-write filesystem with snapshots",
+            ),
+            (
+                crate::types::FilesystemType::Xfs,
+                "xfs",
+                "XFS - High-performance journaling filesystem",
+            ),
+            (
+                crate::types::FilesystemType::F2fs,
+                "f2fs",
+                "F2FS - Flash-Friendly File System (for SSDs)",
+            ),
         ];
 
         for (fs_type, name, description) in filesystem_options {
@@ -753,7 +769,11 @@ pub fn render_kernel_selection(
             });
         }
         _ => {
-            ui.label(RichText::new("Advanced init system selected").small().weak());
+            ui.label(
+                RichText::new("Advanced init system selected")
+                    .small()
+                    .weak(),
+            );
         }
     }
 }
