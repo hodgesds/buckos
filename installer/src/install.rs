@@ -686,6 +686,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         rootfs_packages.push("\"//packages/linux/core/file:file\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/bash:bash\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
+        rootfs_packages.push("\"//packages/linux/core/xz:xz\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/glibc:glibc\"".to_string());
 
         // Add Linux kernel (user-selected channel)
