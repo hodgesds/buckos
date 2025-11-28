@@ -124,4 +124,8 @@ pub enum Error {
     /// Nix error
     #[error("System error: {0}")]
     Nix(#[from] nix::Error),
+
+    /// Other/generic error
+    #[error("{0}")]
+    Other(String),
 }

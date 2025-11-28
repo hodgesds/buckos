@@ -42,7 +42,7 @@ pub struct Init {
 }
 
 /// Type of shutdown to perform.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum ShutdownType {
     /// Power off the system
     PowerOff,

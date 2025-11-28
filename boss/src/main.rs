@@ -4,8 +4,8 @@
 //! It can run as PID 1 or as a service management tool.
 
 use buckos_boss::{
-    create_test_init, Init, InitConfig, ServiceDefinition, ServiceStatus, ShutdownType,
-    SystemdLoader,
+    create_test_init, ControlClient, ControlResponse, Init, InitConfig, ServiceDefinition,
+    ServiceStatus, ShutdownType, SystemdLoader,
 };
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -426,10 +426,36 @@ async fn main() -> anyhow::Result<()> {
                 }
             };
 
-            // TODO: Communicate with running init process
-            // For now, just print a message
-            println!("Shutdown type: {:?}", shutdown_type);
-            println!("Note: Direct shutdown communication not yet implemented");
+            // Communicate with running init process via control socket
+            let client = ControlClient::with_default_path();
+
+            if client.is_available() {
+                // Connect to running init and send shutdown command
+                match client.shutdown(shutdown_type).await {
+                    Ok(ControlResponse::Success { message }) => {
+                        println!("Shutdown initiated: {}", message);
+                    }
+                    Ok(ControlResponse::Error { message }) => {
+                        error!("Shutdown failed: {}", message);
+                        std::process::exit(1);
+                    }
+                    Ok(_) => {
+                        error!("Unexpected response from init");
+                        std::process::exit(1);
+                    }
+                    Err(e) => {
+                        error!("Failed to communicate with init: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                // No running init process, just print info
+                println!("Shutdown type: {:?}", shutdown_type);
+                println!(
+                    "Note: No running init process found. \
+                     Control socket not available at /run/boss/control.sock"
+                );
+            }
         }
 
         Some(Commands::Migrate {

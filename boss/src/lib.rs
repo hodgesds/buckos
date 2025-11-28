@@ -41,6 +41,7 @@
 //! }
 //! ```
 
+pub mod control;
 pub mod error;
 pub mod init;
 pub mod journal;
@@ -50,6 +51,10 @@ pub mod process;
 pub mod service;
 
 // Re-export main types
+pub use control::{
+    ControlClient, ControlCommand, ControlResponse, ControlServer, ServiceInfo,
+    DEFAULT_CONTROL_SOCKET,
+};
 pub use error::{Error, Result};
 pub use init::{create_test_init, Init, InitConfig, ShutdownType};
 pub use journal::{Journal, JournalEntry, Priority};
