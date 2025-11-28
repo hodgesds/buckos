@@ -1244,7 +1244,7 @@ pub fn render_summary(
 
 /// Render the installing step
 pub fn render_installing(ui: &mut Ui, progress: &InstallProgress) {
-    ui.label("Installing Buckos to your system...");
+    ui.label("Installing BuckOs to your system...");
 
     ui.add_space(16.0);
 

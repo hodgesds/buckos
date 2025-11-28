@@ -130,7 +130,7 @@ fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Buckos Installer starting...");
+    tracing::info!("BuckOs Installer starting...");
 
     // Check for proper environment when running with sudo (GUI mode only)
     if !args.text_mode {
@@ -167,7 +167,7 @@ fn run_gui_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Resu
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([900.0, 650.0])
             .with_min_inner_size([800.0, 600.0])
-            .with_title("Buckos Installer"),
+            .with_title("BuckOs Installer"),
         ..Default::default()
     };
 
@@ -175,7 +175,7 @@ fn run_gui_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Resu
     let dry_run = args.dry_run;
 
     eframe::run_native(
-        "Buckos Installer",
+        "BuckOs Installer",
         options,
         Box::new(move |cc| {
             // Setup custom fonts and styles

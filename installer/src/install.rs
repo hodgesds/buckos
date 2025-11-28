@@ -1026,7 +1026,10 @@ rootfs(
         // Run locale-gen in chroot
         let _ = Command::new("chroot")
             .arg(&config.target_root)
+            .env_clear()
             .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("HOME", "/root")
+            .env("TERM", "linux")
             .arg("locale-gen")
             .output();
 
@@ -1203,7 +1206,10 @@ rootfs(
                         // Run ldconfig to update the dynamic linker cache
                         let ldconfig_output = Command::new("chroot")
                             .arg(&config.target_root)
+                            .env_clear()
                             .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                            .env("HOME", "/root")
+                            .env("TERM", "linux")
                             .arg("ldconfig")
                             .output()
                             .map_err(|e| anyhow::anyhow!("Failed to run ldconfig: {}", e))?;
@@ -1229,7 +1235,10 @@ rootfs(
                         let mut grub_install_cmd = Command::new("chroot");
                         grub_install_cmd
                             .arg(&config.target_root)
+                            .env_clear()
                             .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                            .env("HOME", "/root")
+                            .env("TERM", "linux")
                             .arg("grub-install");
 
                         if is_efi {
@@ -1342,7 +1351,10 @@ rootfs(
                         let initramfs_path = format!("/boot/initramfs-{}.img", kernel_version);
                         let dracut_output = Command::new("chroot")
                             .arg(&config.target_root)
+                            .env_clear()
                             .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                            .env("HOME", "/root")
+                            .env("TERM", "linux")
                             .arg("/usr/bin/dracut")
                             .arg("--force")
                             .arg("--hostonly")
@@ -1382,7 +1394,10 @@ rootfs(
                         // Generate GRUB configuration
                         let output = Command::new("chroot")
                             .arg(&config.target_root)
+                            .env_clear()
                             .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                            .env("HOME", "/root")
+                            .env("TERM", "linux")
                             .arg("/usr/sbin/grub-mkconfig")
                             .arg("-o")
                             .arg("/boot/grub/grub.cfg")
@@ -1461,7 +1476,10 @@ rootfs(
                     // Install systemd-boot
                     let output = Command::new("chroot")
                         .arg(&config.target_root)
+                        .env_clear()
                         .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                        .env("HOME", "/root")
+                        .env("TERM", "linux")
                         .arg("bootctl")
                         .arg("install")
                         .output()
@@ -1529,7 +1547,10 @@ rootfs(
                     // Install rEFInd
                     let output = Command::new("chroot")
                         .arg(&config.target_root)
+                        .env_clear()
                         .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                        .env("HOME", "/root")
+                        .env("TERM", "linux")
                         .arg("refind-install")
                         .output()
                         .map_err(|e| anyhow::anyhow!(
@@ -1565,7 +1586,10 @@ rootfs(
                     // Copy Limine binaries
                     let limine_deploy = Command::new("chroot")
                         .arg(&config.target_root)
+                        .env_clear()
                         .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                        .env("HOME", "/root")
+                        .env("TERM", "linux")
                         .arg("limine-deploy")
                         .arg(&boot_device)
                         .output()
@@ -1615,7 +1639,10 @@ rootfs(
                         // Create UEFI boot entry using efibootmgr
                         let output = Command::new("chroot")
                         .arg(&config.target_root)
+                        .env_clear()
                         .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                        .env("HOME", "/root")
+                        .env("TERM", "linux")
                         .arg("efibootmgr")
                         .arg("--create")
                         .arg("--disk").arg("/dev/sda")
@@ -1753,7 +1780,10 @@ session    optional   pam_permit.so
         let root_passwd_cmd = format!("root:{}", config.root_password);
         let output = Command::new("chroot")
             .arg(&config.target_root)
+            .env_clear()
             .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("HOME", "/root")
+            .env("TERM", "linux")
             .arg("/usr/sbin/chpasswd")
             .stdin(std::process::Stdio::piped())
             .spawn()
@@ -1786,7 +1816,10 @@ session    optional   pam_permit.so
             let mut useradd_cmd = Command::new("chroot");
             useradd_cmd
                 .arg(&config.target_root)
+                .env_clear()
                 .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                .env("HOME", "/root")
+                .env("TERM", "linux")
                 .arg("useradd")
                 .arg("-m") // Create home directory
                 .arg("-s").arg(&user.shell);
@@ -1818,7 +1851,10 @@ session    optional   pam_permit.so
             let user_passwd_cmd = format!("{}:{}", user.username, user.password);
             let output = Command::new("chroot")
                 .arg(&config.target_root)
+                .env_clear()
                 .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                .env("HOME", "/root")
+                .env("TERM", "linux")
                 .arg("/usr/sbin/chpasswd")
                 .stdin(std::process::Stdio::piped())
                 .spawn()
