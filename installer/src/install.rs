@@ -874,6 +874,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         // Add PAM dependencies explicitly (needed for pam_unix.so to load)
         rootfs_packages.push("\"//packages/linux/system/libs/network/libnsl:libnsl\"".to_string());
         rootfs_packages.push("\"//packages/linux/system/libs/ipc/libtirpc:libtirpc\"".to_string());
+        rootfs_packages.push("\"//packages/linux/system/libs/crypto/libxcrypt:libxcrypt\"".to_string()); // libcrypt.so.2 for password hashing
         rootfs_packages.push("\"//packages/linux/core/file:file\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/bash:bash\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
@@ -891,7 +892,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         rootfs_packages.push("\"//packages/linux/system/initramfs/dracut:dracut\"".to_string());
 
         // Add dependencies required for dracut initramfs generation
-        // Note: cpio is now provided by dracut itself (dracut-cpio)
+        // Note: dracut uses --enhanced-cpio with dracut-cpio (installed at /usr/lib/dracut/dracut-cpio)
         rootfs_packages.push("\"//packages/linux/system/libs/compression/lz4:lz4\"".to_string()); // Compression
         rootfs_packages.push("\"//packages/linux/system/security/audit:audit\"".to_string()); // libaudit (pulls in libcap-ng)
 
@@ -1778,6 +1779,7 @@ nobody:x:65534:
                             .arg("/usr/bin/dracut")
                             .arg("--force")
                             .arg("--hostonly")
+                            .arg("--enhanced-cpio")  // Use dracut-cpio for optimized archive creation
                             .arg(&initramfs_path)
                             .arg("--kver")
                             .arg(&kernel_version)
@@ -1815,6 +1817,23 @@ nobody:x:65534:
                             0.6,
                             "Generating GRUB configuration...",
                         );
+
+                        // Create /etc/default/grub if it doesn't exist (required for grub-mkconfig)
+                        let default_grub_path = config.target_root.join("etc/default/grub");
+                        if !default_grub_path.exists() {
+                            let default_grub_content = r#"# GRUB configuration for BuckOS
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR="BuckOS"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet"
+GRUB_CMDLINE_LINUX=""
+GRUB_TERMINAL_OUTPUT="console"
+"#;
+                            std::fs::create_dir_all(default_grub_path.parent().unwrap())?;
+                            std::fs::write(&default_grub_path, default_grub_content)
+                                .map_err(|e| anyhow::anyhow!("Failed to create /etc/default/grub: {}", e))?;
+                            tracing::info!("Created /etc/default/grub");
+                        }
 
                         // Generate GRUB configuration
                         let output = Command::new("chroot")
