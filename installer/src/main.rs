@@ -1,6 +1,6 @@
-//! Buckos Installer - Graphical system installation tool
+//! BuckOS Installer - Graphical system installation tool
 //!
-//! This installer provides a beginner-friendly GUI for installing Buckos
+//! This installer provides a beginner-friendly GUI for installing BuckOS
 //! while maintaining the flexibility for manual installation similar to Gentoo.
 
 mod app;
@@ -15,7 +15,7 @@ use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-/// Buckos Installer - Install Buckos to your system
+/// BuckOS Installer - Install BuckOS to your system
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -132,7 +132,7 @@ fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("BuckOs Installer starting...");
+    tracing::info!("BuckOS Installer starting...");
 
     // Check for proper environment when running with sudo (GUI mode only)
     if !args.text_mode {
@@ -169,7 +169,7 @@ fn run_gui_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Resu
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([900.0, 650.0])
             .with_min_inner_size([800.0, 600.0])
-            .with_title("BuckOs Installer"),
+            .with_title("BuckOS Installer"),
         ..Default::default()
     };
 
@@ -177,7 +177,7 @@ fn run_gui_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Resu
     let dry_run = args.dry_run;
 
     eframe::run_native(
-        "BuckOs Installer",
+        "BuckOS Installer",
         options,
         Box::new(move |cc| {
             // Setup custom fonts and styles
@@ -202,7 +202,7 @@ fn run_text_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Res
     );
     println!(
         "{}",
-        style("       Buckos Text-Mode Installer       ")
+        style("       BuckOS Text-Mode Installer       ")
             .cyan()
             .bold()
     );

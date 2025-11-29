@@ -1,4 +1,4 @@
-//! Common types for the Buckos installer
+//! Common types for the BuckOS installer
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -846,7 +846,7 @@ impl Default for InstallConfig {
             root_password: String::new(),
             users: Vec::new(),
             network: NetworkConfig {
-                hostname: "BuckOs".to_string(),
+                hostname: "BuckOS".to_string(),
                 use_dhcp: true,
                 static_ip: None,
                 gateway: None,

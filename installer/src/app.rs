@@ -1,4 +1,4 @@
-//! Main GUI application for the BuckOs installer
+//! Main GUI application for the BuckOS installer
 
 use eframe::egui;
 use std::path::PathBuf;
@@ -119,7 +119,7 @@ impl Default for UiState {
             new_user_admin: true,
             root_password: String::new(),
             confirm_root_password: String::new(),
-            hostname: "BuckOs".to_string(),
+            hostname: "BuckOS".to_string(),
             selected_timezone_index: 0,
             selected_locale_index: 0,
             selected_keyboard_index: 0,
@@ -405,7 +405,7 @@ impl eframe::App for InstallerApp {
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.heading("BuckOs Installer");
+                ui.heading("BuckOS Installer");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if self.config.dry_run {
                         ui.label(

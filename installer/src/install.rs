@@ -890,6 +890,11 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         // Add dracut for initramfs generation
         rootfs_packages.push("\"//packages/linux/system/initramfs/dracut:dracut\"".to_string());
 
+        // Add dependencies required for dracut initramfs generation
+        // Note: cpio is now provided by dracut itself (dracut-cpio)
+        rootfs_packages.push("\"//packages/linux/system/libs/compression/lz4:lz4\"".to_string()); // Compression
+        rootfs_packages.push("\"//packages/linux/system/security/audit:audit\"".to_string()); // libaudit (pulls in libcap-ng)
+
         // Add GRUB bootloader based on system type (EFI or BIOS)
         // Note: xz is automatically included as a dependency of GRUB
         let is_efi = system::is_efi_system();
@@ -1233,6 +1238,51 @@ rootfs(
 
         // Step 6: System configuration (80%)
         update_progress("System configuration", 0.72, 0.0, "Configuring system...");
+
+        // Create essential system files (/etc/passwd and /etc/shadow)
+        // These are required before running dracut which uses grep on these files
+        let etc_dir = config.target_root.join("etc");
+        std::fs::create_dir_all(&etc_dir)?;
+
+        let passwd_path = etc_dir.join("passwd");
+        if !passwd_path.exists() {
+            let passwd_content = "\
+root:x:0:0:root:/root:/bin/bash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+nobody:x:65534:65534:Kernel Overflow User:/:/sbin/nologin
+";
+            std::fs::write(&passwd_path, passwd_content)?;
+        }
+
+        let shadow_path = etc_dir.join("shadow");
+        if !shadow_path.exists() {
+            let shadow_content = "\
+root:!:19000:0:99999:7:::
+bin:*:19000:0:99999:7:::
+daemon:*:19000:0:99999:7:::
+nobody:*:19000:0:99999:7:::
+";
+            std::fs::write(&shadow_path, shadow_content)?;
+            // Set restrictive permissions on shadow file
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&shadow_path, std::fs::Permissions::from_mode(0o600))?;
+            }
+        }
+
+        let group_path = etc_dir.join("group");
+        if !group_path.exists() {
+            let group_content = "\
+root:x:0:
+bin:x:1:
+daemon:x:2:
+wheel:x:10:
+nobody:x:65534:
+";
+            std::fs::write(&group_path, group_content)?;
+        }
 
         // Generate fstab
         update_progress(
@@ -1938,7 +1988,7 @@ rootfs(
 
                     let entry_path = entries_dir.join("buckos.conf");
                     let entry_content = format!(
-                        "title   BuckOs\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions root=UUID={} rw\n",
+                        "title   BuckOS\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions root=UUID={} rw\n",
                         root_uuid
                     );
                     std::fs::write(&entry_path, entry_content)?;
@@ -2016,7 +2066,7 @@ rootfs(
 
                     // Create Limine configuration
                     let limine_cfg_path = config.target_root.join("boot/limine.cfg");
-                    let limine_cfg = "TIMEOUT=5\n\n:BuckOs\nPROTOCOL=linux\nKERNEL_PATH=boot:///vmlinuz-linux\nKERNEL_CMDLINE=root=/dev/sda2 rw\nMODULE_PATH=boot:///initramfs-linux.img\n";
+                    let limine_cfg = "TIMEOUT=5\n\n:BuckOS\nPROTOCOL=linux\nKERNEL_PATH=boot:///vmlinuz-linux\nKERNEL_CMDLINE=root=/dev/sda2 rw\nMODULE_PATH=boot:///initramfs-linux.img\n";
                     std::fs::write(&limine_cfg_path, limine_cfg)?;
                 }
 
