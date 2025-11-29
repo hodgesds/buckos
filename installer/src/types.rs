@@ -816,6 +816,8 @@ pub struct InstallConfig {
     pub audio_subsystem: AudioSubsystem,
     /// Kernel channel choice
     pub kernel_channel: KernelChannel,
+    /// Include all firmware in initramfs (disables hostonly mode)
+    pub include_all_firmware: bool,
     /// Detected hardware information
     pub hardware_info: HardwareInfo,
     /// Hardware-based package suggestions
@@ -863,6 +865,7 @@ impl Default for InstallConfig {
             init_system: InitSystem::Systemd,
             audio_subsystem: AudioSubsystem::PipeWire,
             kernel_channel: KernelChannel::default(),
+            include_all_firmware: true,
             hardware_info: HardwareInfo::default(),
             hardware_packages: Vec::new(),
             kernel_config_fragment: None,

@@ -49,6 +49,7 @@ struct UiState {
 
     // Kernel selection
     kernel_channel: KernelChannel,
+    include_all_firmware: bool,
 
     // Disk setup
     selected_disk_index: usize,
@@ -104,6 +105,7 @@ impl Default for UiState {
             selected_handheld: HandheldDevice::SteamDeck,
             audio_subsystem: AudioSubsystem::PipeWire,
             kernel_channel: KernelChannel::default(),
+            include_all_firmware: true,
             selected_disk_index: 0,
             auto_partition: true,
             show_partition_editor: false,
@@ -274,6 +276,7 @@ impl InstallerApp {
             InstallStep::KernelSelection => {
                 // Update config with selected kernel and init system
                 self.config.kernel_channel = self.ui_state.kernel_channel.clone();
+                self.config.include_all_firmware = self.ui_state.include_all_firmware;
             }
             InstallStep::DiskSetup => {
                 // Validate encryption passphrase
@@ -508,6 +511,7 @@ impl eframe::App for InstallerApp {
                     ui,
                     &mut self.ui_state.kernel_channel,
                     &mut self.config.init_system,
+                    &mut self.ui_state.include_all_firmware,
                 ),
                 InstallStep::DiskSetup => steps::render_disk_setup(
                     ui,

@@ -649,6 +649,7 @@ pub fn render_kernel_selection(
     ui: &mut Ui,
     kernel_channel: &mut KernelChannel,
     init_system: &mut InitSystem,
+    include_all_firmware: &mut bool,
 ) {
     ui.label("Select the Linux kernel version and init system for your installation.");
 
@@ -776,6 +777,39 @@ pub fn render_kernel_selection(
             );
         }
     }
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Firmware inclusion option
+    ui.label(RichText::new("Initramfs Options").strong());
+    ui.add_space(8.0);
+
+    ui.checkbox(include_all_firmware, "Include all firmware in initramfs");
+    ui.indent("firmware_desc", |ui| {
+        ui.label(
+            RichText::new(
+                "When enabled, includes all available firmware for maximum hardware compatibility. \
+                 Recommended for portable installations (USB drives) that may boot on different machines.",
+            )
+            .small(),
+        );
+        ui.add_space(4.0);
+        if *include_all_firmware {
+            ui.label(
+                RichText::new("✓ Larger initramfs, but works on any hardware")
+                    .small()
+                    .weak(),
+            );
+        } else {
+            ui.label(
+                RichText::new("✓ Smaller initramfs, optimized for this machine only")
+                    .small()
+                    .weak(),
+            );
+        }
+    });
 }
 
 /// Render the user setup step
