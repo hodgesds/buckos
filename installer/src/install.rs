@@ -121,16 +121,16 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         };
         std::env::set_var("PATH", new_path);
 
-        // Step 1: Pre-installation checks (5%)
+        // Step 1: Pre-installation checks (2%)
         update_progress(
             "Pre-installation checks",
-            0.05,
+            0.01,
             0.0,
             "Starting installation...",
         );
         update_progress(
             "Pre-installation checks",
-            0.05,
+            0.01,
             0.5,
             "Checking system requirements...",
         );
@@ -141,22 +141,22 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
         update_progress(
             "Pre-installation checks",
-            0.05,
+            0.02,
             1.0,
             "✓ Pre-installation checks complete",
         );
 
-        // Step 2: Disk partitioning (15%)
+        // Step 2: Disk partitioning (2-5%)
         update_progress(
             "Disk partitioning",
-            0.10,
+            0.02,
             0.0,
             "Preparing disk partitioning...",
         );
 
         if let Some(disk_config) = &config.disk {
             // Safety check: Prevent installing on the disk containing the running system
-            update_progress("Disk partitioning", 0.10, 0.05, "Checking disk safety...");
+            update_progress("Disk partitioning", 0.02, 0.05, "Checking disk safety...");
 
             let root_device_result = Command::new("findmnt")
                 .args(&["-n", "-o", "SOURCE", "/"])
@@ -209,7 +209,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
             update_progress(
                 "Disk partitioning",
-                0.11,
+                0.025,
                 0.1,
                 format!("Preparing disk: {}", disk_config.device).as_str(),
             );
@@ -217,7 +217,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             // Unmount any partitions from the target disk
             update_progress(
                 "Disk partitioning",
-                0.115,
+                0.03,
                 0.2,
                 "Unmounting existing partitions...",
             );
@@ -264,7 +264,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             for (mount_point, device) in &mount_points_to_unmount {
                 update_progress(
                     "Disk partitioning",
-                    0.115,
+                    0.03,
                     0.3,
                     format!("Unmounting {} ({})", mount_point, device).as_str(),
                 );
@@ -308,7 +308,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                         if swap_device.starts_with(&disk_config.device) {
                             update_progress(
                                 "Disk partitioning",
-                                0.118,
+                                0.032,
                                 0.4,
                                 format!("Deactivating swap on {}...", swap_device).as_str(),
                             );
@@ -327,7 +327,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             // Check if any processes are still using the disk (optional - fuser might not be available)
             update_progress(
                 "Disk partitioning",
-                0.119,
+                0.033,
                 0.45,
                 "Checking for processes using disk...",
             );
@@ -342,7 +342,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                         tracing::warn!("Processes still using {}: {}", disk_config.device, users);
                         update_progress(
                             "Disk partitioning",
-                            0.119,
+                            0.034,
                             0.5,
                             "Terminating processes using disk...",
                         );
@@ -364,7 +364,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             tracing::info!("Starting disk partitioning on {}", disk_config.device);
             update_progress(
                 "Disk partitioning",
-                0.12,
+                0.035,
                 0.3,
                 format!("Partitioning disk: {}", disk_config.device).as_str(),
             );
@@ -373,7 +373,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 tracing::info!("Wiping disk signatures with wipefs");
                 update_progress(
                     "Disk partitioning",
-                    0.13,
+                    0.04,
                     0.5,
                     format!("Wiping disk: {}", disk_config.device).as_str(),
                 );
@@ -406,7 +406,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             );
             update_progress(
                 "Disk partitioning",
-                0.14,
+                0.045,
                 0.7,
                 format!("Creating {} partition table", pt_type).as_str(),
             );
@@ -479,7 +479,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 let step = 0.7 + ((idx as f32 + 1.0) / disk_config.partitions.len() as f32) * 0.3;
                 update_progress(
                     "Disk partitioning",
-                    0.14 + (step * 0.01),
+                    0.045 + (step * 0.005),
                     step,
                     format!("Creating partition {}", partition.device).as_str(),
                 );
@@ -612,13 +612,13 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
         update_progress(
             "Disk partitioning",
-            0.15,
+            0.05,
             1.0,
             "✓ Disk partitioning complete",
         );
 
-        // Step 3: Filesystem creation (25%)
-        update_progress("Filesystem creation", 0.20, 0.0, "Creating filesystems...");
+        // Step 3: Filesystem creation (5-7%)
+        update_progress("Filesystem creation", 0.05, 0.0, "Creating filesystems...");
 
         if let Some(disk_config) = &config.disk {
             for (idx, partition) in disk_config.partitions.iter().enumerate() {
@@ -627,7 +627,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 if partition.format {
                     update_progress(
                         "Filesystem creation",
-                        0.20 + (step * 0.05),
+                        0.05 + (step * 0.02),
                         step,
                         format!(
                             "Creating {} on {}",
@@ -681,15 +681,15 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
         update_progress(
             "Filesystem creation",
-            0.25,
+            0.07,
             1.0,
             "✓ Filesystem creation complete",
         );
 
-        // Step 4: Mounting filesystems (30%)
+        // Step 4: Mounting filesystems (7-10%)
         update_progress(
             "Mounting filesystems",
-            0.28,
+            0.07,
             0.0,
             "Preparing to mount filesystems...",
         );
@@ -733,7 +733,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 if partition.filesystem == FilesystemType::Swap {
                     update_progress(
                         "Mounting filesystems",
-                        0.28 + (step * 0.02),
+                        0.07 + (step * 0.03),
                         step,
                         format!("Activating swap on {}", partition.device).as_str(),
                     );
@@ -766,7 +766,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
                 update_progress(
                     "Mounting filesystems",
-                    0.28 + (step * 0.02),
+                    0.07 + (step * 0.03),
                     step,
                     format!("Mounting {} to {}", partition.device, mount_path).as_str(),
                 );
@@ -804,7 +804,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             if config.disk_layout == crate::types::DiskLayoutPreset::BtrfsSubvolumes {
                 update_progress(
                     "Mounting filesystems",
-                    0.29,
+                    0.09,
                     0.8,
                     "Creating btrfs subvolumes...",
                 );
@@ -833,7 +833,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                                 let stderr = String::from_utf8_lossy(&output.stderr);
                                 update_progress(
                                     "Mounting filesystems",
-                                    0.29,
+                                    0.09,
                                     0.9,
                                     format!(
                                         "Warning: Failed to create subvolume {}: {}",
@@ -848,12 +848,12 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             }
         }
 
-        update_progress("Mounting filesystems", 0.30, 1.0, "✓ Filesystems mounted");
+        update_progress("Mounting filesystems", 0.10, 1.0, "✓ Filesystems mounted");
 
-        // Step 5: Build rootfs with Buck2 (70% - this is the longest step)
+        // Step 5: Build rootfs with Buck2 (10-85% - this is the longest step)
         update_progress(
             "Building rootfs",
-            0.35,
+            0.10,
             0.0,
             "Generating custom rootfs target...",
         );
@@ -964,7 +964,7 @@ rootfs(
 
         update_progress(
             "Building rootfs",
-            0.36,
+            0.11,
             0.05,
             "Writing custom BUCK target...",
         );
@@ -984,7 +984,7 @@ rootfs(
             );
             update_progress(
                 "Building rootfs",
-                0.361,
+                0.115,
                 0.06,
                 "Saved hardware-specific kernel config",
             );
@@ -999,7 +999,7 @@ rootfs(
             );
             update_progress(
                 "Building rootfs",
-                0.365,
+                0.12,
                 0.08,
                 "✓ Found Buck2 cache (using pre-built packages)",
             );
@@ -1007,7 +1007,7 @@ rootfs(
             tracing::info!("No Buck2 cache found, will build packages from scratch");
             update_progress(
                 "Building rootfs",
-                0.365,
+                0.12,
                 0.08,
                 "Building packages from scratch (no cache found)",
             );
@@ -1015,7 +1015,7 @@ rootfs(
 
         // Build the rootfs with Buck2
         // Buck2 will automatically use cached artifacts from buck-out if available
-        update_progress("Building rootfs", 0.37, 0.1, "Running buck2 build...");
+        update_progress("Building rootfs", 0.15, 0.1, "Running buck2 build...");
 
         // Buck2 refuses to run as root, so we need to run it as the original user
         // who invoked the installer (typically via sudo)
@@ -1100,11 +1100,11 @@ rootfs(
                 let elapsed = last_progress_update.elapsed();
                 // Throttle updates to avoid overwhelming the UI (update at most every 100ms)
                 if elapsed.as_millis() > 100 {
-                    // Map buck2 progress (0.0-1.0) to our step progress (0.1-0.7)
-                    let step_progress = 0.1 + (progress_info * 0.6);
+                    // Map buck2 progress (0.0-1.0) to our step progress (0.1-0.8)
+                    let step_progress = 0.1 + (progress_info * 0.7);
                     update_progress(
                         "Building rootfs",
-                        0.37 + (progress_info * 0.23),
+                        0.15 + (progress_info * 0.60),
                         step_progress,
                         &format!("Building: {}", line),
                     );
@@ -1129,10 +1129,10 @@ rootfs(
             );
         }
 
-        update_progress("Building rootfs", 0.60, 0.7, "✓ Rootfs built successfully");
+        update_progress("Building rootfs", 0.75, 0.8, "✓ Rootfs built successfully");
 
         // Find the built rootfs directory
-        update_progress("Building rootfs", 0.61, 0.75, "Locating built rootfs...");
+        update_progress("Building rootfs", 0.77, 0.85, "Locating built rootfs...");
 
         // Run buck2 as the original user if we're root (same approach as above)
         let mut show_output_cmd = if system::is_root() {
@@ -1197,8 +1197,8 @@ rootfs(
         // Copy the rootfs to target
         update_progress(
             "Building rootfs",
-            0.62,
-            0.8,
+            0.80,
+            0.9,
             "Extracting rootfs to target...",
         );
 
@@ -1231,13 +1231,13 @@ rootfs(
 
         update_progress(
             "Building rootfs",
-            0.70,
+            0.85,
             1.0,
             "✓ Rootfs installation complete",
         );
 
-        // Step 6: System configuration (80%)
-        update_progress("System configuration", 0.72, 0.0, "Configuring system...");
+        // Step 6: System configuration (85-90%)
+        update_progress("System configuration", 0.85, 0.0, "Configuring system...");
 
         // Create essential system files (/etc/passwd and /etc/shadow)
         // These are required before running dracut which uses grep on these files
@@ -1287,7 +1287,7 @@ nobody:x:65534:
         // Generate fstab
         update_progress(
             "System configuration",
-            0.72,
+            0.85,
             0.1,
             "Generating /etc/fstab...",
         );
@@ -1323,11 +1323,11 @@ nobody:x:65534:
             }
 
             std::fs::write(&fstab_path, fstab_content)?;
-            update_progress("System configuration", 0.73, 0.2, "✓ Generated /etc/fstab");
+            update_progress("System configuration", 0.86, 0.2, "✓ Generated /etc/fstab");
         }
 
         // Configure locale
-        update_progress("System configuration", 0.74, 0.3, "Configuring locale...");
+        update_progress("System configuration", 0.86, 0.3, "Configuring locale...");
         let locale_conf_path = config.target_root.join("etc/locale.conf");
         std::fs::write(
             &locale_conf_path,
@@ -1356,10 +1356,10 @@ nobody:x:65534:
             .arg("locale-gen")
             .output();
 
-        update_progress("System configuration", 0.75, 0.4, "✓ Configured locale");
+        update_progress("System configuration", 0.87, 0.4, "✓ Configured locale");
 
         // Configure timezone
-        update_progress("System configuration", 0.76, 0.5, "Configuring timezone...");
+        update_progress("System configuration", 0.87, 0.5, "Configuring timezone...");
         let timezone_src = format!("/usr/share/zoneinfo/{}", config.timezone.timezone);
         let timezone_dst = config.target_root.join("etc/localtime");
 
@@ -1381,10 +1381,10 @@ nobody:x:65534:
             format!("{}\n", config.timezone.timezone),
         )?;
 
-        update_progress("System configuration", 0.77, 0.6, "✓ Configured timezone");
+        update_progress("System configuration", 0.88, 0.6, "✓ Configured timezone");
 
         // Configure hostname
-        update_progress("System configuration", 0.78, 0.7, "Configuring network...");
+        update_progress("System configuration", 0.88, 0.7, "Configuring network...");
         let hostname_path = config.target_root.join("etc/hostname");
         std::fs::write(&hostname_path, format!("{}\n", config.network.hostname))?;
 
@@ -1398,10 +1398,10 @@ nobody:x:65534:
         );
         std::fs::write(&hosts_path, hosts_content)?;
 
-        update_progress("System configuration", 0.79, 0.8, "✓ Configured network");
+        update_progress("System configuration", 0.89, 0.8, "✓ Configured network");
 
         // Configure keyboard layout
-        update_progress("System configuration", 0.80, 0.9, "Configuring keyboard...");
+        update_progress("System configuration", 0.89, 0.9, "Configuring keyboard...");
         let vconsole_path = config.target_root.join("etc/vconsole.conf");
         std::fs::write(
             &vconsole_path,
@@ -1410,15 +1410,15 @@ nobody:x:65534:
 
         update_progress(
             "System configuration",
-            0.80,
+            0.90,
             1.0,
             "✓ System configuration complete",
         );
 
-        // Step 7: Bootloader installation (90%)
+        // Step 7: Bootloader installation (90-95%)
         update_progress(
             "Installing bootloader",
-            0.82,
+            0.90,
             0.0,
             "Installing bootloader...",
         );
@@ -1435,7 +1435,7 @@ nobody:x:65534:
         if config.bootloader != crate::types::BootloaderType::None {
             update_progress(
                 "Installing bootloader",
-                0.83,
+                0.905,
                 0.1,
                 format!("Installing {} bootloader...", bootloader_name).as_str(),
             );
@@ -1455,7 +1455,7 @@ nobody:x:65534:
                             grub_install_path.display(),
                             grub_mkconfig_path.display()
                         );
-                        update_progress("Installing bootloader", 0.90, 0.5, &warning_msg);
+                        update_progress("Installing bootloader", 0.95, 0.5, &warning_msg);
                         tracing::warn!("{}", warning_msg);
                     } else {
                         // GRUB binaries found, proceed with installation
@@ -1473,7 +1473,7 @@ nobody:x:65534:
                         // Verify boot/EFI partition is mounted
                         update_progress(
                             "Installing bootloader",
-                            0.83,
+                            0.905,
                             0.1,
                             "Verifying boot partition...",
                         );
@@ -1494,7 +1494,7 @@ nobody:x:65534:
                         // Set up bind mounts for chroot (required for grub-install)
                         update_progress(
                             "Installing bootloader",
-                            0.835,
+                            0.91,
                             0.15,
                             "Preparing chroot environment...",
                         );
@@ -1573,7 +1573,7 @@ nobody:x:65534:
 
                         update_progress(
                             "Installing bootloader",
-                            0.84,
+                            0.915,
                             0.15,
                             "Configuring dynamic linker...",
                         );
@@ -1596,7 +1596,7 @@ nobody:x:65534:
 
                         update_progress(
                             "Installing bootloader",
-                            0.841,
+                            0.92,
                             0.16,
                             "Updating library cache...",
                         );
@@ -1624,7 +1624,7 @@ nobody:x:65534:
 
                         update_progress(
                             "Installing bootloader",
-                            0.845,
+                            0.925,
                             0.2,
                             "Running grub-install...",
                         );
@@ -1701,7 +1701,7 @@ nobody:x:65534:
                         tracing::info!("grub-install completed successfully");
                         update_progress(
                             "Installing bootloader",
-                            0.86,
+                            0.93,
                             0.5,
                             "Generating initramfs...",
                         );
@@ -1811,7 +1811,7 @@ nobody:x:65534:
 
                         update_progress(
                             "Installing bootloader",
-                            0.87,
+                            0.935,
                             0.6,
                             "Generating GRUB configuration...",
                         );
@@ -1865,7 +1865,7 @@ nobody:x:65534:
                         // Cleanup: Unmount bind mounts in reverse order
                         update_progress(
                             "Installing bootloader",
-                            0.89,
+                            0.945,
                             0.9,
                             "Cleaning up chroot environment...",
                         );
@@ -1913,7 +1913,7 @@ nobody:x:65534:
                 crate::types::BootloaderType::Systemdboot => {
                     update_progress(
                         "Installing bootloader",
-                        0.84,
+                        0.92,
                         0.3,
                         "Running bootctl install...",
                     );
@@ -1940,7 +1940,7 @@ nobody:x:65534:
 
                     update_progress(
                         "Installing bootloader",
-                        0.87,
+                        0.935,
                         0.6,
                         "Creating systemd-boot entries...",
                     );
@@ -1995,7 +1995,7 @@ nobody:x:65534:
                 }
 
                 crate::types::BootloaderType::Refind => {
-                    update_progress("Installing bootloader", 0.84, 0.3, "Installing rEFInd...");
+                    update_progress("Installing bootloader", 0.92, 0.3, "Installing rEFInd...");
 
                     // Install rEFInd
                     let output = Command::new("chroot")
@@ -2016,7 +2016,7 @@ nobody:x:65534:
                         anyhow::bail!("Failed to install rEFInd: {}", stderr);
                     }
 
-                    update_progress("Installing bootloader", 0.87, 0.6, "Configuring rEFInd...");
+                    update_progress("Installing bootloader", 0.935, 0.6, "Configuring rEFInd...");
 
                     // Create basic refind.conf if it doesn't exist
                     let refind_conf_path =
@@ -2028,7 +2028,7 @@ nobody:x:65534:
                 }
 
                 crate::types::BootloaderType::Limine => {
-                    update_progress("Installing bootloader", 0.84, 0.3, "Installing Limine...");
+                    update_progress("Installing bootloader", 0.92, 0.3, "Installing Limine...");
 
                     // Find boot device
                     let boot_device = if let Some(disk_config) = &config.disk {
@@ -2059,7 +2059,7 @@ nobody:x:65534:
 
                     update_progress(
                         "Installing bootloader",
-                        0.87,
+                        0.935,
                         0.6,
                         "Creating Limine configuration...",
                     );
@@ -2073,7 +2073,7 @@ nobody:x:65534:
                 crate::types::BootloaderType::Efistub => {
                     update_progress(
                         "Installing bootloader",
-                        0.84,
+                        0.92,
                         0.3,
                         "Creating EFISTUB boot entry...",
                     );
@@ -2086,7 +2086,7 @@ nobody:x:65534:
                         tracing::warn!(
                             "Skipping efibootmgr to prevent modifying host EFI variables"
                         );
-                        update_progress("Installing bootloader", 0.90, 1.0,
+                        update_progress("Installing bootloader", 0.95, 1.0,
                             "⚠ EFISTUB installation skipped for removable media. Use GRUB or systemd-boot instead.");
                     } else {
                         // Find root partition
@@ -2137,23 +2137,23 @@ nobody:x:65534:
 
             update_progress(
                 "Installing bootloader",
-                0.90,
+                0.95,
                 1.0,
                 format!("✓ {} bootloader installed", bootloader_name).as_str(),
             );
         } else {
             update_progress(
                 "Installing bootloader",
-                0.90,
+                0.95,
                 1.0,
                 "✓ Skipped bootloader installation",
             );
         }
 
-        // Step 8: User creation (95%)
+        // Step 8: User creation (95-98%)
         update_progress(
             "Creating users",
-            0.92,
+            0.95,
             0.0,
             "Verifying user management utilities...",
         );
@@ -2267,7 +2267,7 @@ session    optional   pam_permit.so
             tracing::info!("Created /etc/pam.d/system-auth");
         }
 
-        update_progress("Creating users", 0.92, 0.2, "Setting root password...");
+        update_progress("Creating users", 0.96, 0.2, "Setting root password...");
 
         // Set root password using chpasswd
         let root_passwd_cmd = format!("root:{}", config.root_password);
@@ -2297,14 +2297,14 @@ session    optional   pam_permit.so
             anyhow::bail!("Failed to set root password: {}", stderr);
         }
 
-        update_progress("Creating users", 0.93, 0.3, "✓ Root password set");
+        update_progress("Creating users", 0.965, 0.3, "✓ Root password set");
 
         // Create user accounts
         for (idx, user) in config.users.iter().enumerate() {
             let step = 0.3 + ((idx as f32 + 1.0) / config.users.len() as f32) * 0.7;
             update_progress(
                 "Creating users",
-                0.93 + (step * 0.02),
+                0.965 + (step * 0.015),
                 step,
                 format!("Creating user: {}", user.username).as_str(),
             );
@@ -2345,7 +2345,7 @@ session    optional   pam_permit.so
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 update_progress(
                     "Creating users",
-                    0.93 + (step * 0.02),
+                    0.965 + (step * 0.015),
                     step,
                     format!(
                         "Warning: Failed to create user {}: {}",
@@ -2394,10 +2394,10 @@ session    optional   pam_permit.so
             }
         }
 
-        update_progress("Creating users", 0.95, 1.0, "✓ User accounts created");
+        update_progress("Creating users", 0.98, 1.0, "✓ User accounts created");
 
-        // Step 9: Finalization (100%)
-        update_progress("Finalizing installation", 0.97, 0.5, "Cleaning up...");
+        // Step 9: Finalization (98-100%)
+        update_progress("Finalizing installation", 0.98, 0.5, "Cleaning up...");
         update_progress(
             "Finalizing installation",
             0.99,
