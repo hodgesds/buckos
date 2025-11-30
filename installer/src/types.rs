@@ -290,7 +290,7 @@ impl KernelChannel {
 
 impl Default for KernelChannel {
     fn default() -> Self {
-        KernelChannel::LTS
+        KernelChannel::Stable
     }
 }
 
