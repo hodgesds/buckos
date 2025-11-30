@@ -2096,6 +2096,12 @@ nobody:x:65534:
                                 cmd.arg("--no-hostonly");
                             }
 
+                            // Add systemd modules when using systemd as init system
+                            // These are required for proper initrd.target and switch-root functionality
+                            if matches!(config.init_system, crate::types::InitSystem::Systemd) {
+                                cmd.arg("--add").arg("systemd systemd-initrd");
+                            }
+
                             cmd.arg("--enhanced-cpio")
                                 .arg(initramfs_path)
                                 .arg("--kver")
