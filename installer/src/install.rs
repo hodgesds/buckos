@@ -2086,13 +2086,18 @@ nobody:x:65534:
                             .arg("/usr/bin/dracut")
                             .arg("--force");
 
-                        // Only use --hostonly if not including all firmware
-                        // When include_all_firmware is true, we skip --hostonly to include all drivers/firmware
-                        if !config.include_all_firmware {
+                        // Only use --hostonly if not installing to removable media and not including all firmware
+                        // For removable media, we need all drivers since it may boot on different machines
+                        // When include_all_firmware is true, we also skip --hostonly to include all drivers/firmware
+                        if !config.include_all_firmware && !is_removable {
                             dracut_cmd.arg("--hostonly");
                             tracing::info!("Using hostonly mode for initramfs (smaller, optimized for this machine)");
                         } else {
-                            tracing::info!("Including all firmware in initramfs (larger, portable across machines)");
+                            if is_removable {
+                                tracing::info!("Skipping hostonly mode for removable media (portable across machines)");
+                            } else {
+                                tracing::info!("Including all firmware in initramfs (larger, portable across machines)");
+                            }
                         }
 
                         dracut_cmd
@@ -2139,14 +2144,25 @@ nobody:x:65534:
                         // Create /etc/default/grub if it doesn't exist (required for grub-mkconfig)
                         let default_grub_path = config.target_root.join("etc/default/grub");
                         if !default_grub_path.exists() {
-                            let default_grub_content = r#"# GRUB configuration for BuckOS
+                            // Build kernel command line based on installation type
+                            let cmdline_default = if is_removable {
+                                // For removable media: rootwait waits for USB to initialize
+                                "rootwait"
+                            } else {
+                                ""
+                            };
+
+                            let default_grub_content = format!(
+                                r#"# GRUB configuration for BuckOS
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=5
 GRUB_DISTRIBUTOR="BuckOS"
-GRUB_CMDLINE_LINUX_DEFAULT="quiet"
+GRUB_CMDLINE_LINUX_DEFAULT="{}"
 GRUB_CMDLINE_LINUX=""
 GRUB_TERMINAL_OUTPUT="console"
-"#;
+"#,
+                                cmdline_default
+                            );
                             std::fs::create_dir_all(default_grub_path.parent().unwrap())?;
                             std::fs::write(&default_grub_path, default_grub_content)
                                 .map_err(|e| anyhow::anyhow!("Failed to create /etc/default/grub: {}", e))?;
