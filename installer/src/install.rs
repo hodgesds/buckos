@@ -1,10 +1,296 @@
 //! Installation logic and helpers
 
 use crate::system;
-use crate::types::{FilesystemType, InstallConfig, InstallProgress, MountPoint, PartitionConfig};
+use crate::types::{
+    AudioSubsystem, DesktopEnvironment, FilesystemType, GpuVendor, InitSystem, InstallConfig,
+    InstallProfile, InstallProgress, MountPoint, NetworkInterfaceType, PartitionConfig,
+};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+
+/// USE flag configuration generated from installer options
+#[derive(Debug, Clone, Default)]
+pub struct UseFlags {
+    /// Global USE flags
+    pub global: Vec<String>,
+    /// VIDEO_CARDS USE_EXPAND
+    pub video_cards: Vec<String>,
+    /// INPUT_DEVICES USE_EXPAND
+    pub input_devices: Vec<String>,
+    /// Per-package USE flag overrides
+    pub package_use: Vec<(String, Vec<String>)>,
+}
+
+impl UseFlags {
+    /// Generate USE flags from InstallConfig
+    pub fn from_config(config: &InstallConfig) -> Self {
+        let mut flags = UseFlags::default();
+
+        // Init system USE flag
+        let init_flag = match config.init_system {
+            InitSystem::Systemd => "systemd",
+            InitSystem::OpenRC => "openrc",
+            InitSystem::Runit => "runit",
+            InitSystem::S6 => "s6",
+            InitSystem::SysVinit => "sysvinit",
+            InitSystem::Dinit => "dinit",
+            InitSystem::BusyBoxInit => "busybox",
+        };
+        flags.global.push(init_flag.to_string());
+
+        // Audio subsystem USE flags
+        match config.audio_subsystem {
+            AudioSubsystem::PipeWire => {
+                flags.global.push("pipewire".to_string());
+                flags.global.push("alsa".to_string());
+            }
+            AudioSubsystem::PulseAudio => {
+                flags.global.push("pulseaudio".to_string());
+                flags.global.push("alsa".to_string());
+            }
+            AudioSubsystem::Alsa => {
+                flags.global.push("alsa".to_string());
+            }
+        }
+
+        // Desktop environment / display server USE flags
+        if let InstallProfile::Desktop(de) = &config.profile {
+            // Display server flags
+            match de {
+                DesktopEnvironment::Sway | DesktopEnvironment::Hyprland => {
+                    flags.global.push("wayland".to_string());
+                }
+                DesktopEnvironment::I3 => {
+                    flags.global.push("X".to_string());
+                }
+                DesktopEnvironment::Gnome | DesktopEnvironment::Kde => {
+                    flags.global.push("wayland".to_string());
+                    flags.global.push("X".to_string()); // XWayland
+                }
+                DesktopEnvironment::Xfce
+                | DesktopEnvironment::Mate
+                | DesktopEnvironment::Cinnamon
+                | DesktopEnvironment::LxQt => {
+                    flags.global.push("X".to_string());
+                }
+                DesktopEnvironment::None => {}
+            }
+
+            // Toolkit flags
+            match de {
+                DesktopEnvironment::Gnome
+                | DesktopEnvironment::Xfce
+                | DesktopEnvironment::Mate
+                | DesktopEnvironment::Cinnamon => {
+                    flags.global.push("gtk".to_string());
+                }
+                DesktopEnvironment::Kde | DesktopEnvironment::LxQt => {
+                    flags.global.push("qt5".to_string());
+                    flags.global.push("qt6".to_string());
+                }
+                _ => {}
+            }
+        }
+
+        // Hardware detection -> USE flags
+        if config.hardware_info.has_bluetooth {
+            flags.global.push("bluetooth".to_string());
+        }
+
+        let has_wifi = config
+            .hardware_info
+            .network_interfaces
+            .iter()
+            .any(|i| matches!(i.interface_type, NetworkInterfaceType::Wifi));
+        if has_wifi {
+            flags.global.push("wifi".to_string());
+        }
+
+        if config.hardware_info.has_touchscreen {
+            flags.global.push("touchscreen".to_string());
+            flags.input_devices.push("libinput".to_string());
+            flags.input_devices.push("wacom".to_string());
+        }
+
+        // GPU detection -> VIDEO_CARDS USE_EXPAND
+        for gpu in &config.hardware_info.gpus {
+            match gpu.vendor {
+                GpuVendor::Nvidia => {
+                    flags.video_cards.push("nvidia".to_string());
+                }
+                GpuVendor::Amd => {
+                    flags.video_cards.push("amdgpu".to_string());
+                    flags.video_cards.push("radeon".to_string());
+                }
+                GpuVendor::Intel => {
+                    flags.video_cards.push("intel".to_string());
+                    flags.video_cards.push("i965".to_string());
+                }
+                GpuVendor::VirtualBox => {
+                    flags.video_cards.push("virtualbox".to_string());
+                }
+                GpuVendor::VMware => {
+                    flags.video_cards.push("vmware".to_string());
+                }
+                GpuVendor::Unknown => {}
+            }
+        }
+
+        // Common USE flags for all installations
+        for flag in &[
+            "unicode", "nls", "ssl", "ipv6", "threads", "ncurses", "readline", "zlib", "pam",
+            "udev", "dbus",
+        ] {
+            flags.global.push(flag.to_string());
+        }
+
+        // Per-package USE flag overrides
+        flags
+            .package_use
+            .push(("dracut".to_string(), vec![init_flag.to_string()]));
+
+        flags
+    }
+
+    /// Generate Starlark format for use_config.bzl
+    pub fn to_starlark(&self) -> String {
+        let use_flags_str = self
+            .global
+            .iter()
+            .map(|f| format!("    \"{}\",", f))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let video_cards_str = self
+            .video_cards
+            .iter()
+            .map(|f| format!("    \"{}\",", f))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let input_devices_str = self
+            .input_devices
+            .iter()
+            .map(|f| format!("    \"{}\",", f))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let package_use_str = self
+            .package_use
+            .iter()
+            .map(|(pkg, pkg_flags)| {
+                let flags_str = pkg_flags
+                    .iter()
+                    .map(|f| format!("\"{}\"", f))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("    \"{}\": [{}],", pkg, flags_str)
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        format!(
+            r#"# Auto-generated USE flag configuration
+# Generated by BuckOS installer based on installation options.
+# Do not edit manually - changes will be overwritten.
+
+# Global USE flags for this installation
+INSTALL_USE_FLAGS = [
+{}
+]
+
+# USE_EXPAND: VIDEO_CARDS
+INSTALL_VIDEO_CARDS = [
+{}
+]
+
+# USE_EXPAND: INPUT_DEVICES
+INSTALL_INPUT_DEVICES = [
+{}
+]
+
+# Per-package USE flag overrides
+INSTALL_PACKAGE_USE = {{
+{}
+}}
+"#,
+            use_flags_str, video_cards_str, input_devices_str, package_use_str
+        )
+    }
+
+    /// Generate TOML format for /etc/buckos/buckos.toml
+    pub fn to_toml(&self) -> String {
+        let use_flags_toml = self
+            .global
+            .iter()
+            .map(|f| format!("\"{}\"", f))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        // Detect architecture from hardware info or system
+        let (arch, chost, march) = detect_target_arch();
+
+        let jobs = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(4);
+
+        format!(
+            r#"# BuckOS Package Manager Configuration
+# Generated by BuckOS installer
+# Edit this file to customize package manager behavior
+
+[general]
+root = "/"
+db_path = "/var/db/buckos"
+cache_dir = "/var/cache/buckos"
+buck_repo = "/var/db/repos/buckos-build"
+buck_path = "/usr/bin/buck2"
+
+[use_flags]
+global = [{use_flags}]
+
+[build]
+arch = "{arch}"
+chost = "{chost}"
+cflags = "-O2 -pipe {march}"
+cxxflags = "${{CFLAGS}}"
+ldflags = "-Wl,-O1 -Wl,--as-needed"
+makeopts = "-j{jobs}"
+
+[features]
+parallel-fetch = true
+parallel-install = true
+buildpkg = true
+"#,
+            use_flags = use_flags_toml,
+            arch = arch,
+            chost = chost,
+            march = march,
+            jobs = jobs
+        )
+    }
+}
+
+/// Detect target architecture and return (arch, chost, march flags)
+fn detect_target_arch() -> (&'static str, &'static str, &'static str) {
+    #[cfg(target_arch = "x86_64")]
+    {
+        ("amd64", "x86_64-buckos-linux-gnu", "-march=x86-64 -mtune=generic")
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        ("arm64", "aarch64-buckos-linux-gnu", "-march=armv8-a")
+    }
+    #[cfg(target_arch = "x86")]
+    {
+        ("x86", "i686-buckos-linux-gnu", "-march=i686 -mtune=generic")
+    }
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "x86")))]
+    {
+        ("unknown", "unknown-buckos-linux-gnu", "")
+    }
+}
 
 /// Parse buck2 output to extract progress information
 /// Returns a progress value between 0.0 and 1.0 if progress info is found
@@ -855,6 +1141,30 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             "Building rootfs",
             0.10,
             0.0,
+            "Generating USE flags config...",
+        );
+
+        // Generate USE flags configuration based on all installation options
+        let config_dir = config.buckos_build_path.join("config");
+        std::fs::create_dir_all(&config_dir)?;
+        let use_config_path = config_dir.join("use_config.bzl");
+
+        // Build USE flags from installer configuration
+        let use_flags = UseFlags::from_config(&config);
+
+        // Write Starlark config for Buck2 build
+        std::fs::write(&use_config_path, use_flags.to_starlark())?;
+        tracing::info!(
+            "Generated USE flags config with {} flags, {} video cards, {} input devices",
+            use_flags.global.len(),
+            use_flags.video_cards.len(),
+            use_flags.input_devices.len()
+        );
+
+        update_progress(
+            "Building rootfs",
+            0.10,
+            0.0,
             "Generating custom rootfs target...",
         );
 
@@ -1387,24 +1697,24 @@ rootfs(
 
             let total_sets = package_sets_to_build.len();
             for (idx, package_set) in package_sets_to_build.iter().enumerate() {
-                // Map package set name to Buck target
+                // Map package set name to Buck target in buckos-build
                 let buck_target = match *package_set {
-                    "@desktop" => Some("//install:desktop-packages"),
-                    "@audio" => Some("//install:audio-packages"),
-                    "@network" => Some("//install:network-packages"),
-                    "@server" => Some("//install:server-packages"),
-                    "@gaming" => Some("//install:gaming-packages"),
-                    "@steam" => Some("//install:steam-packages"),
-                    "@gnome" => Some("//install:gnome-packages"),
-                    "@kde" => Some("//install:kde-packages"),
-                    "@xfce" => Some("//install:xfce-packages"),
-                    "@mate" => Some("//install:mate-packages"),
-                    "@cinnamon" => Some("//install:cinnamon-packages"),
-                    "@lxqt" => Some("//install:lxqt-packages"),
-                    "@i3" => Some("//install:i3-packages"),
-                    "@sway" => Some("//install:sway-packages"),
-                    "@hyprland" => Some("//install:hyprland-packages"),
-                    "@xorg-minimal" => None, // Basic X support is in desktop-packages
+                    "@desktop" => Some("//packages/linux/desktop:desktop-foundation"),
+                    "@audio" => Some("//packages/linux/audio:essential"),
+                    "@network" => Some("//packages/linux/network:network-tools"),
+                    "@server" => Some("//packages/linux/network:remote-access"),
+                    "@gaming" => Some("//packages/linux/gaming:gaming"),
+                    "@steam" => Some("//packages/linux/gaming:launchers"),
+                    "@gnome" => Some("//packages/linux/desktop/gnome:gnome"),
+                    "@kde" => Some("//packages/linux/desktop/kde:kde-plasma"),
+                    "@xfce" => Some("//packages/linux/desktop/xfce:xfce"),
+                    "@mate" => Some("//packages/linux/desktop/mate:mate"),
+                    "@cinnamon" => Some("//packages/linux/desktop/cinnamon:cinnamon-desktop"),
+                    "@lxqt" => Some("//packages/linux/desktop/lxqt:lxqt"),
+                    "@i3" => Some("//packages/linux/desktop:i3-complete"),
+                    "@sway" => Some("//packages/linux/desktop:sway-complete"),
+                    "@hyprland" => Some("//packages/linux/desktop:hyprland-complete"),
+                    "@xorg-minimal" => Some("//packages/linux/desktop/xorg-server:xorg-server"),
                     _ => {
                         tracing::warn!("Unknown package set: {}", package_set);
                         None
@@ -1696,6 +2006,35 @@ nobody:x:65534:
             &vconsole_path,
             format!("KEYMAP={}\n", config.locale.keyboard),
         )?;
+
+        // Generate /etc/buckos/buckos.toml for package manager on target system
+        let buckos_config_dir = config.target_root.join("etc/buckos");
+        std::fs::create_dir_all(&buckos_config_dir)?;
+        let buckos_toml_path = buckos_config_dir.join("buckos.toml");
+        let target_use_flags = UseFlags::from_config(&config);
+        std::fs::write(&buckos_toml_path, target_use_flags.to_toml())?;
+        tracing::info!(
+            "Generated /etc/buckos/buckos.toml with {} USE flags",
+            target_use_flags.global.len()
+        );
+
+        // Enable serial console for systemd (useful for VMs and headless systems)
+        if matches!(config.init_system, crate::types::InitSystem::Systemd) {
+            let getty_target_dir = config
+                .target_root
+                .join("etc/systemd/system/getty.target.wants");
+            std::fs::create_dir_all(&getty_target_dir)?;
+
+            // Enable serial-getty@ttyS0.service
+            let serial_getty_link = getty_target_dir.join("serial-getty@ttyS0.service");
+            if !serial_getty_link.exists() {
+                std::os::unix::fs::symlink(
+                    "/usr/lib/systemd/system/serial-getty@.service",
+                    &serial_getty_link,
+                )?;
+                tracing::info!("Enabled serial console on ttyS0");
+            }
+        }
 
         update_progress(
             "System configuration",
