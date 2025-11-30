@@ -2070,69 +2070,96 @@ nobody:x:65534:
                             );
                         }
 
-                        // Generate initramfs with dracut
+                        // Generate initramfs images with dracut (default + fallback like Arch/CachyOS)
+                        // Default: optimized for current hardware (hostonly for fixed installs)
+                        // Fallback: includes all modules for portability (VMs, hardware changes, rescue)
                         tracing::info!(
-                            "Generating initramfs with dracut for kernel {}",
+                            "Generating initramfs images with dracut for kernel {}",
                             kernel_version
                         );
-                        let initramfs_path = format!("/boot/initramfs-{}.img", kernel_version);
-                        let mut dracut_cmd = Command::new("chroot");
-                        dracut_cmd
-                            .arg(&config.target_root)
-                            .env_clear()
-                            .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-                            .env("HOME", "/root")
-                            .env("TERM", "linux")
-                            .arg("/usr/bin/dracut")
-                            .arg("--force");
 
-                        // Only use --hostonly if not installing to removable media and not including all firmware
-                        // For removable media, we need all drivers since it may boot on different machines
-                        // When include_all_firmware is true, we also skip --hostonly to include all drivers/firmware
-                        if !config.include_all_firmware && !is_removable {
-                            dracut_cmd.arg("--hostonly");
-                            tracing::info!("Using hostonly mode for initramfs (smaller, optimized for this machine)");
-                        } else {
-                            if is_removable {
-                                tracing::info!("Skipping hostonly mode for removable media (portable across machines)");
+                        // Helper to run dracut with given arguments
+                        let run_dracut = |initramfs_path: &str, use_hostonly: bool, description: &str| -> Result<(), anyhow::Error> {
+                            tracing::info!("Generating {} initramfs: {}", description, initramfs_path);
+                            let mut cmd = Command::new("chroot");
+                            cmd.arg(&config.target_root)
+                                .env_clear()
+                                .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                                .env("HOME", "/root")
+                                .env("TERM", "linux")
+                                .arg("/usr/bin/dracut")
+                                .arg("--force");
+
+                            if use_hostonly {
+                                cmd.arg("--hostonly");
                             } else {
-                                tracing::info!("Including all firmware in initramfs (larger, portable across machines)");
+                                cmd.arg("--no-hostonly");
                             }
+
+                            cmd.arg("--enhanced-cpio")
+                                .arg(initramfs_path)
+                                .arg("--kver")
+                                .arg(&kernel_version);
+
+                            let output = cmd.output()
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to execute dracut command: {}. Make sure dracut is installed in the rootfs.",
+                                    e
+                                ))?;
+
+                            if !output.status.success() {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                let stdout = String::from_utf8_lossy(&output.stdout);
+                                anyhow::bail!(
+                                    "Failed to generate {} initramfs with dracut:\nstdout: {}\nstderr: {}",
+                                    description, stdout, stderr
+                                );
+                            }
+                            Ok(())
+                        };
+
+                        // Generate default initramfs
+                        let initramfs_path = format!("/boot/initramfs-{}.img", kernel_version);
+                        let use_hostonly_default = !config.include_all_firmware && !is_removable;
+                        if use_hostonly_default {
+                            tracing::info!("Default initramfs: hostonly mode (smaller, optimized for this machine)");
+                        } else {
+                            tracing::info!("Default initramfs: no-hostonly mode (portable across machines)");
                         }
 
-                        dracut_cmd
-                            .arg("--enhanced-cpio")  // Use dracut-cpio for optimized archive creation
-                            .arg(&initramfs_path)
-                            .arg("--kver")
-                            .arg(&kernel_version);
-
-                        let dracut_output = dracut_cmd.output()
-                            .map_err(|e| anyhow::anyhow!(
-                                "Failed to execute dracut command: {}. Make sure dracut is installed in the rootfs.",
-                                e
-                            ))?;
-
-                        if !dracut_output.status.success() {
-                            let stderr = String::from_utf8_lossy(&dracut_output.stderr);
-                            let stdout = String::from_utf8_lossy(&dracut_output.stdout);
-
+                        if let Err(e) = run_dracut(&initramfs_path, use_hostonly_default, "default") {
                             // Cleanup bind mounts before failing
                             for (_, target) in bind_mounts.iter().rev() {
                                 let target_path = config.target_root.join(target);
                                 let _ = Command::new("umount").arg(&target_path).output();
                             }
-
                             anyhow::bail!(
-                                "Failed to generate initramfs with dracut:\nstdout: {}\nstderr: {}\n\
+                                "{}\n\
                                 The system will not boot without an initramfs. Please ensure:\n\
                                 1. The dracut package is properly installed in the rootfs\n\
                                 2. The getopt utility is available (provided by util-linux)\n\
                                 3. All required kernel modules and firmware are present",
-                                stdout, stderr
+                                e
                             );
                         }
+                        tracing::info!("Default initramfs generated successfully");
 
-                        tracing::info!("Initramfs generated successfully");
+                        // Generate fallback initramfs (always includes all modules)
+                        let initramfs_fallback_path = format!("/boot/initramfs-{}-fallback.img", kernel_version);
+                        tracing::info!("Fallback initramfs: no-hostonly mode (includes all modules for rescue/VMs)");
+
+                        if let Err(e) = run_dracut(&initramfs_fallback_path, false, "fallback") {
+                            // Fallback generation failure is a warning, not fatal
+                            tracing::warn!(
+                                "Failed to generate fallback initramfs: {}. \
+                                The system will still boot with the default initramfs, but fallback option won't be available.",
+                                e
+                            );
+                        } else {
+                            tracing::info!("Fallback initramfs generated successfully");
+                        }
+
+                        tracing::info!("Initramfs generation complete");
 
                         update_progress(
                             "Installing bootloader",
@@ -2168,6 +2195,85 @@ GRUB_TERMINAL_OUTPUT="console"
                                 .map_err(|e| anyhow::anyhow!("Failed to create /etc/default/grub: {}", e))?;
                             tracing::info!("Created /etc/default/grub");
                         }
+
+                        // Create custom GRUB script for fallback initramfs entries
+                        // This script runs after 10_linux and adds fallback boot entries
+                        let grub_d_path = config.target_root.join("etc/grub.d");
+                        std::fs::create_dir_all(&grub_d_path)?;
+                        let fallback_script_path = grub_d_path.join("11_linux_fallback");
+                        let fallback_script_content = r#"#!/bin/sh
+set -e
+
+# Generate fallback boot entries for BuckOS
+# This script adds entries for initramfs-*-fallback.img files
+
+. "$pkgdatadir/grub-mkconfig_lib"
+
+CLASS="--class gnu-linux --class gnu --class os"
+GRUB_CMDLINE_LINUX="${GRUB_CMDLINE_LINUX:-}"
+GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT:-}"
+
+# Find all fallback initramfs images
+for fallback in /boot/initramfs-*-fallback.img; do
+    [ -f "$fallback" ] || continue
+
+    # Extract kernel version from fallback image name
+    # e.g., /boot/initramfs-6.12.6-buckos-fallback.img -> 6.12.6-buckos
+    basename=$(basename "$fallback")
+    version=$(echo "$basename" | sed 's/initramfs-\(.*\)-fallback\.img/\1/')
+
+    # Find corresponding kernel
+    linux="/boot/vmlinuz-${version}"
+    [ -f "$linux" ] || continue
+
+    # Get root device
+    GRUB_DEVICE=$(${grub_probe} --target=device /)
+    GRUB_DEVICE_UUID=$(${grub_probe} --device ${GRUB_DEVICE} --target=fs_uuid 2>/dev/null || true)
+
+    if [ "x${GRUB_DEVICE_UUID}" = "x" ]; then
+        LINUX_ROOT_DEVICE="${GRUB_DEVICE}"
+    else
+        LINUX_ROOT_DEVICE="UUID=${GRUB_DEVICE_UUID}"
+    fi
+
+    echo "Found fallback initramfs: $fallback" >&2
+
+    cat << EOF
+menuentry 'BuckOS (${version}, fallback initramfs)' ${CLASS} {
+    load_video
+    set gfxpayload=keep
+    insmod gzio
+    insmod part_gpt
+    insmod ext2
+EOF
+
+    if [ "x${GRUB_DEVICE_UUID}" != "x" ]; then
+        cat << EOF
+    search --no-floppy --fs-uuid --set=root ${GRUB_DEVICE_UUID}
+EOF
+    fi
+
+    cat << EOF
+    echo 'Loading Linux ${version} with fallback initramfs...'
+    linux ${linux} root=${LINUX_ROOT_DEVICE} ro ${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}
+    echo 'Loading fallback initial ramdisk...'
+    initrd ${fallback}
+}
+EOF
+
+done
+"#;
+                        std::fs::write(&fallback_script_path, fallback_script_content)
+                            .map_err(|e| anyhow::anyhow!("Failed to create GRUB fallback script: {}", e))?;
+
+                        // Make the script executable
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            let perms = std::fs::Permissions::from_mode(0o755);
+                            std::fs::set_permissions(&fallback_script_path, perms)?;
+                        }
+                        tracing::info!("Created GRUB fallback script at {}", fallback_script_path.display());
 
                         // Generate GRUB configuration
                         let output = Command::new("chroot")
