@@ -1043,9 +1043,22 @@ impl InstallProgress {
     }
 
     /// Update operation and progress
+    /// Progress values are clamped to prevent going backwards
     pub fn update(&mut self, operation: impl Into<String>, overall: f32, step: f32) {
-        self.operation = operation.into();
-        self.overall_progress = overall;
-        self.step_progress = step;
+        let new_operation = operation.into();
+
+        // Only allow overall progress to increase (never go backwards)
+        if overall > self.overall_progress {
+            self.overall_progress = overall;
+        }
+
+        // Step progress resets when operation changes, otherwise only increases
+        if new_operation != self.operation {
+            self.step_progress = step;
+        } else if step > self.step_progress {
+            self.step_progress = step;
+        }
+
+        self.operation = new_operation;
     }
 }

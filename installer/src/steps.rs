@@ -1325,12 +1325,16 @@ pub fn render_installing(ui: &mut Ui, progress: &InstallProgress) {
 
     ui.add_space(16.0);
 
-    // Log output
+    // Log output - take full available width and height
     ui.label(RichText::new("Log:").strong());
+
+    // Use available_size to get full width and expand vertically
+    let available_size = ui.available_size();
     egui::ScrollArea::vertical()
-        .max_height(200.0)
+        .max_height(available_size.y - 60.0) // Leave some space for errors section
         .stick_to_bottom(true)
         .show(ui, |ui| {
+            ui.set_width(available_size.x); // Force full width
             for msg in &progress.log {
                 ui.label(RichText::new(msg).monospace().small());
             }

@@ -292,6 +292,779 @@ fn detect_target_arch() -> (&'static str, &'static str, &'static str) {
     }
 }
 
+// ============================================================================
+// Installation Helper Functions
+// ============================================================================
+
+/// Check disk safety - ensure we're not installing on the running system's disk
+fn check_disk_safety(disk_device: &str) -> anyhow::Result<()> {
+    let root_device_result = Command::new("findmnt")
+        .args(&["-n", "-o", "SOURCE", "/"])
+        .output();
+
+    if let Ok(output) = root_device_result {
+        if output.status.success() {
+            let root_partition = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+            // Use lsblk to get the parent disk device
+            let lsblk_result = Command::new("lsblk")
+                .args(&["-no", "PKNAME", &root_partition])
+                .output();
+
+            let root_disk = if let Ok(lsblk_output) = lsblk_result {
+                if lsblk_output.status.success() {
+                    let pkname = String::from_utf8_lossy(&lsblk_output.stdout)
+                        .trim()
+                        .to_string();
+                    if !pkname.is_empty() {
+                        format!("/dev/{}", pkname)
+                    } else {
+                        root_partition.clone()
+                    }
+                } else {
+                    root_partition.clone()
+                }
+            } else {
+                root_partition.clone()
+            };
+
+            if disk_device == root_disk || root_disk.contains(disk_device) {
+                anyhow::bail!(
+                    "SAFETY CHECK FAILED: Cannot install on {} - it contains the running system's root filesystem ({}).\n\
+                    This would destroy your running system!\n\
+                    Please select a different disk or boot from a live USB/CD to install.",
+                    disk_device, root_partition
+                );
+            }
+
+            tracing::info!(
+                "Safety check passed: root is on {}, installing to {}",
+                root_disk,
+                disk_device
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Unmount all partitions from a target disk
+fn unmount_disk_partitions(disk_device: &str) -> anyhow::Result<()> {
+    let findmnt_output = Command::new("findmnt")
+        .args(&["-rno", "TARGET,SOURCE"])
+        .output();
+
+    let mut mount_points_to_unmount = Vec::new();
+
+    if let Ok(output) = findmnt_output {
+        if output.status.success() {
+            let mount_list = String::from_utf8_lossy(&output.stdout);
+            for line in mount_list.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let mount_point = parts[0];
+                    let device = parts[1];
+
+                    if device.starts_with(disk_device) {
+                        tracing::info!("Found mounted: {} on {}", device, mount_point);
+                        mount_points_to_unmount.push((mount_point.to_string(), device.to_string()));
+                    }
+                }
+            }
+        }
+    }
+
+    tracing::info!(
+        "Found {} mount points to unmount",
+        mount_points_to_unmount.len()
+    );
+
+    // Sort mount points by depth (deepest first)
+    mount_points_to_unmount.sort_by(|a, b| b.0.matches('/').count().cmp(&a.0.matches('/').count()));
+
+    for (mount_point, device) in &mount_points_to_unmount {
+        tracing::info!("Unmounting: {} ({})", mount_point, device);
+
+        let umount_result = Command::new("umount").arg(mount_point).output();
+
+        match umount_result {
+            Ok(output) if output.status.success() => {
+                tracing::info!("Successfully unmounted {}", mount_point);
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                tracing::warn!(
+                    "Failed to unmount {}: {}, trying lazy unmount",
+                    mount_point,
+                    stderr
+                );
+                let _ = Command::new("umount").args(&["-l", mount_point]).output();
+            }
+            Err(e) => {
+                tracing::warn!("Failed to unmount {}: {}", mount_point, e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Deactivate swap partitions on a target disk
+fn deactivate_swap(disk_device: &str) {
+    match Command::new("swapon")
+        .arg("--show=NAME")
+        .arg("--noheadings")
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let swap_list = String::from_utf8_lossy(&output.stdout);
+            for swap_device in swap_list.lines() {
+                let swap_device = swap_device.trim();
+                if swap_device.starts_with(disk_device) {
+                    tracing::info!("Deactivating swap on {}", swap_device);
+                    if let Err(e) = Command::new("swapoff").arg(swap_device).output() {
+                        tracing::warn!("Failed to run swapoff: {}", e);
+                    }
+                }
+            }
+        }
+        Ok(_) => tracing::debug!("swapon command returned non-zero status"),
+        Err(e) => tracing::debug!("swapon command not available: {}", e),
+    }
+}
+
+/// Kill processes using a disk device
+fn kill_disk_processes(disk_device: &str) {
+    match Command::new("fuser").args(&["-m", disk_device]).output() {
+        Ok(output) => {
+            let users = String::from_utf8_lossy(&output.stdout);
+            if !users.trim().is_empty() {
+                tracing::warn!("Processes still using {}: {}", disk_device, users);
+                let _ = Command::new("fuser").args(&["-km", disk_device]).output();
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+        Err(e) => {
+            tracing::debug!("fuser command not available: {}", e);
+        }
+    }
+}
+
+/// Create partition table on a disk
+fn create_partition_table(disk_device: &str, use_gpt: bool) -> anyhow::Result<()> {
+    let pt_type = if use_gpt { "gpt" } else { "msdos" };
+    tracing::info!("Creating {} partition table on {}", pt_type, disk_device);
+
+    let output = Command::new("parted")
+        .args(&["-s", disk_device, "mklabel", pt_type])
+        .output()
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to execute parted command: {}. Make sure parted is installed and in PATH.",
+                e
+            )
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!("Failed to create partition table on {}", disk_device);
+
+        // Diagnostic: check what's still mounted
+        if let Ok(mounts) = Command::new("findmnt")
+            .args(&["-rno", "TARGET,SOURCE"])
+            .output()
+        {
+            if mounts.status.success() {
+                let mount_list = String::from_utf8_lossy(&mounts.stdout);
+                for line in mount_list.lines() {
+                    if line.contains(disk_device) {
+                        tracing::error!("Still mounted: {}", line);
+                    }
+                }
+            }
+        }
+
+        anyhow::bail!(
+            "Failed to create partition table: {}\n\
+            The disk may still be in use. Check the logs for details.",
+            stderr
+        );
+    }
+
+    Ok(())
+}
+
+/// Create a single partition on a disk
+fn create_partition(
+    disk_device: &str,
+    partition: &PartitionConfig,
+    idx: usize,
+    start_mb: u64,
+    use_gpt: bool,
+) -> anyhow::Result<u64> {
+    let size_mb = if partition.size == 0 {
+        "100%".to_string()
+    } else {
+        format!("{}MB", start_mb + (partition.size / 1024 / 1024))
+    };
+
+    let part_type = if use_gpt {
+        match partition.mount_point {
+            MountPoint::BootEfi => "fat32",
+            MountPoint::Swap => "linux-swap",
+            MountPoint::Boot if partition.filesystem == FilesystemType::None => "bios_grub",
+            _ => "ext4",
+        }
+    } else {
+        match partition.mount_point {
+            MountPoint::BootEfi => "fat32",
+            MountPoint::Swap => "linux-swap",
+            _ => "ext4",
+        }
+    };
+
+    let start = format!("{}MB", start_mb);
+    let output = Command::new("parted")
+        .args(&["-s", disk_device, "mkpart", "primary", part_type, &start, &size_mb])
+        .output()
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to execute parted command for partition {}: {}",
+                partition.device,
+                e
+            )
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Failed to create partition {}: {}", partition.device, stderr);
+    }
+
+    // Set ESP flag for EFI partition
+    if partition.mount_point == MountPoint::BootEfi && use_gpt {
+        let part_num = (idx + 1).to_string();
+        let output = Command::new("parted")
+            .args(&["-s", disk_device, "set", &part_num, "esp", "on"])
+            .output()
+            .map_err(|e| anyhow::anyhow!("Failed to execute parted set esp: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::warn!("Failed to set ESP flag on partition {}: {}", partition.device, stderr);
+        }
+    }
+
+    // Set bios_grub flag for BIOS boot partition
+    if partition.mount_point == MountPoint::Boot
+        && partition.filesystem == FilesystemType::None
+        && use_gpt
+    {
+        let part_num = (idx + 1).to_string();
+        let output = Command::new("parted")
+            .args(&["-s", disk_device, "set", &part_num, "bios_grub", "on"])
+            .output()
+            .map_err(|e| anyhow::anyhow!("Failed to execute parted set bios_grub: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::warn!("Failed to set bios_grub flag on partition {}: {}", partition.device, stderr);
+        }
+    }
+
+    // Return new start position for next partition
+    if partition.size > 0 {
+        Ok(start_mb + partition.size / 1024 / 1024)
+    } else {
+        Ok(start_mb)
+    }
+}
+
+/// Format a partition with the specified filesystem
+fn format_partition(partition: &PartitionConfig) -> anyhow::Result<()> {
+    if !partition.format {
+        return Ok(());
+    }
+
+    let (fs_cmd, args): (&str, Vec<&str>) = match partition.filesystem {
+        FilesystemType::Ext4 => ("mkfs.ext4", vec!["-F", partition.device.as_str()]),
+        FilesystemType::Btrfs => ("mkfs.btrfs", vec!["-f", partition.device.as_str()]),
+        FilesystemType::Xfs => ("mkfs.xfs", vec!["-f", partition.device.as_str()]),
+        FilesystemType::F2fs => ("mkfs.f2fs", vec!["-f", partition.device.as_str()]),
+        FilesystemType::Fat32 => ("mkfs.vfat", vec!["-F", "32", partition.device.as_str()]),
+        FilesystemType::Swap => ("mkswap", vec![partition.device.as_str()]),
+        FilesystemType::None => return Ok(()),
+    };
+
+    let output = Command::new(fs_cmd)
+        .args(&args)
+        .output()
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to execute {} command for {}: {}. Make sure {} is installed.",
+                fs_cmd,
+                partition.device,
+                e,
+                fs_cmd
+            )
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Failed to create filesystem on {}: {}", partition.device, stderr);
+    }
+
+    Ok(())
+}
+
+/// Mount a partition to a target path
+fn mount_partition(partition: &PartitionConfig, target_root: &std::path::Path) -> anyhow::Result<()> {
+    let mount_path = partition.mount_point.path();
+
+    if partition.filesystem == FilesystemType::Swap {
+        let output = Command::new("swapon")
+            .arg(&partition.device)
+            .output()
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to execute swapon command for {}: {}",
+                    partition.device,
+                    e
+                )
+            })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("Failed to activate swap on {}: {}", partition.device, stderr);
+        }
+        return Ok(());
+    }
+
+    let full_mount_path = if mount_path == "/" {
+        target_root.to_path_buf()
+    } else {
+        target_root.join(mount_path.trim_start_matches('/'))
+    };
+
+    std::fs::create_dir_all(&full_mount_path)?;
+
+    let mut mount_cmd = Command::new("mount");
+    mount_cmd.arg(&partition.device);
+
+    if !partition.mount_options.is_empty() {
+        mount_cmd.arg("-o").arg(&partition.mount_options);
+    }
+
+    mount_cmd.arg(&full_mount_path);
+
+    let output = mount_cmd.output().map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to execute mount command for {} to {}: {}",
+            partition.device,
+            full_mount_path.display(),
+            e
+        )
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!(
+            "Failed to mount {} to {}: {}",
+            partition.device,
+            full_mount_path.display(),
+            stderr
+        );
+    }
+
+    Ok(())
+}
+
+/// Initialize essential system files (passwd, shadow, group)
+fn init_system_files(target_root: &std::path::Path) -> anyhow::Result<()> {
+    let etc_dir = target_root.join("etc");
+    std::fs::create_dir_all(&etc_dir)?;
+
+    let passwd_path = etc_dir.join("passwd");
+    if !passwd_path.exists() {
+        let passwd_content = "\
+root:x:0:0:root:/root:/bin/bash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+nobody:x:65534:65534:Kernel Overflow User:/:/sbin/nologin
+";
+        std::fs::write(&passwd_path, passwd_content)?;
+    }
+
+    let shadow_path = etc_dir.join("shadow");
+    if !shadow_path.exists() {
+        let shadow_content = "\
+root:!:19000:0:99999:7:::
+bin:*:19000:0:99999:7:::
+daemon:*:19000:0:99999:7:::
+nobody:*:19000:0:99999:7:::
+";
+        std::fs::write(&shadow_path, shadow_content)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&shadow_path, std::fs::Permissions::from_mode(0o600))?;
+        }
+    }
+
+    let group_path = etc_dir.join("group");
+    if !group_path.exists() {
+        let group_content = "\
+root:x:0:
+bin:x:1:
+daemon:x:2:
+wheel:x:10:
+nobody:x:65534:
+";
+        std::fs::write(&group_path, group_content)?;
+    }
+
+    Ok(())
+}
+
+/// Generate fstab from partition configuration
+fn generate_fstab(
+    target_root: &std::path::Path,
+    partitions: &[PartitionConfig],
+) -> anyhow::Result<()> {
+    let fstab_path = target_root.join("etc/fstab");
+    std::fs::create_dir_all(fstab_path.parent().unwrap())?;
+
+    let mut fstab_content = String::from("# /etc/fstab: static file system information\n");
+    fstab_content.push_str("# <device>  <mount point>  <type>  <options>  <dump>  <pass>\n\n");
+
+    for partition in partitions {
+        let mount_path = partition.mount_point.path();
+        let fs_type = partition.filesystem.as_str();
+        let options = if partition.mount_options.is_empty() {
+            "defaults".to_string()
+        } else {
+            partition.mount_options.clone()
+        };
+
+        let (dump, pass) = if mount_path == "/" {
+            ("0", "1")
+        } else if mount_path == "swap" {
+            ("0", "0")
+        } else {
+            ("0", "2")
+        };
+
+        fstab_content.push_str(&format!(
+            "{}  {}  {}  {}  {}  {}\n",
+            partition.device, mount_path, fs_type, options, dump, pass
+        ));
+    }
+
+    std::fs::write(&fstab_path, fstab_content)?;
+    Ok(())
+}
+
+/// Configure locale settings
+fn configure_locale(target_root: &std::path::Path, locale: &str) -> anyhow::Result<()> {
+    let locale_conf_path = target_root.join("etc/locale.conf");
+    std::fs::write(&locale_conf_path, format!("LANG={}\n", locale))?;
+
+    let locale_gen_path = target_root.join("etc/locale.gen");
+    std::fs::write(
+        &locale_gen_path,
+        format!("{} UTF-8\n", locale.trim_end_matches(".UTF-8")),
+    )?;
+
+    // Run locale-gen in chroot
+    let _ = Command::new("chroot")
+        .arg(target_root)
+        .env_clear()
+        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("HOME", "/root")
+        .env("TERM", "linux")
+        .arg("locale-gen")
+        .output();
+
+    Ok(())
+}
+
+/// Configure timezone
+fn configure_timezone(target_root: &std::path::Path, timezone: &str) -> anyhow::Result<()> {
+    let timezone_src = format!("/usr/share/zoneinfo/{}", timezone);
+    let timezone_dst = target_root.join("etc/localtime");
+
+    let timezone_src_in_target = target_root.join(&timezone_src.trim_start_matches('/'));
+    if timezone_src_in_target.exists() {
+        if timezone_dst.exists() {
+            std::fs::remove_file(&timezone_dst)?;
+        }
+        std::os::unix::fs::symlink(&timezone_src, &timezone_dst)?;
+    }
+
+    let timezone_name_path = target_root.join("etc/timezone");
+    std::fs::write(&timezone_name_path, format!("{}\n", timezone))?;
+
+    Ok(())
+}
+
+/// Configure hostname and hosts file
+fn configure_network(target_root: &std::path::Path, hostname: &str) -> anyhow::Result<()> {
+    let hostname_path = target_root.join("etc/hostname");
+    std::fs::write(&hostname_path, format!("{}\n", hostname))?;
+
+    let hosts_path = target_root.join("etc/hosts");
+    let hosts_content = format!(
+        "127.0.0.1\tlocalhost\n\
+         ::1\t\tlocalhost\n\
+         127.0.1.1\t{}\n",
+        hostname
+    );
+    std::fs::write(&hosts_path, hosts_content)?;
+
+    Ok(())
+}
+
+/// Configure keyboard layout
+fn configure_keyboard(target_root: &std::path::Path, keymap: &str) -> anyhow::Result<()> {
+    let vconsole_path = target_root.join("etc/vconsole.conf");
+    std::fs::write(&vconsole_path, format!("KEYMAP={}\n", keymap))?;
+    Ok(())
+}
+
+/// Set up chroot bind mounts for bootloader installation
+fn setup_chroot_mounts(target_root: &std::path::Path) -> anyhow::Result<Vec<(&'static str, &'static str)>> {
+    let bind_mounts = vec![("/dev", "dev"), ("/proc", "proc"), ("/sys", "sys")];
+
+    for (source, target) in &bind_mounts {
+        let target_path = target_root.join(target);
+        std::fs::create_dir_all(&target_path)?;
+
+        let output = Command::new("mount")
+            .args(&["--bind", source, target_path.to_str().unwrap()])
+            .output()
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to bind mount {} to {}: {}", source, target_path.display(), e)
+            })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::warn!("Failed to bind mount {}: {}", source, stderr);
+        } else {
+            tracing::info!("Bind mounted {} to {}", source, target_path.display());
+        }
+    }
+
+    // Mount /run if it exists
+    if PathBuf::from("/run").exists() {
+        let run_target = target_root.join("run");
+        std::fs::create_dir_all(&run_target)?;
+        let _ = Command::new("mount")
+            .args(&["--bind", "/run", run_target.to_str().unwrap()])
+            .output();
+    }
+
+    Ok(bind_mounts)
+}
+
+/// Clean up chroot bind mounts
+fn cleanup_chroot_mounts(target_root: &std::path::Path, bind_mounts: &[(&str, &str)]) {
+    // Unmount /run if we mounted it
+    if PathBuf::from("/run").exists() {
+        let run_target = target_root.join("run");
+        let _ = Command::new("umount").arg(&run_target).output();
+    }
+
+    for (_, target) in bind_mounts.iter().rev() {
+        let target_path = target_root.join(target);
+        let output = Command::new("umount").arg(&target_path).output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                tracing::info!("Unmounted {}", target_path.display());
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                tracing::warn!("Failed to unmount {}: {}", target_path.display(), stderr);
+                // Try lazy unmount
+                let _ = Command::new("umount")
+                    .args(&["-l", target_path.to_str().unwrap()])
+                    .output();
+            }
+            Err(e) => {
+                tracing::warn!("Error unmounting {}: {}", target_path.display(), e);
+            }
+        }
+    }
+}
+
+/// Detect kernel version from installed modules
+fn detect_kernel_version(target_root: &std::path::Path) -> String {
+    let modules_dir = target_root.join("lib/modules");
+    std::fs::read_dir(&modules_dir)
+        .ok()
+        .and_then(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .find(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                .map(|e| e.file_name().to_string_lossy().to_string())
+        })
+        .or_else(|| {
+            let boot_dir = target_root.join("boot");
+            std::fs::read_dir(&boot_dir).ok().and_then(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .find(|e| e.file_name().to_string_lossy().starts_with("vmlinuz-"))
+                    .and_then(|e| {
+                        let name = e.file_name();
+                        let name_str = name.to_string_lossy();
+                        name_str.strip_prefix("vmlinuz-").map(|v| v.to_string())
+                    })
+            })
+        })
+        .unwrap_or_else(|| "6.12.6".to_string())
+}
+
+/// Rename kernel files to include version suffix
+fn rename_kernel_files(target_root: &std::path::Path, kernel_version: &str) -> anyhow::Result<()> {
+    let boot_dir = target_root.join("boot");
+
+    let vmlinuz_path = boot_dir.join("vmlinuz");
+    let vmlinuz_versioned = boot_dir.join(format!("vmlinuz-{}", kernel_version));
+    if vmlinuz_path.exists() && !vmlinuz_versioned.exists() {
+        std::fs::rename(&vmlinuz_path, &vmlinuz_versioned).map_err(|e| {
+            anyhow::anyhow!("Failed to rename vmlinuz to {}: {}", vmlinuz_versioned.display(), e)
+        })?;
+        tracing::info!("Renamed vmlinuz to vmlinuz-{}", kernel_version);
+    }
+
+    let system_map_path = boot_dir.join("System.map");
+    let system_map_versioned = boot_dir.join(format!("System.map-{}", kernel_version));
+    if system_map_path.exists() && !system_map_versioned.exists() {
+        std::fs::rename(&system_map_path, &system_map_versioned).map_err(|e| {
+            anyhow::anyhow!("Failed to rename System.map to {}: {}", system_map_versioned.display(), e)
+        })?;
+        tracing::info!("Renamed System.map to System.map-{}", kernel_version);
+    }
+
+    Ok(())
+}
+
+/// Set up PAM configuration
+fn setup_pam_config(target_root: &std::path::Path) -> anyhow::Result<()> {
+    let pam_d_path = target_root.join("etc/pam.d");
+    std::fs::create_dir_all(&pam_d_path)?;
+
+    let system_auth_path = pam_d_path.join("system-auth");
+    if !system_auth_path.exists() {
+        let system_auth_content = "#%PAM-1.0
+# System-wide authentication configuration
+
+# Authentication
+auth       required   pam_unix.so     try_first_pass nullok
+auth       optional   pam_permit.so
+
+# Account management
+account    required   pam_unix.so
+account    optional   pam_permit.so
+
+# Password management
+password   required   pam_unix.so     try_first_pass nullok sha512
+password   optional   pam_permit.so
+
+# Session management
+session    required   pam_unix.so
+session    optional   pam_permit.so
+";
+        std::fs::write(&system_auth_path, system_auth_content)?;
+        tracing::info!("Created /etc/pam.d/system-auth");
+    }
+
+    Ok(())
+}
+
+/// Set password for a user using chpasswd
+fn set_user_password(
+    target_root: &std::path::Path,
+    username: &str,
+    password: &str,
+) -> anyhow::Result<()> {
+    let passwd_cmd = format!("{}:{}", username, password);
+    let output = Command::new("chroot")
+        .arg(target_root)
+        .env_clear()
+        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("HOME", "/root")
+        .env("TERM", "linux")
+        .arg("/usr/sbin/chpasswd")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(passwd_cmd.as_bytes())?;
+            }
+            child.wait_with_output()
+        })
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to execute chroot/chpasswd command for {}: {}",
+                username,
+                e
+            )
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Failed to set password for {}: {}", username, stderr);
+    }
+
+    Ok(())
+}
+
+/// Create a user account
+fn create_user_account(
+    target_root: &std::path::Path,
+    username: &str,
+    full_name: &str,
+    shell: &str,
+    is_admin: bool,
+) -> anyhow::Result<()> {
+    let mut useradd_cmd = Command::new("chroot");
+    useradd_cmd
+        .arg(target_root)
+        .env_clear()
+        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("HOME", "/root")
+        .env("TERM", "linux")
+        .arg("useradd")
+        .arg("-m")
+        .arg("-s")
+        .arg(shell);
+
+    if !full_name.is_empty() {
+        useradd_cmd.arg("-c").arg(full_name);
+    }
+
+    if is_admin {
+        useradd_cmd.arg("-G").arg("wheel,sudo");
+    }
+
+    useradd_cmd.arg(username);
+
+    let output = useradd_cmd.output().map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to execute chroot/useradd command for user {}: {}",
+            username,
+            e
+        )
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Failed to create user {}: {}", username, stderr);
+    }
+
+    Ok(())
+}
+
 /// Parse buck2 output to extract progress information
 /// Returns a progress value between 0.0 and 1.0 if progress info is found
 pub fn parse_buck2_progress(line: &str) -> Option<f32> {
@@ -443,55 +1216,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         if let Some(disk_config) = &config.disk {
             // Safety check: Prevent installing on the disk containing the running system
             update_progress("Disk partitioning", 0.02, 0.05, "Checking disk safety...");
-
-            let root_device_result = Command::new("findmnt")
-                .args(&["-n", "-o", "SOURCE", "/"])
-                .output();
-
-            if let Ok(output) = root_device_result {
-                if output.status.success() {
-                    let root_partition = String::from_utf8_lossy(&output.stdout).trim().to_string();
-
-                    // Use lsblk to get the parent disk device - more reliable than string manipulation
-                    let lsblk_result = Command::new("lsblk")
-                        .args(&["-no", "PKNAME", &root_partition])
-                        .output();
-
-                    let root_disk = if let Ok(lsblk_output) = lsblk_result {
-                        if lsblk_output.status.success() {
-                            let pkname = String::from_utf8_lossy(&lsblk_output.stdout)
-                                .trim()
-                                .to_string();
-                            if !pkname.is_empty() {
-                                format!("/dev/{}", pkname)
-                            } else {
-                                // lsblk didn't return a parent, the device might be the disk itself
-                                root_partition.clone()
-                            }
-                        } else {
-                            root_partition.clone()
-                        }
-                    } else {
-                        root_partition.clone()
-                    };
-
-                    // Check if target disk matches the root disk
-                    if disk_config.device == root_disk || root_disk.contains(&disk_config.device) {
-                        anyhow::bail!(
-                            "SAFETY CHECK FAILED: Cannot install on {} - it contains the running system's root filesystem ({}).\n\
-                            This would destroy your running system!\n\
-                            Please select a different disk or boot from a live USB/CD to install.",
-                            disk_config.device, root_partition
-                        );
-                    }
-
-                    tracing::info!(
-                        "Safety check passed: root is on {}, installing to {}",
-                        root_disk,
-                        disk_config.device
-                    );
-                }
-            }
+            check_disk_safety(&disk_config.device)?;
 
             update_progress(
                 "Disk partitioning",
@@ -507,145 +1232,25 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 0.2,
                 "Unmounting existing partitions...",
             );
-
-            // Use findmnt to get a reliable list of mounted filesystems
-            let findmnt_output = Command::new("findmnt")
-                .args(&["-rno", "TARGET,SOURCE"])
-                .output();
-
-            let mut mount_points_to_unmount = Vec::new();
-
-            if let Ok(output) = findmnt_output {
-                if output.status.success() {
-                    let mount_list = String::from_utf8_lossy(&output.stdout);
-                    for line in mount_list.lines() {
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        if parts.len() >= 2 {
-                            let mount_point = parts[0];
-                            let device = parts[1];
-
-                            // Check if this device is on our target disk
-                            if device.starts_with(&disk_config.device) {
-                                tracing::info!("Found mounted: {} on {}", device, mount_point);
-                                mount_points_to_unmount
-                                    .push((mount_point.to_string(), device.to_string()));
-                            }
-                        }
-                    }
-                }
-            } else {
-                tracing::warn!("findmnt command failed or not available");
-            }
-
-            tracing::info!(
-                "Found {} mount points to unmount",
-                mount_points_to_unmount.len()
-            );
-
-            // Sort mount points by depth (deepest first) to unmount in correct order
-            mount_points_to_unmount
-                .sort_by(|a, b| b.0.matches('/').count().cmp(&a.0.matches('/').count()));
-
-            // Unmount each mount point
-            for (mount_point, device) in &mount_points_to_unmount {
-                update_progress(
-                    "Disk partitioning",
-                    0.03,
-                    0.3,
-                    format!("Unmounting {} ({})", mount_point, device).as_str(),
-                );
-
-                tracing::info!("Unmounting: {} ({})", mount_point, device);
-
-                // Try normal unmount first
-                let umount_result = Command::new("umount").arg(mount_point).output();
-
-                match umount_result {
-                    Ok(output) if output.status.success() => {
-                        tracing::info!("Successfully unmounted {}", mount_point);
-                    }
-                    Ok(output) => {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        tracing::warn!(
-                            "Failed to unmount {}: {}, trying lazy unmount",
-                            mount_point,
-                            stderr
-                        );
-
-                        // Try lazy unmount as fallback
-                        let _ = Command::new("umount").args(&["-l", mount_point]).output();
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to unmount {}: {}", mount_point, e);
-                    }
-                }
-            }
+            unmount_disk_partitions(&disk_config.device)?;
 
             // Deactivate any swap on the target disk
-            match Command::new("swapon")
-                .arg("--show=NAME")
-                .arg("--noheadings")
-                .output()
-            {
-                Ok(output) if output.status.success() => {
-                    let swap_list = String::from_utf8_lossy(&output.stdout);
-                    for swap_device in swap_list.lines() {
-                        let swap_device = swap_device.trim();
-                        if swap_device.starts_with(&disk_config.device) {
-                            update_progress(
-                                "Disk partitioning",
-                                0.032,
-                                0.4,
-                                format!("Deactivating swap on {}...", swap_device).as_str(),
-                            );
+            update_progress(
+                "Disk partitioning",
+                0.032,
+                0.4,
+                "Deactivating swap...",
+            );
+            deactivate_swap(&disk_config.device);
 
-                            tracing::info!("Deactivating swap on {}", swap_device);
-                            if let Err(e) = Command::new("swapoff").arg(swap_device).output() {
-                                tracing::warn!("Failed to run swapoff: {}", e);
-                            }
-                        }
-                    }
-                }
-                Ok(_) => tracing::debug!("swapon command returned non-zero status"),
-                Err(e) => tracing::debug!("swapon command not available: {}", e),
-            }
-
-            // Check if any processes are still using the disk (optional - fuser might not be available)
+            // Check if any processes are still using the disk
             update_progress(
                 "Disk partitioning",
                 0.033,
                 0.45,
                 "Checking for processes using disk...",
             );
-
-            match Command::new("fuser")
-                .args(&["-m", &disk_config.device])
-                .output()
-            {
-                Ok(output) => {
-                    let users = String::from_utf8_lossy(&output.stdout);
-                    if !users.trim().is_empty() {
-                        tracing::warn!("Processes still using {}: {}", disk_config.device, users);
-                        update_progress(
-                            "Disk partitioning",
-                            0.034,
-                            0.5,
-                            "Terminating processes using disk...",
-                        );
-
-                        // Kill processes using the disk
-                        let _ = Command::new("fuser")
-                            .args(&["-km", &disk_config.device])
-                            .output();
-
-                        // Wait a moment for processes to die
-                        std::thread::sleep(std::time::Duration::from_secs(1));
-                    }
-                }
-                Err(e) => {
-                    tracing::debug!("fuser command not available: {}", e);
-                }
-            }
+            kill_disk_processes(&disk_config.device);
 
             tracing::info!("Starting disk partitioning on {}", disk_config.device);
             update_progress(
@@ -685,79 +1290,13 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
             // Create partition table
             let pt_type = if disk_config.use_gpt { "gpt" } else { "msdos" };
-            tracing::info!(
-                "Creating {} partition table on {}",
-                pt_type,
-                disk_config.device
-            );
             update_progress(
                 "Disk partitioning",
                 0.045,
                 0.7,
                 format!("Creating {} partition table", pt_type).as_str(),
             );
-
-            let output = Command::new("parted")
-                .args(&["-s", &disk_config.device, "mklabel", pt_type])
-                .output()
-                .map_err(|e| anyhow::anyhow!("Failed to execute parted command: {}. Make sure parted is installed and in PATH.", e))?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-
-                // Provide detailed diagnostics on failure
-                tracing::error!("Failed to create partition table on {}", disk_config.device);
-
-                // Check what's still mounted (optional diagnostic)
-                match Command::new("findmnt")
-                    .args(&["-rno", "TARGET,SOURCE"])
-                    .output()
-                {
-                    Ok(mounts) if mounts.status.success() => {
-                        let mount_list = String::from_utf8_lossy(&mounts.stdout);
-                        for line in mount_list.lines() {
-                            if line.contains(&disk_config.device) {
-                                tracing::error!("Still mounted: {}", line);
-                            }
-                        }
-                    }
-                    Ok(_) => tracing::debug!("findmnt returned non-zero status"),
-                    Err(e) => tracing::debug!("findmnt not available: {}", e),
-                }
-
-                // Check what processes are using it (optional diagnostic)
-                match Command::new("fuser")
-                    .args(&["-v", &disk_config.device])
-                    .output()
-                {
-                    Ok(fuser) => {
-                        let users = String::from_utf8_lossy(&fuser.stderr); // fuser outputs to stderr
-                        if !users.trim().is_empty() {
-                            tracing::error!("Processes using disk: {}", users);
-                        }
-                    }
-                    Err(e) => tracing::debug!("fuser not available: {}", e),
-                }
-
-                // Check for active swaps (optional diagnostic)
-                match Command::new("swapon").arg("--show").output() {
-                    Ok(swaps) if swaps.status.success() => {
-                        let swap_list = String::from_utf8_lossy(&swaps.stdout);
-                        if swap_list.contains(&disk_config.device) {
-                            tracing::error!("Active swap on disk: {}", swap_list);
-                        }
-                    }
-                    Ok(_) => tracing::debug!("swapon returned non-zero status"),
-                    Err(e) => tracing::debug!("swapon not available: {}", e),
-                }
-
-                anyhow::bail!(
-                    "Failed to create partition table: {}\n\
-                    The disk may still be in use. Check the logs for details.\n\
-                    You may need to manually unmount partitions or reboot before installing.",
-                    stderr
-                );
-            }
+            create_partition_table(&disk_config.device, disk_config.use_gpt)?;
 
             // Create partitions
             let mut start_mb: u64 = 1; // Start at 1MB to align partitions
@@ -769,110 +1308,13 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                     step,
                     format!("Creating partition {}", partition.device).as_str(),
                 );
-
-                let size_mb = if partition.size == 0 {
-                    // Use remaining space
-                    "100%".to_string()
-                } else {
-                    format!("{}MB", start_mb + (partition.size / 1024 / 1024))
-                };
-
-                // Determine partition type for GPT
-                let part_type = if disk_config.use_gpt {
-                    match partition.mount_point {
-                        MountPoint::BootEfi => "fat32",
-                        MountPoint::Swap => "linux-swap",
-                        MountPoint::Boot if partition.filesystem == FilesystemType::None => {
-                            "bios_grub"
-                        }
-                        _ => "ext4", // Generic Linux filesystem
-                    }
-                } else {
-                    match partition.mount_point {
-                        MountPoint::BootEfi => "fat32",
-                        MountPoint::Swap => "linux-swap",
-                        _ => "ext4",
-                    }
-                };
-
-                let start = format!("{}MB", start_mb);
-                let output = Command::new("parted")
-                    .args(&[
-                        "-s",
-                        &disk_config.device,
-                        "mkpart",
-                        "primary",
-                        part_type,
-                        &start,
-                        &size_mb,
-                    ])
-                    .output()
-                    .map_err(|e| anyhow::anyhow!(
-                        "Failed to execute parted command for partition {}: {}. Make sure parted is available.",
-                        partition.device, e
-                    ))?;
-
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    anyhow::bail!(
-                        "Failed to create partition {}: {}",
-                        partition.device,
-                        stderr
-                    );
-                }
-
-                // Set boot flag for EFI partition
-                if partition.mount_point == MountPoint::BootEfi && disk_config.use_gpt {
-                    let part_num = (idx + 1).to_string();
-                    let output = Command::new("parted")
-                        .args(&["-s", &disk_config.device, "set", &part_num, "esp", "on"])
-                        .output()
-                        .map_err(|e| anyhow::anyhow!("Failed to execute parted set esp: {}", e))?;
-
-                    if !output.status.success() {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        tracing::warn!(
-                            "Failed to set ESP flag on partition {}: {}",
-                            partition.device,
-                            stderr
-                        );
-                    }
-                }
-
-                // Set bios_grub flag for BIOS boot partition
-                if partition.mount_point == MountPoint::Boot
-                    && partition.filesystem == FilesystemType::None
-                    && disk_config.use_gpt
-                {
-                    let part_num = (idx + 1).to_string();
-                    let output = Command::new("parted")
-                        .args(&[
-                            "-s",
-                            &disk_config.device,
-                            "set",
-                            &part_num,
-                            "bios_grub",
-                            "on",
-                        ])
-                        .output()
-                        .map_err(|e| {
-                            anyhow::anyhow!("Failed to execute parted set bios_grub: {}", e)
-                        })?;
-
-                    if !output.status.success() {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        tracing::warn!(
-                            "Failed to set bios_grub flag on partition {}: {}",
-                            partition.device,
-                            stderr
-                        );
-                    }
-                }
-
-                // Update start for next partition
-                if partition.size > 0 {
-                    start_mb += partition.size / 1024 / 1024;
-                }
+                start_mb = create_partition(
+                    &disk_config.device,
+                    partition,
+                    idx,
+                    start_mb,
+                    disk_config.use_gpt,
+                )?;
             }
 
             // Inform kernel of partition table changes
@@ -922,45 +1364,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                         )
                         .as_str(),
                     );
-
-                    // Build filesystem creation command with appropriate arguments
-                    let (fs_cmd, args): (&str, Vec<&str>) = match partition.filesystem {
-                        FilesystemType::Ext4 => {
-                            ("mkfs.ext4", vec!["-F", partition.device.as_str()])
-                        }
-                        FilesystemType::Btrfs => {
-                            ("mkfs.btrfs", vec!["-f", partition.device.as_str()])
-                        }
-                        FilesystemType::Xfs => ("mkfs.xfs", vec!["-f", partition.device.as_str()]),
-                        FilesystemType::F2fs => {
-                            ("mkfs.f2fs", vec!["-f", partition.device.as_str()])
-                        }
-                        FilesystemType::Fat32 => {
-                            ("mkfs.vfat", vec!["-F", "32", partition.device.as_str()])
-                        }
-                        FilesystemType::Swap => ("mkswap", vec![partition.device.as_str()]),
-                        FilesystemType::None => {
-                            // Skip formatting for None filesystem type
-                            continue;
-                        }
-                    };
-
-                    let output = Command::new(fs_cmd)
-                        .args(&args)
-                        .output()
-                        .map_err(|e| anyhow::anyhow!(
-                            "Failed to execute {} command for {}: {}. Make sure {} is installed and in PATH.",
-                            fs_cmd, partition.device, e, fs_cmd
-                        ))?;
-
-                    if !output.status.success() {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        anyhow::bail!(
-                            "Failed to create filesystem on {}: {}",
-                            partition.device,
-                            stderr
-                        );
-                    }
+                    format_partition(partition)?;
                 }
             }
         }
@@ -1016,74 +1420,13 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 let step = (idx as f32 + 1.0) / sorted_partitions.len() as f32;
                 let mount_path = partition.mount_point.path();
 
-                if partition.filesystem == FilesystemType::Swap {
-                    update_progress(
-                        "Mounting filesystems",
-                        0.07 + (step * 0.03),
-                        step,
-                        format!("Activating swap on {}", partition.device).as_str(),
-                    );
-
-                    let output = Command::new("swapon")
-                        .arg(&partition.device)
-                        .output()
-                        .map_err(|e| anyhow::anyhow!(
-                            "Failed to execute swapon command for {}: {}. Make sure swapon is installed.",
-                            partition.device, e
-                        ))?;
-
-                    if !output.status.success() {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        anyhow::bail!(
-                            "Failed to activate swap on {}: {}",
-                            partition.device,
-                            stderr
-                        );
-                    }
-                    continue;
-                }
-
-                // Create mount point
-                let full_mount_path = if mount_path == "/" {
-                    config.target_root.clone()
-                } else {
-                    config.target_root.join(mount_path.trim_start_matches('/'))
-                };
-
                 update_progress(
                     "Mounting filesystems",
                     0.07 + (step * 0.03),
                     step,
                     format!("Mounting {} to {}", partition.device, mount_path).as_str(),
                 );
-
-                std::fs::create_dir_all(&full_mount_path)?;
-
-                // Mount the partition
-                let mut mount_cmd = Command::new("mount");
-                mount_cmd.arg(&partition.device);
-
-                if !partition.mount_options.is_empty() {
-                    mount_cmd.arg("-o").arg(&partition.mount_options);
-                }
-
-                mount_cmd.arg(&full_mount_path);
-
-                let output = mount_cmd.output()
-                    .map_err(|e| anyhow::anyhow!(
-                        "Failed to execute mount command for {} to {}: {}. Make sure mount is installed.",
-                        partition.device, full_mount_path.display(), e
-                    ))?;
-
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    anyhow::bail!(
-                        "Failed to mount {} to {}: {}",
-                        partition.device,
-                        full_mount_path.display(),
-                        stderr
-                    );
-                }
+                mount_partition(partition, &config.target_root)?;
             }
 
             // Handle btrfs subvolumes for BtrfsSubvolumes layout
@@ -1840,48 +2183,7 @@ rootfs(
 
         // Create essential system files (/etc/passwd and /etc/shadow)
         // These are required before running dracut which uses grep on these files
-        let etc_dir = config.target_root.join("etc");
-        std::fs::create_dir_all(&etc_dir)?;
-
-        let passwd_path = etc_dir.join("passwd");
-        if !passwd_path.exists() {
-            let passwd_content = "\
-root:x:0:0:root:/root:/bin/bash
-bin:x:1:1:bin:/bin:/sbin/nologin
-daemon:x:2:2:daemon:/sbin:/sbin/nologin
-nobody:x:65534:65534:Kernel Overflow User:/:/sbin/nologin
-";
-            std::fs::write(&passwd_path, passwd_content)?;
-        }
-
-        let shadow_path = etc_dir.join("shadow");
-        if !shadow_path.exists() {
-            let shadow_content = "\
-root:!:19000:0:99999:7:::
-bin:*:19000:0:99999:7:::
-daemon:*:19000:0:99999:7:::
-nobody:*:19000:0:99999:7:::
-";
-            std::fs::write(&shadow_path, shadow_content)?;
-            // Set restrictive permissions on shadow file
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&shadow_path, std::fs::Permissions::from_mode(0o600))?;
-            }
-        }
-
-        let group_path = etc_dir.join("group");
-        if !group_path.exists() {
-            let group_content = "\
-root:x:0:
-bin:x:1:
-daemon:x:2:
-wheel:x:10:
-nobody:x:65534:
-";
-            std::fs::write(&group_path, group_content)?;
-        }
+        init_system_files(&config.target_root)?;
 
         // Generate fstab
         update_progress(
@@ -1891,121 +2193,28 @@ nobody:x:65534:
             "Generating /etc/fstab...",
         );
         if let Some(disk_config) = &config.disk {
-            let fstab_path = config.target_root.join("etc/fstab");
-            std::fs::create_dir_all(fstab_path.parent().unwrap())?;
-
-            let mut fstab_content = String::from("# /etc/fstab: static file system information\n");
-            fstab_content
-                .push_str("# <device>  <mount point>  <type>  <options>  <dump>  <pass>\n\n");
-
-            for partition in &disk_config.partitions {
-                let mount_path = partition.mount_point.path();
-                let fs_type = partition.filesystem.as_str();
-                let options = if partition.mount_options.is_empty() {
-                    "defaults".to_string()
-                } else {
-                    partition.mount_options.clone()
-                };
-
-                let (dump, pass) = if mount_path == "/" {
-                    ("0", "1")
-                } else if mount_path == "swap" {
-                    ("0", "0")
-                } else {
-                    ("0", "2")
-                };
-
-                fstab_content.push_str(&format!(
-                    "{}  {}  {}  {}  {}  {}\n",
-                    partition.device, mount_path, fs_type, options, dump, pass
-                ));
-            }
-
-            std::fs::write(&fstab_path, fstab_content)?;
+            generate_fstab(&config.target_root, &disk_config.partitions)?;
             update_progress("System configuration", 0.86, 0.2, "✓ Generated /etc/fstab");
         }
 
         // Configure locale
         update_progress("System configuration", 0.86, 0.3, "Configuring locale...");
-        let locale_conf_path = config.target_root.join("etc/locale.conf");
-        std::fs::write(
-            &locale_conf_path,
-            format!("LANG={}\n", config.locale.locale),
-        )?;
-
-        let locale_gen_path = config.target_root.join("etc/locale.gen");
-        std::fs::write(
-            &locale_gen_path,
-            format!(
-                "{} UTF-8\n",
-                config.locale.locale.trim_end_matches(".UTF-8")
-            ),
-        )?;
-
-        // Run locale-gen in chroot
-        let _ = Command::new("chroot")
-            .arg(&config.target_root)
-            .env_clear()
-            .env(
-                "PATH",
-                "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            )
-            .env("HOME", "/root")
-            .env("TERM", "linux")
-            .arg("locale-gen")
-            .output();
-
+        configure_locale(&config.target_root, &config.locale.locale)?;
         update_progress("System configuration", 0.87, 0.4, "✓ Configured locale");
 
         // Configure timezone
         update_progress("System configuration", 0.87, 0.5, "Configuring timezone...");
-        let timezone_src = format!("/usr/share/zoneinfo/{}", config.timezone.timezone);
-        let timezone_dst = config.target_root.join("etc/localtime");
-
-        // Create symlink to timezone file
-        let timezone_src_in_target = config
-            .target_root
-            .join(&timezone_src.trim_start_matches('/'));
-        if timezone_src_in_target.exists() {
-            if timezone_dst.exists() {
-                std::fs::remove_file(&timezone_dst)?;
-            }
-            std::os::unix::fs::symlink(&timezone_src, &timezone_dst)?;
-        }
-
-        // Write timezone name
-        let timezone_name_path = config.target_root.join("etc/timezone");
-        std::fs::write(
-            &timezone_name_path,
-            format!("{}\n", config.timezone.timezone),
-        )?;
-
+        configure_timezone(&config.target_root, &config.timezone.timezone)?;
         update_progress("System configuration", 0.88, 0.6, "✓ Configured timezone");
 
         // Configure hostname
         update_progress("System configuration", 0.88, 0.7, "Configuring network...");
-        let hostname_path = config.target_root.join("etc/hostname");
-        std::fs::write(&hostname_path, format!("{}\n", config.network.hostname))?;
-
-        // Write /etc/hosts
-        let hosts_path = config.target_root.join("etc/hosts");
-        let hosts_content = format!(
-            "127.0.0.1\tlocalhost\n\
-             ::1\t\tlocalhost\n\
-             127.0.1.1\t{}\n",
-            config.network.hostname
-        );
-        std::fs::write(&hosts_path, hosts_content)?;
-
+        configure_network(&config.target_root, &config.network.hostname)?;
         update_progress("System configuration", 0.89, 0.8, "✓ Configured network");
 
         // Configure keyboard layout
         update_progress("System configuration", 0.89, 0.9, "Configuring keyboard...");
-        let vconsole_path = config.target_root.join("etc/vconsole.conf");
-        std::fs::write(
-            &vconsole_path,
-            format!("KEYMAP={}\n", config.locale.keyboard),
-        )?;
+        configure_keyboard(&config.target_root, &config.locale.keyboard)?;
 
         // Generate /etc/buckos/buckos.toml for package manager on target system
         let buckos_config_dir = config.target_root.join("etc/buckos");
@@ -2127,45 +2336,7 @@ nobody:x:65534:
                             "Preparing chroot environment...",
                         );
 
-                        let bind_mounts = vec![("/dev", "dev"), ("/proc", "proc"), ("/sys", "sys")];
-
-                        // Mount /dev, /proc, /sys into chroot
-                        for (source, target) in &bind_mounts {
-                            let target_path = config.target_root.join(target);
-                            std::fs::create_dir_all(&target_path)?;
-
-                            let output = Command::new("mount")
-                                .args(&["--bind", source, target_path.to_str().unwrap()])
-                                .output()
-                                .map_err(|e| {
-                                    anyhow::anyhow!(
-                                        "Failed to bind mount {} to {}: {}",
-                                        source,
-                                        target_path.display(),
-                                        e
-                                    )
-                                })?;
-
-                            if !output.status.success() {
-                                let stderr = String::from_utf8_lossy(&output.stderr);
-                                tracing::warn!("Failed to bind mount {}: {}", source, stderr);
-                            } else {
-                                tracing::info!(
-                                    "Bind mounted {} to {}",
-                                    source,
-                                    target_path.display()
-                                );
-                            }
-                        }
-
-                        // Also mount /run if it exists (needed for some GRUB configurations)
-                        if PathBuf::from("/run").exists() {
-                            let run_target = config.target_root.join("run");
-                            std::fs::create_dir_all(&run_target)?;
-                            let _ = Command::new("mount")
-                                .args(&["--bind", "/run", run_target.to_str().unwrap()])
-                                .output();
-                        }
+                        let bind_mounts = setup_chroot_mounts(&config.target_root)?;
 
                         // Mount efivarfs for EFI systems (required for efibootmgr)
                         // Skip for removable media to prevent modifying host system's EFI variables
@@ -2229,7 +2400,8 @@ nobody:x:65534:
                             "Updating library cache...",
                         );
 
-                        // Run ldconfig to update the dynamic linker cache
+                        // Run ldconfig to rebuild the dynamic linker cache from scratch
+                        // Use -X to avoid reading the existing cache (prevents RPATH conflicts)
                         let ldconfig_output = Command::new("chroot")
                             .arg(&config.target_root)
                             .env_clear()
@@ -2239,7 +2411,7 @@ nobody:x:65534:
                             )
                             .env("HOME", "/root")
                             .env("TERM", "linux")
-                            .arg("ldconfig")
+                            .args(&["ldconfig", "-X"])
                             .output()
                             .map_err(|e| anyhow::anyhow!("Failed to run ldconfig: {}", e))?;
 
@@ -2266,41 +2438,48 @@ nobody:x:65534:
                         std::fs::create_dir_all(&grub_dir)?;
 
                         // Install GRUB
-                        let mut grub_install_cmd = Command::new("chroot");
-                        grub_install_cmd
-                            .arg(&config.target_root)
-                            .env_clear()
-                            .env(
-                                "PATH",
-                                "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-                            )
-                            .env("HOME", "/root")
-                            .env("TERM", "linux")
-                            .arg("grub-install");
+                        // Build the grub-install command with proper environment setup inside the chroot
+                        let mut grub_args = vec!["grub-install"];
 
                         if is_efi {
-                            grub_install_cmd
-                                .arg("--target=x86_64-efi")
-                                .arg("--efi-directory=/boot/efi")
-                                .arg("--bootloader-id=BuckOS")
-                                .arg("--recheck");
+                            grub_args.extend_from_slice(&[
+                                "--target=x86_64-efi",
+                                "--efi-directory=/boot/efi",
+                                "--bootloader-id=BuckOS",
+                                "--recheck"
+                            ]);
 
                             // For removable media, use --no-nvram to prevent modifying host EFI variables
                             if is_removable {
-                                grub_install_cmd.arg("--no-nvram");
-                                grub_install_cmd.arg("--removable");
+                                grub_args.push("--no-nvram");
+                                grub_args.push("--removable");
                                 tracing::info!(
                                     "Installing GRUB for removable media (--no-nvram --removable)"
                                 );
                             }
 
-                            grub_install_cmd.arg(&boot_device);
+                            grub_args.push(&boot_device);
                         } else {
-                            grub_install_cmd
-                                .arg("--target=i386-pc")
-                                .arg("--recheck")
-                                .arg(&boot_device);
+                            grub_args.extend_from_slice(&[
+                                "--target=i386-pc",
+                                "--recheck",
+                                &boot_device
+                            ]);
                         }
+
+                        // Execute grub-install in the chroot with proper environment
+                        let grub_cmd = grub_args.join(" ");
+
+                        let mut grub_install_cmd = Command::new("chroot");
+                        grub_install_cmd
+                            .arg(&config.target_root)
+                            .env_clear()
+                            .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                            .env("HOME", "/root")
+                            .env("TERM", "linux")
+                            .arg("/bin/sh")
+                            .arg("-c")
+                            .arg(&grub_cmd);
 
                         let output = grub_install_cmd.output()
                             .map_err(|e| anyhow::anyhow!(
@@ -2313,10 +2492,7 @@ nobody:x:65534:
                             let stdout = String::from_utf8_lossy(&output.stdout);
 
                             // Cleanup bind mounts before failing
-                            for (_, target) in bind_mounts.iter().rev() {
-                                let target_path = config.target_root.join(target);
-                                let _ = Command::new("umount").arg(&target_path).output();
-                            }
+                            cleanup_chroot_mounts(&config.target_root, &bind_mounts);
 
                             anyhow::bail!(
                                 "Failed to install GRUB:\nstderr: {}\nstdout: {}\n\
@@ -2335,53 +2511,11 @@ nobody:x:65534:
                         );
 
                         // Detect kernel version from installed kernel modules
-                        // First try /lib/modules/ directory (most reliable)
-                        let modules_dir = config.target_root.join("lib/modules");
-                        let kernel_version = std::fs::read_dir(&modules_dir)
-                            .ok()
-                            .and_then(|entries| {
-                                entries
-                                    .filter_map(|e| e.ok())
-                                    .find(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-                                    .map(|e| e.file_name().to_string_lossy().to_string())
-                            })
-                            .or_else(|| {
-                                // Fallback: try to extract from vmlinuz filename
-                                let boot_dir = config.target_root.join("boot");
-                                std::fs::read_dir(&boot_dir).ok().and_then(|entries| {
-                                    entries
-                                        .filter_map(|e| e.ok())
-                                        .find(|e| {
-                                            e.file_name().to_string_lossy().starts_with("vmlinuz-")
-                                        })
-                                        .and_then(|e| {
-                                            let name = e.file_name();
-                                            let name_str = name.to_string_lossy();
-                                            name_str.strip_prefix("vmlinuz-").map(|v| v.to_string())
-                                        })
-                                })
-                            })
-                            .unwrap_or_else(|| "6.12.6".to_string());
-
+                        let kernel_version = detect_kernel_version(&config.target_root);
                         tracing::info!("Detected kernel version: {}", kernel_version);
 
                         // Rename kernel files to include version suffix (required for grub-mkconfig detection)
-                        let boot_dir = config.target_root.join("boot");
-                        let vmlinuz_path = boot_dir.join("vmlinuz");
-                        let vmlinuz_versioned = boot_dir.join(format!("vmlinuz-{}", kernel_version));
-                        if vmlinuz_path.exists() && !vmlinuz_versioned.exists() {
-                            std::fs::rename(&vmlinuz_path, &vmlinuz_versioned)
-                                .map_err(|e| anyhow::anyhow!("Failed to rename vmlinuz to {}: {}", vmlinuz_versioned.display(), e))?;
-                            tracing::info!("Renamed vmlinuz to vmlinuz-{}", kernel_version);
-                        }
-
-                        let system_map_path = boot_dir.join("System.map");
-                        let system_map_versioned = boot_dir.join(format!("System.map-{}", kernel_version));
-                        if system_map_path.exists() && !system_map_versioned.exists() {
-                            std::fs::rename(&system_map_path, &system_map_versioned)
-                                .map_err(|e| anyhow::anyhow!("Failed to rename System.map to {}: {}", system_map_versioned.display(), e))?;
-                            tracing::info!("Renamed System.map to System.map-{}", kernel_version);
-                        }
+                        rename_kernel_files(&config.target_root, &kernel_version)?;
 
                         // Create required temporary directories for dracut
                         let tmp_dir = config.target_root.join("tmp");
@@ -2474,10 +2608,7 @@ nobody:x:65534:
 
                         if let Err(e) = run_dracut(&initramfs_path, use_hostonly_default, "default") {
                             // Cleanup bind mounts before failing
-                            for (_, target) in bind_mounts.iter().rev() {
-                                let target_path = config.target_root.join(target);
-                                let _ = Command::new("umount").arg(&target_path).output();
-                            }
+                            cleanup_chroot_mounts(&config.target_root, &bind_mounts);
                             anyhow::bail!(
                                 "{}\n\
                                 The system will not boot without an initramfs. Please ensure:\n\
@@ -2641,10 +2772,7 @@ done
                             let stdout = String::from_utf8_lossy(&output.stdout);
 
                             // Cleanup bind mounts before failing
-                            for (_, target) in bind_mounts.iter().rev() {
-                                let target_path = config.target_root.join(target);
-                                let _ = Command::new("umount").arg(&target_path).output();
-                            }
+                            cleanup_chroot_mounts(&config.target_root, &bind_mounts);
 
                             anyhow::bail!(
                                 "Failed to generate GRUB config:\nstderr: {}\nstdout: {}",
@@ -2673,42 +2801,7 @@ done
                             0.9,
                             "Cleaning up chroot environment...",
                         );
-
-                        // Unmount /run if we mounted it
-                        if PathBuf::from("/run").exists() {
-                            let run_target = config.target_root.join("run");
-                            let _ = Command::new("umount").arg(&run_target).output();
-                        }
-
-                        for (_, target) in bind_mounts.iter().rev() {
-                            let target_path = config.target_root.join(target);
-                            let output = Command::new("umount").arg(&target_path).output();
-
-                            match output {
-                                Ok(out) if out.status.success() => {
-                                    tracing::info!("Unmounted {}", target_path.display());
-                                }
-                                Ok(out) => {
-                                    let stderr = String::from_utf8_lossy(&out.stderr);
-                                    tracing::warn!(
-                                        "Failed to unmount {}: {}",
-                                        target_path.display(),
-                                        stderr
-                                    );
-                                    // Try lazy unmount
-                                    let _ = Command::new("umount")
-                                        .args(&["-l", target_path.to_str().unwrap()])
-                                        .output();
-                                }
-                                Err(e) => {
-                                    tracing::warn!(
-                                        "Error unmounting {}: {}",
-                                        target_path.display(),
-                                        e
-                                    );
-                                }
-                            }
-                        }
+                        cleanup_chroot_mounts(&config.target_root, &bind_mounts);
 
                         tracing::info!("GRUB installation completed successfully");
                     }
@@ -3001,106 +3094,13 @@ done
             0.15,
             "Initializing user database...",
         );
-        let passwd_path = config.target_root.join("etc/passwd");
-        let shadow_path = config.target_root.join("etc/shadow");
-        let group_path = config.target_root.join("etc/group");
+        // Note: init_system_files was already called earlier in system config step
 
-        if !passwd_path.exists() {
-            // Create basic /etc/passwd with root user
-            let passwd_content = "root:x:0:0:root:/root:/bin/bash\n";
-            std::fs::write(&passwd_path, passwd_content)
-                .map_err(|e| anyhow::anyhow!("Failed to create /etc/passwd: {}", e))?;
-            tracing::info!("Created /etc/passwd");
-        }
-
-        if !shadow_path.exists() {
-            // Create basic /etc/shadow with root user (locked password)
-            let shadow_content = "root:!:19000:0:99999:7:::\n";
-            std::fs::write(&shadow_path, shadow_content)
-                .map_err(|e| anyhow::anyhow!("Failed to create /etc/shadow: {}", e))?;
-            // Set proper permissions on /etc/shadow (600)
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let perms = std::fs::Permissions::from_mode(0o600);
-                std::fs::set_permissions(&shadow_path, perms).map_err(|e| {
-                    anyhow::anyhow!("Failed to set permissions on /etc/shadow: {}", e)
-                })?;
-            }
-            tracing::info!("Created /etc/shadow with proper permissions");
-        }
-
-        if !group_path.exists() {
-            // Create basic /etc/group with root group
-            let group_content = "root:x:0:\n";
-            std::fs::write(&group_path, group_content)
-                .map_err(|e| anyhow::anyhow!("Failed to create /etc/group: {}", e))?;
-            tracing::info!("Created /etc/group");
-        }
-
-        // Create PAM system-auth configuration if it doesn't exist
-        let pam_d_path = config.target_root.join("etc/pam.d");
-        std::fs::create_dir_all(&pam_d_path)
-            .map_err(|e| anyhow::anyhow!("Failed to create /etc/pam.d: {}", e))?;
-
-        let system_auth_path = pam_d_path.join("system-auth");
-        if !system_auth_path.exists() {
-            // Create basic system-auth PAM configuration
-            // Use module names without paths - PAM will search in /lib64/security (configured via --enable-securedir)
-            let system_auth_content = "#%PAM-1.0
-# System-wide authentication configuration
-
-# Authentication
-auth       required   pam_unix.so     try_first_pass nullok
-auth       optional   pam_permit.so
-
-# Account management
-account    required   pam_unix.so
-account    optional   pam_permit.so
-
-# Password management
-password   required   pam_unix.so     try_first_pass nullok sha512
-password   optional   pam_permit.so
-
-# Session management
-session    required   pam_unix.so
-session    optional   pam_permit.so
-";
-            std::fs::write(&system_auth_path, system_auth_content)
-                .map_err(|e| anyhow::anyhow!("Failed to create /etc/pam.d/system-auth: {}", e))?;
-            tracing::info!("Created /etc/pam.d/system-auth");
-        }
+        // Set up PAM configuration
+        setup_pam_config(&config.target_root)?;
 
         update_progress("Creating users", 0.96, 0.2, "Setting root password...");
-
-        // Set root password using chpasswd
-        let root_passwd_cmd = format!("root:{}", config.root_password);
-        let output = Command::new("chroot")
-            .arg(&config.target_root)
-            .env_clear()
-            .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-            .env("HOME", "/root")
-            .env("TERM", "linux")
-            .arg("/usr/sbin/chpasswd")
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-            .and_then(|mut child| {
-                use std::io::Write;
-                if let Some(mut stdin) = child.stdin.take() {
-                    stdin.write_all(root_passwd_cmd.as_bytes())?;
-                }
-                child.wait_with_output()
-            })
-            .map_err(|e| anyhow::anyhow!(
-                "Failed to execute chroot/chpasswd command for root: {}. Make sure chroot and passwd utilities are available.",
-                e
-            ))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Failed to set root password: {}", stderr);
-        }
-
+        set_user_password(&config.target_root, "root", &config.root_password)?;
         update_progress("Creating users", 0.965, 0.3, "✓ Root password set");
 
         // Create user accounts
@@ -3114,86 +3114,29 @@ session    optional   pam_permit.so
             );
 
             // Create user with useradd
-            let mut useradd_cmd = Command::new("chroot");
-            useradd_cmd
-                .arg(&config.target_root)
-                .env_clear()
-                .env(
-                    "PATH",
-                    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-                )
-                .env("HOME", "/root")
-                .env("TERM", "linux")
-                .arg("useradd")
-                .arg("-m") // Create home directory
-                .arg("-s")
-                .arg(&user.shell);
-
-            if !user.full_name.is_empty() {
-                useradd_cmd.arg("-c").arg(&user.full_name);
-            }
-
-            if user.is_admin {
-                useradd_cmd.arg("-G").arg("wheel,sudo");
-            }
-
-            useradd_cmd.arg(&user.username);
-
-            let output = useradd_cmd.output()
-                .map_err(|e| anyhow::anyhow!(
-                    "Failed to execute chroot/useradd command for user {}: {}. Make sure chroot and user utilities are available.",
-                    user.username, e
-                ))?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
+            if let Err(e) = create_user_account(
+                &config.target_root,
+                &user.username,
+                &user.full_name,
+                &user.shell,
+                user.is_admin,
+            ) {
                 update_progress(
                     "Creating users",
                     0.965 + (step * 0.015),
                     step,
-                    format!(
-                        "Warning: Failed to create user {}: {}",
-                        user.username, stderr
-                    )
-                    .as_str(),
+                    format!("Warning: Failed to create user {}: {}", user.username, e).as_str(),
                 );
                 continue;
             }
 
             // Set user password
-            let user_passwd_cmd = format!("{}:{}", user.username, user.password);
-            let output = Command::new("chroot")
-                .arg(&config.target_root)
-                .env_clear()
-                .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-                .env("HOME", "/root")
-                .env("TERM", "linux")
-                .arg("/usr/sbin/chpasswd")
-                .stdin(std::process::Stdio::piped())
-                .spawn()
-                .and_then(|mut child| {
-                    use std::io::Write;
-                    if let Some(mut stdin) = child.stdin.take() {
-                        stdin.write_all(user_passwd_cmd.as_bytes())?;
-                    }
-                    child.wait_with_output()
-                })
-                .map_err(|e| anyhow::anyhow!(
-                    "Failed to execute chroot/chpasswd command for user {}: {}. Make sure chroot and passwd utilities are available.",
-                    user.username, e
-                ))?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
+            if let Err(e) = set_user_password(&config.target_root, &user.username, &user.password) {
                 update_progress(
                     "Creating users",
                     0.93 + (step * 0.02),
                     step,
-                    format!(
-                        "Warning: Failed to set password for {}: {}",
-                        user.username, stderr
-                    )
-                    .as_str(),
+                    format!("Warning: Failed to set password for {}: {}", user.username, e).as_str(),
                 );
             }
         }
