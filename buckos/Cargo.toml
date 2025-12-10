@@ -1,0 +1,35 @@
+[package]
+name = "buckos"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "An OS"
+readme = "../README.md"
+repository.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "buckos-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+buckos-assist = { workspace = true }
+clap = { workspace = true, features = ["env", "wrap_help"] }
+clap_complete = "3.0.4"
+buckos-config = { workspace = true }
+libc.workspace = true
+buckos-model = { workspace = true }
+buckos-package = { workspace = true }
+regex = { workspace = true, features = ["std", "unicode-perl"] }
+serde_json = { workspace = true, features = ["float_roundtrip", "unbounded_depth"] }
+buckos-boss = { workspace = true }
+buckos-tools = { workspace = true }
+buckos-web = { workspace = true }
+buckos-installer = { workspace = true }
+tar = "0.4.38"
+tempdir = "0.3"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+users = "0.11"

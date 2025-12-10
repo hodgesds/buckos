@@ -2,7 +2,7 @@ mod repository;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use package::{Config, InstallOptions, PackageManager};
+use buckos_package::{Config, InstallOptions, PackageManager};
 use std::path::PathBuf;
 
 /// Buckos Package Manager - Source-based package manager inspired by Gentoo
@@ -182,7 +182,7 @@ async fn create_package_manager(
     // Also update the repository location for package discovery
     if let Some(repo) = config.repositories.get_mut(0) {
         repo.location = repo_path.clone();
-        repo.sync_type = package::config::SyncType::Local;
+        repo.sync_type = buckos_package::config::SyncType::Local;
     }
 
     // Set target root if provided

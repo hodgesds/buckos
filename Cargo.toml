@@ -1,31 +1,44 @@
-[package]
-name = "buckos"
+[workspace]
+members = [
+    "buckos",
+    "assist",
+    "boss",
+    "config",
+    "installer",
+    "model",
+    "package",
+    "tools",
+    "web",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.0.1"
 authors = ["Daniel Hodges <dsh@buckos.org>", "Buckos"]
 edition = "2021"
-description = "An OS"
-readme = "../README.md"
 repository = "https://github.com/hodgesds/buckos"
 license = "Apache-2.0"
 
-[dependencies]
-anyhow = "1.0.65"
-assist = { package="buckos-assist", version = "0.0.1", path="assist" }
-clap = { version = "3.2.17", features = ["derive", "env", "regex", "unicode", "wrap_help"] }
-clap_complete = "3.0.4"
-config = { package = "buckos-config", version = "0.0.1", path = "config" }
-libc = "0.2.137"
-model = { package = "buckos-model", version = "0.0.1", path = "model" }
-package = { package = "buckos-package", version = "0.0.1", path = "package" }
-regex = { version = "1.6.0", features = ["std", "unicode-perl"], default-features = false }
-serde_json = { version = "1.0.79", features = ["float_roundtrip", "unbounded_depth"] }
-boss = { package = "buckos-boss", version = "0.0.1", path = "boss" }
-tools = { package = "buckos-tools", version = "0.0.1", path = "tools" }
-web = { package = "buckos-web", version = "0.0.1", path = "web" }
-installer = { package = "buckos-installer", version = "0.0.1", path = "installer" }
-tar = "0.4.38"
-tempdir = "0.3"
+[workspace.dependencies]
+# Workspace members
+buckos-assist = { version = "0.0.1", path = "assist" }
+buckos-boss = { version = "0.0.1", path = "boss" }
+buckos-config = { version = "0.0.1", path = "config" }
+buckos-installer = { version = "0.0.1", path = "installer" }
+buckos-model = { version = "0.0.1", path = "model" }
+buckos-package = { version = "0.0.1", path = "package" }
+buckos-tools = { version = "0.0.1", path = "tools" }
+buckos-web = { version = "0.0.1", path = "web" }
+
+# Common dependencies
+anyhow = "1.0"
+clap = { version = "4.0", features = ["derive"] }
+libc = "0.2"
+regex = { version = "1.10", default-features = false, features = ["std"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
 tokio = { version = "1.0", features = ["full"] }
+toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-users = "0.11"

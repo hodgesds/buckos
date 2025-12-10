@@ -735,6 +735,18 @@ fn generate_fstab(
     let mut fstab_content = String::from("# /etc/fstab: static file system information\n");
     fstab_content.push_str("# <device>  <mount point>  <type>  <options>  <dump>  <pass>\n\n");
 
+    // Add essential virtual filesystems required by systemd
+    fstab_content.push_str("# Virtual filesystems\n");
+    fstab_content.push_str("proc      /proc      proc    defaults,nosuid,nodev,noexec  0  0\n");
+    fstab_content.push_str("sysfs     /sys       sysfs   defaults,nosuid,nodev,noexec  0  0\n");
+    fstab_content.push_str("devtmpfs  /dev       devtmpfs  mode=0755,nosuid             0  0\n");
+    fstab_content.push_str("devpts    /dev/pts   devpts  mode=0620,gid=5,nosuid,noexec  0  0\n");
+    fstab_content.push_str("tmpfs     /run       tmpfs   defaults,nosuid,nodev,mode=0755  0  0\n");
+    fstab_content.push_str("tmpfs     /dev/shm   tmpfs   defaults,nosuid,nodev           0  0\n");
+    fstab_content.push_str("tmpfs     /tmp       tmpfs   defaults,nosuid,nodev           0  0\n\n");
+
+    // Add user-defined partitions
+    fstab_content.push_str("# User partitions\n");
     for partition in partitions {
         let mount_path = partition.mount_point.path();
         let fs_type = partition.filesystem.as_str();
@@ -827,6 +839,180 @@ fn configure_keyboard(target_root: &std::path::Path, keymap: &str) -> anyhow::Re
     let vconsole_path = target_root.join("etc/vconsole.conf");
     std::fs::write(&vconsole_path, format!("KEYMAP={}\n", keymap))?;
     Ok(())
+}
+
+/// Configure init system (systemd, OpenRC, etc.)
+/// Configure binary package mirror in .buckconfig
+fn configure_binary_mirror(buckos_build_path: &std::path::Path) -> anyhow::Result<()> {
+    use std::fs;
+    use std::io::Write;
+
+    let buckconfig_path = buckos_build_path.join(".buckconfig");
+
+    // Read existing .buckconfig if it exists
+    let mut config_content = if buckconfig_path.exists() {
+        fs::read_to_string(&buckconfig_path)?
+    } else {
+        String::new()
+    };
+
+    // Check if [buckos] section already exists
+    if config_content.contains("[buckos]") {
+        tracing::info!("Binary mirror configuration already exists in .buckconfig");
+        return Ok(());
+    }
+
+    // Append binary package mirror configuration
+    let binary_mirror_config = r#"
+
+# BuckOS Binary Package Configuration
+[buckos]
+# Mirror URL for precompiled binary packages
+# Set this to your binary mirror to enable binary package downloads
+# Default: Official BuckOS mirror
+binary_mirror = https://mirror.buckos.org
+
+# Whether to prefer binary packages over source builds (default: true)
+# Set to false to always build from source even when binaries are available
+prefer_binaries = true
+
+"#;
+
+    config_content.push_str(binary_mirror_config);
+
+    // Write updated config
+    let mut file = fs::File::create(&buckconfig_path)?;
+    file.write_all(config_content.as_bytes())?;
+
+    tracing::info!("Configured binary package mirror in {}", buckconfig_path.display());
+
+    Ok(())
+}
+
+fn configure_init_system(target_root: &std::path::Path, init_system: &InitSystem) -> anyhow::Result<()> {
+    match init_system {
+        InitSystem::Systemd => {
+            tracing::info!("Configuring systemd...");
+
+            // Create essential systemd directories
+            let systemd_dirs = [
+                "etc/systemd/system",
+                "etc/systemd/network",
+                "etc/systemd/resolved.conf.d",
+                "etc/systemd/journald.conf.d",
+                "var/lib/systemd",
+            ];
+            for dir in &systemd_dirs {
+                std::fs::create_dir_all(target_root.join(dir))?;
+            }
+
+            // Initialize machine-id (empty file tells systemd to generate one on first boot)
+            let machine_id_path = target_root.join("etc/machine-id");
+            if !machine_id_path.exists() {
+                std::fs::write(&machine_id_path, "")?;
+                tracing::info!("Created empty machine-id file (will be generated on first boot)");
+            }
+
+            // Create a symlink for journald runtime directory
+            let journald_run_dir = target_root.join("var/log/journal");
+            std::fs::create_dir_all(&journald_run_dir)?;
+
+            // Enable basic systemd services by creating symlinks
+            // multi-user.target is the default target
+            let default_target_link = target_root.join("etc/systemd/system/default.target");
+            if !default_target_link.exists() {
+                std::os::unix::fs::symlink(
+                    "/usr/lib/systemd/system/multi-user.target",
+                    &default_target_link,
+                )?;
+                tracing::info!("Set default target to multi-user.target");
+            }
+
+            Ok(())
+        }
+        InitSystem::OpenRC => {
+            tracing::info!("Configuring OpenRC...");
+            // Create OpenRC directories
+            let openrc_dirs = [
+                "etc/runlevels/boot",
+                "etc/runlevels/default",
+                "etc/runlevels/shutdown",
+                "etc/runlevels/sysinit",
+            ];
+            for dir in &openrc_dirs {
+                std::fs::create_dir_all(target_root.join(dir))?;
+            }
+            Ok(())
+        }
+        InitSystem::Runit => {
+            tracing::info!("Configuring runit...");
+            let runit_dirs = [
+                "etc/runit/runsvdir/default",
+                "var/service",
+            ];
+            for dir in &runit_dirs {
+                std::fs::create_dir_all(target_root.join(dir))?;
+            }
+            Ok(())
+        }
+        InitSystem::S6 => {
+            tracing::info!("Configuring s6...");
+            let s6_dirs = [
+                "etc/s6/sv",
+                "etc/s6/rc",
+            ];
+            for dir in &s6_dirs {
+                std::fs::create_dir_all(target_root.join(dir))?;
+            }
+            Ok(())
+        }
+        InitSystem::SysVinit => {
+            tracing::info!("Configuring SysVinit...");
+            let sysvinit_dirs = [
+                "etc/init.d",
+                "etc/rc0.d",
+                "etc/rc1.d",
+                "etc/rc2.d",
+                "etc/rc3.d",
+                "etc/rc4.d",
+                "etc/rc5.d",
+                "etc/rc6.d",
+            ];
+            for dir in &sysvinit_dirs {
+                std::fs::create_dir_all(target_root.join(dir))?;
+            }
+            Ok(())
+        }
+        InitSystem::Dinit => {
+            tracing::info!("Configuring dinit...");
+            let dinit_dirs = [
+                "etc/dinit.d",
+            ];
+            for dir in &dinit_dirs {
+                std::fs::create_dir_all(target_root.join(dir))?;
+            }
+            Ok(())
+        }
+        InitSystem::BusyBoxInit => {
+            tracing::info!("Configuring BusyBox init...");
+            // BusyBox init uses /etc/inittab
+            let inittab_path = target_root.join("etc/inittab");
+            if !inittab_path.exists() {
+                let inittab_content = "\
+# /etc/inittab for BusyBox init
+
+::sysinit:/etc/init.d/rcS
+::respawn:/sbin/getty 38400 tty1
+::ctrlaltdel:/sbin/reboot
+::shutdown:/sbin/swapoff -a
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init
+";
+                std::fs::write(&inittab_path, inittab_content)?;
+            }
+            Ok(())
+        }
+    }
 }
 
 /// Set up chroot bind mounts for bootloader installation
@@ -1545,7 +1731,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         rootfs_packages.push("\"//packages/linux/system/initramfs/dracut:dracut\"".to_string());
 
         // Add dependencies required for dracut initramfs generation
-        // Note: dracut uses --enhanced-cpio with dracut-cpio (installed at /usr/lib/dracut/dracut-cpio)
+        rootfs_packages.push("\"//packages/linux/system/libs/cpio:cpio\"".to_string()); // Required for creating cpio archives
         rootfs_packages.push("\"//packages/linux/system/libs/compression/lz4:lz4\"".to_string()); // Compression
         rootfs_packages.push("\"//packages/linux/system/security/audit:audit\"".to_string()); // libaudit (pulls in libcap-ng)
 
@@ -2015,6 +2201,17 @@ rootfs(
             );
         }
 
+        // Configure binary package mirror in .buckconfig
+        update_progress(
+            "Installing package repo",
+            0.835,
+            0.7,
+            "Configuring binary package mirror...",
+        );
+
+        configure_binary_mirror(&target_repo_path)?;
+        tracing::info!("Configured binary package mirror");
+
         update_progress(
             "Installing package repo",
             0.84,
@@ -2215,6 +2412,11 @@ rootfs(
         // Configure keyboard layout
         update_progress("System configuration", 0.89, 0.9, "Configuring keyboard...");
         configure_keyboard(&config.target_root, &config.locale.keyboard)?;
+
+        // Configure init system
+        update_progress("System configuration", 0.90, 0.95, "Configuring init system...");
+        configure_init_system(&config.target_root, &config.init_system)?;
+        update_progress("System configuration", 0.91, 1.0, "✓ Configured init system");
 
         // Generate /etc/buckos/buckos.toml for package manager on target system
         let buckos_config_dir = config.target_root.join("etc/buckos");
@@ -2575,8 +2777,62 @@ rootfs(
                                 cmd.arg("--add").arg("systemd systemd-initrd");
                             }
 
-                            cmd.arg("--enhanced-cpio")
-                                .arg(initramfs_path)
+                            // Check for available dracut modules and add useful ones
+                            // Dracut modules are in /usr/lib/dracut/modules.d/ or /usr/lib64/dracut/modules.d/
+                            let mut additional_modules = Vec::new();
+                            let dracut_modules_paths = [
+                                config.target_root.join("usr/lib/dracut/modules.d"),
+                                config.target_root.join("usr/lib64/dracut/modules.d"),
+                            ];
+
+                            // List of potentially useful dracut modules for better boot support
+                            let desired_modules = [
+                                "base",           // Base dracut functionality
+                                "bash",           // Bash shell for emergency mode
+                                "fs-lib",         // Filesystem library support
+                                "rootfs-block",   // Block device root filesystem
+                                "kernel-modules", // Kernel modules loading
+                                "udev-rules",     // Udev rules for device management
+                                "usrmount",       // Mount /usr if separate
+                                "resume",         // Resume from hibernation
+                            ];
+
+                            for module_name in &desired_modules {
+                                for dracut_path in &dracut_modules_paths {
+                                    if dracut_path.exists() {
+                                        // Dracut modules are directories like "90kernel-modules" or "99base"
+                                        if let Ok(entries) = std::fs::read_dir(dracut_path) {
+                                            for entry in entries.flatten() {
+                                                if let Ok(file_name) = entry.file_name().into_string() {
+                                                    // Module dirs are named like "90kernel-modules", "99base", etc.
+                                                    if file_name.ends_with(module_name) && !additional_modules.contains(&module_name.to_string()) {
+                                                        additional_modules.push(module_name.to_string());
+                                                        tracing::info!("Found dracut module: {}", module_name);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if !additional_modules.is_empty() {
+                                let modules_str = additional_modules.join(" ");
+                                cmd.arg("--add").arg(modules_str);
+                                tracing::info!("Adding dracut modules: {}", additional_modules.join(", "));
+                            }
+
+                            // Add sulogin for emergency shell if it exists
+                            let sulogin_path = config.target_root.join("usr/bin/sulogin");
+                            if sulogin_path.exists() {
+                                cmd.arg("--install").arg("/usr/bin/sulogin");
+                                tracing::info!("Adding sulogin to initramfs for emergency shell");
+                            } else {
+                                tracing::warn!("sulogin not found at /usr/bin/sulogin - emergency shell may not work");
+                            }
+
+                            cmd.arg(initramfs_path)
                                 .arg("--kver")
                                 .arg(&kernel_version);
 

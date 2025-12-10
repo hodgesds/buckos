@@ -1,12 +1,12 @@
 [package]
 name = "buckos-assist"
-version = "0.0.1"
-authors = ["Daniel Hodges <dsh@buckos.org>", "Buckos"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 description = "System diagnostics and troubleshooting assistant for Buckos OS"
 readme = "README.md"
-repository = "https://github.com/hodgesds/buckos"
-license = "Apache-2.0"
+repository.workspace = true
+license.workspace = true
 
 [lib]
 name = "buckos_assist"
@@ -18,27 +18,27 @@ path = "src/main.rs"
 
 [dependencies]
 # Core
-anyhow = "1.0"
-thiserror = "1.0"
+anyhow.workspace = true
+thiserror.workspace = true
 
 # CLI
-clap = { version = "4.4", features = ["derive", "env", "wrap_help"] }
+clap = { workspace = true, features = ["env", "wrap_help"] }
 
 # Interactive prompts
 dialoguer = "0.11"
 console = "0.15"
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-toml = "0.8"
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
 
 # System information
 sysinfo = "0.30"
 
 # Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
@@ -50,7 +50,7 @@ walkdir = "2.4"
 uuid = { version = "1.0", features = ["v4"] }
 
 # Regex for redaction patterns
-regex = "1.10"
+regex.workspace = true
 
 # Hostname detection
 hostname = "0.3"

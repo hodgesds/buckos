@@ -243,7 +243,7 @@ pub struct NetworkInterfaceInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum KernelChannel {
     LTS,      // Long-term support (e.g., 6.6 LTS)
-    Stable,   // Latest stable (e.g., 6.12)
+    Stable,   // Latest stable (e.g., 6.17)
     Mainline, // Rolling/bleeding edge
 }
 
@@ -256,14 +256,117 @@ impl KernelChannel {
         }
     }
 
-    pub fn description(&self) -> &'static str {
+    pub fn description(&self, buckos_build_path: Option<&std::path::Path>) -> String {
+        // Query version dynamically from Buck
+        let version = Self::query_version(self, buckos_build_path)
+            .unwrap_or_else(|_| "unknown".to_string());
         match self {
-            KernelChannel::LTS => "6.6 LTS - Long-term support, maximum stability (recommended)",
+            KernelChannel::LTS => format!("LTS {} - Long-term support, maximum stability (recommended)", version),
             KernelChannel::Stable => {
-                "6.12 Stable - Latest stable kernel, balance of new features and stability"
+                format!("Stable {} - Latest stable kernel, balance of new features and stability", version)
             }
-            KernelChannel::Mainline => "Latest mainline - Cutting edge features, frequent updates",
+            KernelChannel::Mainline => format!("Mainline {} - Cutting edge features, frequent updates", version),
         }
+    }
+
+    /// Query the actual kernel version from Buck build files
+    pub fn query_version(&self, buckos_build_path: Option<&std::path::Path>) -> anyhow::Result<String> {
+        use std::process::Command;
+        use std::path::PathBuf;
+
+        // Use provided path or find buckos-build directory
+        let working_dir = if let Some(path) = buckos_build_path {
+            path.to_path_buf()
+        } else {
+            std::env::var("BUCKOS_BUILD_PATH")
+                .ok()
+                .map(PathBuf::from)
+                .or_else(|| {
+                    // Try common locations
+                    for path in &[
+                        "/var/db/repos/buckos-build",
+                        "../buckos-build",
+                        "../../buckos-build",
+                    ] {
+                        let p = PathBuf::from(path);
+                        if p.exists() && p.join(".buckconfig").exists() {
+                            return Some(p);
+                        }
+                    }
+                    None
+                })
+                .ok_or_else(|| anyhow::anyhow!("Could not find buckos-build directory"))?
+        };
+
+        let source_target = match self {
+            KernelChannel::LTS => "//packages/linux/kernel/src:linux-lts-src",
+            KernelChannel::Stable => "//packages/linux/kernel/src:linux-stable-src",
+            KernelChannel::Mainline => "//packages/linux/kernel/src:linux-mainline-src",
+        };
+
+        // First, resolve the alias to get the actual source target
+        let output = Command::new("buck2")
+            .current_dir(&working_dir)
+            .args(&["uquery", source_target, "--output-all-attributes"])
+            .output()?;
+
+        if !output.status.success() {
+            anyhow::bail!("Failed to query kernel source target from Buck");
+        }
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        // Parse JSON to get the actual source target from deps
+        let actual_target = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
+            json.as_object()
+                .and_then(|o| o.values().next())
+                .and_then(|v| v.get("buck.deps"))
+                .and_then(|deps| deps.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|t| t.as_str())
+                .map(|s| s.to_string())
+        } else {
+            None
+        };
+
+        let archive_target = if let Some(target) = actual_target {
+            format!("{}-archive", target)
+        } else {
+            anyhow::bail!("Could not resolve kernel source target");
+        };
+
+        // Query the archive target for URLs
+        let output = Command::new("buck2")
+            .current_dir(&working_dir)
+            .args(&["uquery", &archive_target, "--output-all-attributes"])
+            .output()?;
+
+        if !output.status.success() {
+            anyhow::bail!("Failed to query kernel archive target from Buck");
+        }
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        // Parse JSON to extract URL
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
+            if let Some(url) = json.as_object()
+                .and_then(|o| o.values().next())
+                .and_then(|v| v.get("urls"))
+                .and_then(|urls| urls.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|u| u.as_str())
+            {
+                // Extract version from URL like "linux-6.17.10.tar.xz"
+                if let Some(version) = url
+                    .split("linux-").nth(1)
+                    .and_then(|s| s.split(".tar").next())
+                {
+                    return Ok(version.to_string());
+                }
+            }
+        }
+
+        anyhow::bail!("Could not extract kernel version from Buck query")
     }
 
     pub fn package_target(&self) -> &'static str {

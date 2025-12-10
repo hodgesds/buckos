@@ -1,18 +1,18 @@
 [package]
 name = "buckos-tools"
-version = "0.0.1"
-authors = ["Daniel Hodges <dsh@buckos.org>", "Buckos"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 description = "Buckos System Tools - Collection of system administration utilities"
 readme = "../README.md"
-repository = "https://github.com/hodgesds/buckos"
-license = "Apache-2.0"
+repository.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "buckos-tools"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.5", features = ["derive"] }
+clap.workspace = true
 console = "0.15"
 sysinfo = "0.31"

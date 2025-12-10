@@ -94,6 +94,121 @@ pub fn generate_hardware_config_fragments(hardware: &HardwareInfo) -> Vec<Kernel
     fragments
 }
 
+/// Generate essential boot-critical kernel configuration
+/// This ensures the kernel can boot from USB drives and other removable media
+/// by building critical drivers into the kernel (not as modules)
+pub fn generate_boot_critical_config(is_removable_media: bool) -> KernelConfigFragment {
+    let mut options = vec![
+        // Essential block device support
+        ConfigOption {
+            key: "CONFIG_BLK_DEV".to_string(),
+            value: ConfigValue::Yes,
+            comment: Some("Block device support".to_string()),
+        },
+        ConfigOption {
+            key: "CONFIG_BLK_DEV_SD".to_string(),
+            value: ConfigValue::Yes,
+            comment: Some("SCSI disk support (required for USB storage)".to_string()),
+        },
+        // Essential SCSI support (USB storage uses SCSI layer)
+        ConfigOption {
+            key: "CONFIG_SCSI".to_string(),
+            value: ConfigValue::Yes,
+            comment: Some("SCSI device support".to_string()),
+        },
+        ConfigOption {
+            key: "CONFIG_SCSI_LOWLEVEL".to_string(),
+            value: ConfigValue::Yes,
+            comment: Some("SCSI low-level drivers".to_string()),
+        },
+    ];
+
+    // For removable media (USB drives), build USB storage support into kernel
+    if is_removable_media {
+        options.extend(vec![
+            ConfigOption {
+                key: "CONFIG_USB_SUPPORT".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("USB support".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("USB host controller support".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB_XHCI_HCD".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("xHCI (USB 3.0) host controller".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB_EHCI_HCD".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("EHCI (USB 2.0) host controller".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB_OHCI_HCD".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("OHCI (USB 1.1) host controller".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB_UHCI_HCD".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("UHCI (USB 1.1) host controller".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB_STORAGE".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("USB mass storage (BUILT-IN for boot)".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB_UAS".to_string(),
+                value: ConfigValue::Yes,
+                comment: Some("USB attached SCSI (BUILT-IN for boot)".to_string()),
+            },
+        ]);
+    } else {
+        // For non-removable media, USB storage can be modules
+        options.extend(vec![
+            ConfigOption {
+                key: "CONFIG_USB_STORAGE".to_string(),
+                value: ConfigValue::Module,
+                comment: Some("USB mass storage".to_string()),
+            },
+            ConfigOption {
+                key: "CONFIG_USB_UAS".to_string(),
+                value: ConfigValue::Module,
+                comment: Some("USB attached SCSI".to_string()),
+            },
+        ]);
+    }
+
+    // Essential filesystem support (always built-in for boot)
+    options.extend(vec![
+        ConfigOption {
+            key: "CONFIG_EXT4_FS".to_string(),
+            value: ConfigValue::Yes,
+            comment: Some("EXT4 filesystem (built-in for boot)".to_string()),
+        },
+        ConfigOption {
+            key: "CONFIG_VFAT_FS".to_string(),
+            value: ConfigValue::Yes,
+            comment: Some("VFAT filesystem (for EFI boot partition)".to_string()),
+        },
+        ConfigOption {
+            key: "CONFIG_FAT_FS".to_string(),
+            value: ConfigValue::Yes,
+            comment: Some("FAT filesystem support".to_string()),
+        },
+    ]);
+
+    KernelConfigFragment {
+        name: "boot-critical".to_string(),
+        description: "Essential boot-critical drivers and filesystems".to_string(),
+        config_options: options,
+    }
+}
+
 /// Generate GPU-specific kernel config
 fn generate_gpu_config(vendor: &GpuVendor) -> KernelConfigFragment {
     let (name, description, options) = match vendor {
