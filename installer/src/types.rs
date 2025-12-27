@@ -258,21 +258,33 @@ impl KernelChannel {
 
     pub fn description(&self, buckos_build_path: Option<&std::path::Path>) -> String {
         // Query version dynamically from Buck
-        let version = Self::query_version(self, buckos_build_path)
-            .unwrap_or_else(|_| "unknown".to_string());
+        let version =
+            Self::query_version(self, buckos_build_path).unwrap_or_else(|_| "unknown".to_string());
         match self {
-            KernelChannel::LTS => format!("LTS {} - Long-term support, maximum stability (recommended)", version),
+            KernelChannel::LTS => format!(
+                "LTS {} - Long-term support, maximum stability (recommended)",
+                version
+            ),
             KernelChannel::Stable => {
-                format!("Stable {} - Latest stable kernel, balance of new features and stability", version)
+                format!(
+                    "Stable {} - Latest stable kernel, balance of new features and stability",
+                    version
+                )
             }
-            KernelChannel::Mainline => format!("Mainline {} - Cutting edge features, frequent updates", version),
+            KernelChannel::Mainline => format!(
+                "Mainline {} - Cutting edge features, frequent updates",
+                version
+            ),
         }
     }
 
     /// Query the actual kernel version from Buck build files
-    pub fn query_version(&self, buckos_build_path: Option<&std::path::Path>) -> anyhow::Result<String> {
-        use std::process::Command;
+    pub fn query_version(
+        &self,
+        buckos_build_path: Option<&std::path::Path>,
+    ) -> anyhow::Result<String> {
         use std::path::PathBuf;
+        use std::process::Command;
 
         // Use provided path or find buckos-build directory
         let working_dir = if let Some(path) = buckos_build_path {
@@ -317,7 +329,8 @@ impl KernelChannel {
         let output_str = String::from_utf8_lossy(&output.stdout);
 
         // Parse JSON to get the actual source target from deps
-        let actual_target = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
+        let actual_target = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str)
+        {
             json.as_object()
                 .and_then(|o| o.values().next())
                 .and_then(|v| v.get("buck.deps"))
@@ -349,7 +362,8 @@ impl KernelChannel {
 
         // Parse JSON to extract URL
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
-            if let Some(url) = json.as_object()
+            if let Some(url) = json
+                .as_object()
                 .and_then(|o| o.values().next())
                 .and_then(|v| v.get("urls"))
                 .and_then(|urls| urls.as_array())
@@ -358,7 +372,8 @@ impl KernelChannel {
             {
                 // Extract version from URL like "linux-6.17.10.tar.xz"
                 if let Some(version) = url
-                    .split("linux-").nth(1)
+                    .split("linux-")
+                    .nth(1)
                     .and_then(|s| s.split(".tar").next())
                 {
                     return Ok(version.to_string());

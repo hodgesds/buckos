@@ -276,7 +276,11 @@ buildpkg = true
 fn detect_target_arch() -> (&'static str, &'static str, &'static str) {
     #[cfg(target_arch = "x86_64")]
     {
-        ("amd64", "x86_64-buckos-linux-gnu", "-march=x86-64 -mtune=generic")
+        (
+            "amd64",
+            "x86_64-buckos-linux-gnu",
+            "-march=x86-64 -mtune=generic",
+        )
     }
     #[cfg(target_arch = "aarch64")]
     {
@@ -524,7 +528,15 @@ fn create_partition(
 
     let start = format!("{}MB", start_mb);
     let output = Command::new("parted")
-        .args(&["-s", disk_device, "mkpart", "primary", part_type, &start, &size_mb])
+        .args(&[
+            "-s",
+            disk_device,
+            "mkpart",
+            "primary",
+            part_type,
+            &start,
+            &size_mb,
+        ])
         .output()
         .map_err(|e| {
             anyhow::anyhow!(
@@ -536,7 +548,11 @@ fn create_partition(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Failed to create partition {}: {}", partition.device, stderr);
+        anyhow::bail!(
+            "Failed to create partition {}: {}",
+            partition.device,
+            stderr
+        );
     }
 
     // Set ESP flag for EFI partition
@@ -549,7 +565,11 @@ fn create_partition(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            tracing::warn!("Failed to set ESP flag on partition {}: {}", partition.device, stderr);
+            tracing::warn!(
+                "Failed to set ESP flag on partition {}: {}",
+                partition.device,
+                stderr
+            );
         }
     }
 
@@ -566,7 +586,11 @@ fn create_partition(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            tracing::warn!("Failed to set bios_grub flag on partition {}: {}", partition.device, stderr);
+            tracing::warn!(
+                "Failed to set bios_grub flag on partition {}: {}",
+                partition.device,
+                stderr
+            );
         }
     }
 
@@ -594,29 +618,33 @@ fn format_partition(partition: &PartitionConfig) -> anyhow::Result<()> {
         FilesystemType::None => return Ok(()),
     };
 
-    let output = Command::new(fs_cmd)
-        .args(&args)
-        .output()
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to execute {} command for {}: {}. Make sure {} is installed.",
-                fs_cmd,
-                partition.device,
-                e,
-                fs_cmd
-            )
-        })?;
+    let output = Command::new(fs_cmd).args(&args).output().map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to execute {} command for {}: {}. Make sure {} is installed.",
+            fs_cmd,
+            partition.device,
+            e,
+            fs_cmd
+        )
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Failed to create filesystem on {}: {}", partition.device, stderr);
+        anyhow::bail!(
+            "Failed to create filesystem on {}: {}",
+            partition.device,
+            stderr
+        );
     }
 
     Ok(())
 }
 
 /// Mount a partition to a target path
-fn mount_partition(partition: &PartitionConfig, target_root: &std::path::Path) -> anyhow::Result<()> {
+fn mount_partition(
+    partition: &PartitionConfig,
+    target_root: &std::path::Path,
+) -> anyhow::Result<()> {
     let mount_path = partition.mount_point.path();
 
     if partition.filesystem == FilesystemType::Swap {
@@ -633,7 +661,11 @@ fn mount_partition(partition: &PartitionConfig, target_root: &std::path::Path) -
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Failed to activate swap on {}: {}", partition.device, stderr);
+            anyhow::bail!(
+                "Failed to activate swap on {}: {}",
+                partition.device,
+                stderr
+            );
         }
         return Ok(());
     }
@@ -789,7 +821,10 @@ fn configure_locale(target_root: &std::path::Path, locale: &str) -> anyhow::Resu
     let _ = Command::new("chroot")
         .arg(target_root)
         .env_clear()
-        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        )
         .env("HOME", "/root")
         .env("TERM", "linux")
         .arg("locale-gen")
@@ -884,12 +919,18 @@ prefer_binaries = true
     let mut file = fs::File::create(&buckconfig_path)?;
     file.write_all(config_content.as_bytes())?;
 
-    tracing::info!("Configured binary package mirror in {}", buckconfig_path.display());
+    tracing::info!(
+        "Configured binary package mirror in {}",
+        buckconfig_path.display()
+    );
 
     Ok(())
 }
 
-fn configure_init_system(target_root: &std::path::Path, init_system: &InitSystem) -> anyhow::Result<()> {
+fn configure_init_system(
+    target_root: &std::path::Path,
+    init_system: &InitSystem,
+) -> anyhow::Result<()> {
     match init_system {
         InitSystem::Systemd => {
             tracing::info!("Configuring systemd...");
@@ -946,10 +987,7 @@ fn configure_init_system(target_root: &std::path::Path, init_system: &InitSystem
         }
         InitSystem::Runit => {
             tracing::info!("Configuring runit...");
-            let runit_dirs = [
-                "etc/runit/runsvdir/default",
-                "var/service",
-            ];
+            let runit_dirs = ["etc/runit/runsvdir/default", "var/service"];
             for dir in &runit_dirs {
                 std::fs::create_dir_all(target_root.join(dir))?;
             }
@@ -957,10 +995,7 @@ fn configure_init_system(target_root: &std::path::Path, init_system: &InitSystem
         }
         InitSystem::S6 => {
             tracing::info!("Configuring s6...");
-            let s6_dirs = [
-                "etc/s6/sv",
-                "etc/s6/rc",
-            ];
+            let s6_dirs = ["etc/s6/sv", "etc/s6/rc"];
             for dir in &s6_dirs {
                 std::fs::create_dir_all(target_root.join(dir))?;
             }
@@ -985,9 +1020,7 @@ fn configure_init_system(target_root: &std::path::Path, init_system: &InitSystem
         }
         InitSystem::Dinit => {
             tracing::info!("Configuring dinit...");
-            let dinit_dirs = [
-                "etc/dinit.d",
-            ];
+            let dinit_dirs = ["etc/dinit.d"];
             for dir in &dinit_dirs {
                 std::fs::create_dir_all(target_root.join(dir))?;
             }
@@ -1016,7 +1049,9 @@ fn configure_init_system(target_root: &std::path::Path, init_system: &InitSystem
 }
 
 /// Set up chroot bind mounts for bootloader installation
-fn setup_chroot_mounts(target_root: &std::path::Path) -> anyhow::Result<Vec<(&'static str, &'static str)>> {
+fn setup_chroot_mounts(
+    target_root: &std::path::Path,
+) -> anyhow::Result<Vec<(&'static str, &'static str)>> {
     let bind_mounts = vec![("/dev", "dev"), ("/proc", "proc"), ("/sys", "sys")];
 
     for (source, target) in &bind_mounts {
@@ -1027,7 +1062,12 @@ fn setup_chroot_mounts(target_root: &std::path::Path) -> anyhow::Result<Vec<(&'s
             .args(&["--bind", source, target_path.to_str().unwrap()])
             .output()
             .map_err(|e| {
-                anyhow::anyhow!("Failed to bind mount {} to {}: {}", source, target_path.display(), e)
+                anyhow::anyhow!(
+                    "Failed to bind mount {} to {}: {}",
+                    source,
+                    target_path.display(),
+                    e
+                )
             })?;
 
         if !output.status.success() {
@@ -1116,7 +1156,11 @@ fn rename_kernel_files(target_root: &std::path::Path, kernel_version: &str) -> a
     let vmlinuz_versioned = boot_dir.join(format!("vmlinuz-{}", kernel_version));
     if vmlinuz_path.exists() && !vmlinuz_versioned.exists() {
         std::fs::rename(&vmlinuz_path, &vmlinuz_versioned).map_err(|e| {
-            anyhow::anyhow!("Failed to rename vmlinuz to {}: {}", vmlinuz_versioned.display(), e)
+            anyhow::anyhow!(
+                "Failed to rename vmlinuz to {}: {}",
+                vmlinuz_versioned.display(),
+                e
+            )
         })?;
         tracing::info!("Renamed vmlinuz to vmlinuz-{}", kernel_version);
     }
@@ -1125,7 +1169,11 @@ fn rename_kernel_files(target_root: &std::path::Path, kernel_version: &str) -> a
     let system_map_versioned = boot_dir.join(format!("System.map-{}", kernel_version));
     if system_map_path.exists() && !system_map_versioned.exists() {
         std::fs::rename(&system_map_path, &system_map_versioned).map_err(|e| {
-            anyhow::anyhow!("Failed to rename System.map to {}: {}", system_map_versioned.display(), e)
+            anyhow::anyhow!(
+                "Failed to rename System.map to {}: {}",
+                system_map_versioned.display(),
+                e
+            )
         })?;
         tracing::info!("Renamed System.map to System.map-{}", kernel_version);
     }
@@ -1176,7 +1224,10 @@ fn set_user_password(
     let output = Command::new("chroot")
         .arg(target_root)
         .env_clear()
-        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        )
         .env("HOME", "/root")
         .env("TERM", "linux")
         .arg("/usr/sbin/chpasswd")
@@ -1217,7 +1268,10 @@ fn create_user_account(
     useradd_cmd
         .arg(target_root)
         .env_clear()
-        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        )
         .env("HOME", "/root")
         .env("TERM", "linux")
         .arg("useradd")
@@ -1421,12 +1475,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
             unmount_disk_partitions(&disk_config.device)?;
 
             // Deactivate any swap on the target disk
-            update_progress(
-                "Disk partitioning",
-                0.032,
-                0.4,
-                "Deactivating swap...",
-            );
+            update_progress("Disk partitioning", 0.032, 0.4, "Deactivating swap...");
             deactivate_swap(&disk_config.device);
 
             // Check if any processes are still using the disk
@@ -1713,7 +1762,8 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
         // Add PAM dependencies explicitly (needed for pam_unix.so to load)
         rootfs_packages.push("\"//packages/linux/system/libs/network/libnsl:libnsl\"".to_string());
         rootfs_packages.push("\"//packages/linux/system/libs/ipc/libtirpc:libtirpc\"".to_string());
-        rootfs_packages.push("\"//packages/linux/system/libs/crypto/libxcrypt:libxcrypt\"".to_string()); // libcrypt.so.2 for password hashing
+        rootfs_packages
+            .push("\"//packages/linux/system/libs/crypto/libxcrypt:libxcrypt\"".to_string()); // libcrypt.so.2 for password hashing
         rootfs_packages.push("\"//packages/linux/core/file:file\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/bash:bash\"".to_string());
         rootfs_packages.push("\"//packages/linux/core/zlib:zlib\"".to_string());
@@ -2088,8 +2138,8 @@ rootfs(
         std::fs::create_dir_all(&target_repo_path)?;
 
         // Check if we have a local buckos-build repo to copy, otherwise clone from GitHub
-        let source_repo_exists = config.buckos_build_path.exists()
-            && config.buckos_build_path.join(".git").exists();
+        let source_repo_exists =
+            config.buckos_build_path.exists() && config.buckos_build_path.join(".git").exists();
 
         if source_repo_exists {
             // Copy the local buckos-build repo to the target
@@ -2125,11 +2175,18 @@ rootfs(
                     .args(&[
                         "-a",
                         &config.buckos_build_path.to_string_lossy().to_string(),
-                        &target_repo_path.parent().unwrap().to_string_lossy().to_string(),
+                        &target_repo_path
+                            .parent()
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string(),
                     ])
                     .output()?;
                 if !output.status.success() {
-                    anyhow::bail!("Failed to copy buckos-build repo: {}", String::from_utf8_lossy(&output.stderr));
+                    anyhow::bail!(
+                        "Failed to copy buckos-build repo: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    );
                 }
             }
         } else {
@@ -2140,7 +2197,10 @@ rootfs(
                 0.2,
                 "Cloning buckos-build repository from GitHub...",
             );
-            tracing::info!("Cloning buckos-build from GitHub to {}", target_repo_path.display());
+            tracing::info!(
+                "Cloning buckos-build from GitHub to {}",
+                target_repo_path.display()
+            );
 
             let output = Command::new("git")
                 .args(&[
@@ -2173,12 +2233,13 @@ rootfs(
         let buckos_binary_candidates = vec![
             PathBuf::from("/usr/bin/buckos"),
             PathBuf::from("/usr/local/bin/buckos"),
-            std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.join("buckos"))).unwrap_or_default(),
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|p| p.join("buckos")))
+                .unwrap_or_default(),
         ];
 
-        let buckos_binary = buckos_binary_candidates
-            .iter()
-            .find(|p| p.exists());
+        let buckos_binary = buckos_binary_candidates.iter().find(|p| p.exists());
 
         if let Some(binary_path) = buckos_binary {
             let target_bin_dir = config.target_root.join("usr/bin");
@@ -2196,9 +2257,7 @@ rootfs(
             }
             tracing::info!("Installed buckos binary to {}", target_binary.display());
         } else {
-            tracing::warn!(
-                "buckos binary not found. Package management will need manual setup."
-            );
+            tracing::warn!("buckos binary not found. Package management will need manual setup.");
         }
 
         // Configure binary package mirror in .buckconfig
@@ -2232,7 +2291,10 @@ rootfs(
                 "Installing profile packages",
                 0.84,
                 0.0,
-                &format!("Building {} package sets for profile...", package_sets_to_build.len()),
+                &format!(
+                    "Building {} package sets for profile...",
+                    package_sets_to_build.len()
+                ),
             );
 
             let total_sets = package_sets_to_build.len();
@@ -2340,10 +2402,18 @@ rootfs(
                                         match merge_output {
                                             Ok(out) if !out.status.success() => {
                                                 let stderr = String::from_utf8_lossy(&out.stderr);
-                                                tracing::warn!("Failed to merge {}: {}", package_set, stderr);
+                                                tracing::warn!(
+                                                    "Failed to merge {}: {}",
+                                                    package_set,
+                                                    stderr
+                                                );
                                             }
                                             Err(e) => {
-                                                tracing::warn!("Failed to merge {}: {}", package_set, e);
+                                                tracing::warn!(
+                                                    "Failed to merge {}: {}",
+                                                    package_set,
+                                                    e
+                                                );
                                             }
                                             _ => {}
                                         }
@@ -2361,7 +2431,11 @@ rootfs(
                             );
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to run buck2 for {}: {}. Skipping.", package_set, e);
+                            tracing::warn!(
+                                "Failed to run buck2 for {}: {}. Skipping.",
+                                package_set,
+                                e
+                            );
                         }
                     }
                 }
@@ -2414,9 +2488,19 @@ rootfs(
         configure_keyboard(&config.target_root, &config.locale.keyboard)?;
 
         // Configure init system
-        update_progress("System configuration", 0.90, 0.95, "Configuring init system...");
+        update_progress(
+            "System configuration",
+            0.90,
+            0.95,
+            "Configuring init system...",
+        );
         configure_init_system(&config.target_root, &config.init_system)?;
-        update_progress("System configuration", 0.91, 1.0, "✓ Configured init system");
+        update_progress(
+            "System configuration",
+            0.91,
+            1.0,
+            "✓ Configured init system",
+        );
 
         // Generate /etc/buckos/buckos.toml for package manager on target system
         let buckos_config_dir = config.target_root.join("etc/buckos");
@@ -2648,7 +2732,7 @@ rootfs(
                                 "--target=x86_64-efi",
                                 "--efi-directory=/boot/efi",
                                 "--bootloader-id=BuckOS",
-                                "--recheck"
+                                "--recheck",
                             ]);
 
                             // For removable media, use --no-nvram to prevent modifying host EFI variables
@@ -2665,7 +2749,7 @@ rootfs(
                             grub_args.extend_from_slice(&[
                                 "--target=i386-pc",
                                 "--recheck",
-                                &boot_device
+                                &boot_device,
                             ]);
                         }
 
@@ -2676,7 +2760,10 @@ rootfs(
                         grub_install_cmd
                             .arg(&config.target_root)
                             .env_clear()
-                            .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                            .env(
+                                "PATH",
+                                "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                            )
                             .env("HOME", "/root")
                             .env("TERM", "linux")
                             .arg("/bin/sh")
@@ -2754,12 +2841,22 @@ rootfs(
                         );
 
                         // Helper to run dracut with given arguments
-                        let run_dracut = |initramfs_path: &str, use_hostonly: bool, description: &str| -> Result<(), anyhow::Error> {
-                            tracing::info!("Generating {} initramfs: {}", description, initramfs_path);
+                        let run_dracut = |initramfs_path: &str,
+                                          use_hostonly: bool,
+                                          description: &str|
+                         -> Result<(), anyhow::Error> {
+                            tracing::info!(
+                                "Generating {} initramfs: {}",
+                                description,
+                                initramfs_path
+                            );
                             let mut cmd = Command::new("chroot");
                             cmd.arg(&config.target_root)
                                 .env_clear()
-                                .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                                .env(
+                                    "PATH",
+                                    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                                )
                                 .env("HOME", "/root")
                                 .env("TERM", "linux")
                                 .arg("/usr/bin/dracut")
@@ -2803,11 +2900,20 @@ rootfs(
                                         // Dracut modules are directories like "90kernel-modules" or "99base"
                                         if let Ok(entries) = std::fs::read_dir(dracut_path) {
                                             for entry in entries.flatten() {
-                                                if let Ok(file_name) = entry.file_name().into_string() {
+                                                if let Ok(file_name) =
+                                                    entry.file_name().into_string()
+                                                {
                                                     // Module dirs are named like "90kernel-modules", "99base", etc.
-                                                    if file_name.ends_with(module_name) && !additional_modules.contains(&module_name.to_string()) {
-                                                        additional_modules.push(module_name.to_string());
-                                                        tracing::info!("Found dracut module: {}", module_name);
+                                                    if file_name.ends_with(module_name)
+                                                        && !additional_modules
+                                                            .contains(&module_name.to_string())
+                                                    {
+                                                        additional_modules
+                                                            .push(module_name.to_string());
+                                                        tracing::info!(
+                                                            "Found dracut module: {}",
+                                                            module_name
+                                                        );
                                                         break;
                                                     }
                                                 }
@@ -2820,7 +2926,10 @@ rootfs(
                             if !additional_modules.is_empty() {
                                 let modules_str = additional_modules.join(" ");
                                 cmd.arg("--add").arg(modules_str);
-                                tracing::info!("Adding dracut modules: {}", additional_modules.join(", "));
+                                tracing::info!(
+                                    "Adding dracut modules: {}",
+                                    additional_modules.join(", ")
+                                );
                             }
 
                             // Add sulogin for emergency shell if it exists
@@ -2832,9 +2941,7 @@ rootfs(
                                 tracing::warn!("sulogin not found at /usr/bin/sulogin - emergency shell may not work");
                             }
 
-                            cmd.arg(initramfs_path)
-                                .arg("--kver")
-                                .arg(&kernel_version);
+                            cmd.arg(initramfs_path).arg("--kver").arg(&kernel_version);
 
                             let output = cmd.output()
                                 .map_err(|e| anyhow::anyhow!(
@@ -2859,10 +2966,13 @@ rootfs(
                         if use_hostonly_default {
                             tracing::info!("Default initramfs: hostonly mode (smaller, optimized for this machine)");
                         } else {
-                            tracing::info!("Default initramfs: no-hostonly mode (portable across machines)");
+                            tracing::info!(
+                                "Default initramfs: no-hostonly mode (portable across machines)"
+                            );
                         }
 
-                        if let Err(e) = run_dracut(&initramfs_path, use_hostonly_default, "default") {
+                        if let Err(e) = run_dracut(&initramfs_path, use_hostonly_default, "default")
+                        {
                             // Cleanup bind mounts before failing
                             cleanup_chroot_mounts(&config.target_root, &bind_mounts);
                             anyhow::bail!(
@@ -2877,7 +2987,8 @@ rootfs(
                         tracing::info!("Default initramfs generated successfully");
 
                         // Generate fallback initramfs (always includes all modules)
-                        let initramfs_fallback_path = format!("/boot/initramfs-{}-fallback.img", kernel_version);
+                        let initramfs_fallback_path =
+                            format!("/boot/initramfs-{}-fallback.img", kernel_version);
                         tracing::info!("Fallback initramfs: no-hostonly mode (includes all modules for rescue/VMs)");
 
                         if let Err(e) = run_dracut(&initramfs_fallback_path, false, "fallback") {
@@ -2923,8 +3034,9 @@ GRUB_TERMINAL_OUTPUT="console"
                                 cmdline_default
                             );
                             std::fs::create_dir_all(default_grub_path.parent().unwrap())?;
-                            std::fs::write(&default_grub_path, default_grub_content)
-                                .map_err(|e| anyhow::anyhow!("Failed to create /etc/default/grub: {}", e))?;
+                            std::fs::write(&default_grub_path, default_grub_content).map_err(
+                                |e| anyhow::anyhow!("Failed to create /etc/default/grub: {}", e),
+                            )?;
                             tracing::info!("Created /etc/default/grub");
                         }
 
@@ -2995,8 +3107,9 @@ EOF
 
 done
 "#;
-                        std::fs::write(&fallback_script_path, fallback_script_content)
-                            .map_err(|e| anyhow::anyhow!("Failed to create GRUB fallback script: {}", e))?;
+                        std::fs::write(&fallback_script_path, fallback_script_content).map_err(
+                            |e| anyhow::anyhow!("Failed to create GRUB fallback script: {}", e),
+                        )?;
 
                         // Make the script executable
                         #[cfg(unix)]
@@ -3005,7 +3118,10 @@ done
                             let perms = std::fs::Permissions::from_mode(0o755);
                             std::fs::set_permissions(&fallback_script_path, perms)?;
                         }
-                        tracing::info!("Created GRUB fallback script at {}", fallback_script_path.display());
+                        tracing::info!(
+                            "Created GRUB fallback script at {}",
+                            fallback_script_path.display()
+                        );
 
                         // Generate GRUB configuration
                         let output = Command::new("chroot")
@@ -3392,7 +3508,11 @@ done
                     "Creating users",
                     0.93 + (step * 0.02),
                     step,
-                    format!("Warning: Failed to set password for {}: {}", user.username, e).as_str(),
+                    format!(
+                        "Warning: Failed to set password for {}: {}",
+                        user.username, e
+                    )
+                    .as_str(),
                 );
             }
         }

@@ -51,7 +51,7 @@ pub fn detect_repository_path(custom_path: Option<&str>) -> Result<PathBuf> {
     // 3. Check standard system locations
     let mut search_paths = STANDARD_REPO_LOCATIONS
         .iter()
-        .map(|p| PathBuf::from(p))
+        .map(PathBuf::from)
         .collect::<Vec<_>>();
 
     // 4. Add user home directory

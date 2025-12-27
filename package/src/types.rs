@@ -500,15 +500,6 @@ impl BuckTarget {
         Some(Self { cell, path, name })
     }
 
-    /// Convert to Buck target string
-    pub fn to_string(&self) -> String {
-        if self.cell.is_empty() {
-            format!("//{}:{}", self.path, self.name)
-        } else {
-            format!("{}//{}:{}", self.cell, self.path, self.name)
-        }
-    }
-
     /// Create a target for a buckos package
     pub fn for_package(category: &str, name: &str) -> Self {
         Self {
@@ -530,7 +521,11 @@ impl BuckTarget {
 
 impl std::fmt::Display for BuckTarget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        if self.cell.is_empty() {
+            write!(f, "//{}:{}", self.path, self.name)
+        } else {
+            write!(f, "{}//{}:{}", self.cell, self.path, self.name)
+        }
     }
 }
 

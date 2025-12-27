@@ -1,9 +1,9 @@
 mod repository;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
 use buckos_package::{Config, InstallOptions, PackageManager};
-use std::path::PathBuf;
+use clap::{Parser, Subcommand};
+use std::path::{Path, PathBuf};
 
 /// Buckos Package Manager - Source-based package manager inspired by Gentoo
 #[derive(Parser, Debug)]
@@ -49,6 +49,15 @@ enum Commands {
     Show {
         /// Package name
         package: String,
+    },
+    /// Start MCP server (Model Context Protocol for AI assistants)
+    Mcp {
+        /// MCP server configuration file
+        #[clap(long)]
+        mcp_config: Option<String>,
+        /// Run in user-mode (install to ~/.local, no root required)
+        #[clap(long)]
+        user_mode: bool,
     },
 }
 
@@ -157,6 +166,28 @@ async fn main() -> Result<()> {
                 println!("Package '{}' not found", package);
             }
         }
+        Some(Commands::Mcp {
+            mcp_config,
+            user_mode,
+        }) => {
+            use buckos_mcp::{ExecutionContext, McpServer, ServerConfig};
+
+            let pm = create_package_manager(&repo_path, global_root.as_ref()).await?;
+
+            let config = match mcp_config {
+                Some(path) => ServerConfig::load_from(&path)?,
+                None => ServerConfig::default(),
+            };
+
+            // Detect execution context (root vs non-root)
+            let mut context = ExecutionContext::detect();
+            if user_mode {
+                context.enable_user_mode();
+            }
+
+            let server = McpServer::new(pm, config, context);
+            server.serve_stdio().await?;
+        }
         None => {
             println!("Buckos Package Manager");
             println!();
@@ -171,17 +202,17 @@ async fn main() -> Result<()> {
 
 /// Create a PackageManager instance with the given repository path
 async fn create_package_manager(
-    repo_path: &PathBuf,
+    repo_path: &Path,
     target_root: Option<&PathBuf>,
 ) -> Result<PackageManager> {
     let mut config = Config::load().unwrap_or_default();
 
     // Set buck_repo to the detected buckos-build path
-    config.buck_repo = repo_path.clone();
+    config.buck_repo = repo_path.to_path_buf();
 
     // Also update the repository location for package discovery
     if let Some(repo) = config.repositories.get_mut(0) {
-        repo.location = repo_path.clone();
+        repo.location = repo_path.to_path_buf();
         repo.sync_type = buckos_package::config::SyncType::Local;
     }
 

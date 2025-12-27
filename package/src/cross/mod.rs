@@ -59,15 +59,6 @@ impl TargetTriplet {
         })
     }
 
-    /// Get the full triplet string
-    pub fn to_string(&self) -> String {
-        if let Some(ref abi) = self.abi {
-            format!("{}-{}-{}-{}", self.arch, self.vendor, self.os, abi)
-        } else {
-            format!("{}-{}-{}", self.arch, self.vendor, self.os)
-        }
-    }
-
     /// Get the host triplet for the current system
     pub fn host() -> Result<Self> {
         // Try to detect from rustc
@@ -123,7 +114,11 @@ impl TargetTriplet {
 
 impl std::fmt::Display for TargetTriplet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        if let Some(ref abi) = self.abi {
+            write!(f, "{}-{}-{}-{}", self.arch, self.vendor, self.os, abi)
+        } else {
+            write!(f, "{}-{}-{}", self.arch, self.vendor, self.os)
+        }
     }
 }
 

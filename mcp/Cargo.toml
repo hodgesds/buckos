@@ -1,0 +1,36 @@
+[package]
+name = "buckos-mcp"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Model Context Protocol server for Buckos package manager"
+
+[lib]
+name = "buckos_mcp"
+path = "src/lib.rs"
+
+[dependencies]
+# Workspace dependencies
+buckos-package.workspace = true
+buckos-config.workspace = true
+buckos-model.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+# MCP-specific dependencies
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+libc.workspace = true
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.9"
+
+[features]
+default = []

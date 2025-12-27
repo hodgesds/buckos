@@ -742,6 +742,7 @@ dependencies = [
  "buckos-boss",
  "buckos-config",
  "buckos-installer",
+ "buckos-mcp",
  "buckos-model",
  "buckos-package",
  "buckos-tools",
@@ -840,6 +841,26 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "walkdir",
+]
+
+[[package]]
+name = "buckos-mcp"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "buckos-config",
+ "buckos-model",
+ "buckos-package",
+ "chrono",
+ "libc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -254,10 +254,19 @@ impl InstallerApp {
                 );
 
                 // Add boot-critical configuration (USB drivers built-in if installing to removable media)
-                let is_removable = self.config.disk.as_ref().map(|d| d.removable).unwrap_or(false);
-                fragments.push(crate::kernel_config::generate_boot_critical_config(is_removable));
+                let is_removable = self
+                    .config
+                    .disk
+                    .as_ref()
+                    .map(|d| d.removable)
+                    .unwrap_or(false);
+                fragments.push(crate::kernel_config::generate_boot_critical_config(
+                    is_removable,
+                ));
                 if is_removable {
-                    tracing::info!("Installing to removable media - USB drivers will be built into kernel");
+                    tracing::info!(
+                        "Installing to removable media - USB drivers will be built into kernel"
+                    );
                 }
 
                 let config_content = crate::kernel_config::fragments_to_config_file(&fragments);
