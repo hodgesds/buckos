@@ -2221,6 +2221,50 @@ rootfs(
             }
         }
 
+        // Install BuckOS specifications to standard location
+        update_progress(
+            "Installing package repo",
+            0.825,
+            0.4,
+            "Installing BuckOS specifications...",
+        );
+
+        let source_specs_path = config.buckos_build_path.join("specs");
+        let target_specs_path = config.target_root.join("usr/share/buckos/specs");
+
+        if source_specs_path.exists() {
+            std::fs::create_dir_all(&target_specs_path)?;
+
+            tracing::info!(
+                "Copying BuckOS specifications from {} to {}",
+                source_specs_path.display(),
+                target_specs_path.display()
+            );
+
+            // Copy specs directory to target
+            let output = Command::new("cp")
+                .args(&[
+                    "-a",
+                    "-r",
+                    &format!("{}/.", source_specs_path.display()),
+                    &target_specs_path.to_string_lossy().to_string(),
+                ])
+                .output()
+                .map_err(|e| anyhow::anyhow!("Failed to copy specs: {}", e))?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                tracing::warn!("Failed to copy specs: {}", stderr);
+            } else {
+                tracing::info!("✓ BuckOS specifications installed to /usr/share/buckos/specs");
+            }
+        } else {
+            tracing::warn!(
+                "Specs directory not found at {}. Specifications will not be available.",
+                source_specs_path.display()
+            );
+        }
+
         // Install buckos binary to the target system
         update_progress(
             "Installing package repo",

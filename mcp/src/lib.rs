@@ -38,6 +38,7 @@ pub mod handlers;
 pub mod permissions;
 pub mod protocol;
 pub mod server;
+pub mod spec_registry;
 
 // Re-export main types
 pub use context::McpServerContext;

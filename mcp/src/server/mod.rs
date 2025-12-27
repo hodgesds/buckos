@@ -7,7 +7,7 @@ pub mod tools;
 
 use crate::context::McpServerContext;
 use crate::error::{McpError, Result};
-use crate::handlers::package_ops;
+use crate::handlers::{package_ops, spec_ops};
 use crate::permissions::ExecutionContext;
 use crate::protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, RequestId, StdioTransport};
 use buckos_package::PackageManager;
@@ -173,12 +173,25 @@ impl McpServer {
 
         // Route to appropriate handler
         match tool_name {
+            // Package operations
             "package_search" => package_ops::handle_search(&self.context, arguments).await,
             "package_info" => package_ops::handle_info(&self.context, arguments).await,
             "package_list" => package_ops::handle_list(&self.context, arguments).await,
             "package_deps" => package_ops::handle_deps(&self.context, arguments).await,
             "package_install" => package_ops::handle_install(&self.context, arguments).await,
             "config_show" => package_ops::handle_config_show(&self.context, arguments).await,
+            // Spec operations
+            "spec_list" => spec_ops::handle_spec_list(&self.context, arguments).await,
+            "spec_info" => spec_ops::handle_spec_info(&self.context, arguments).await,
+            "spec_validate_system" => {
+                spec_ops::handle_spec_validate_system(&self.context, arguments).await
+            }
+            "spec_validate_use_flags" => {
+                spec_ops::handle_spec_validate_use_flags(&self.context, arguments).await
+            }
+            "spec_validate_package_set" => {
+                spec_ops::handle_spec_validate_package_set(&self.context, arguments).await
+            }
             _ => Err(McpError::MethodNotFound(format!(
                 "Unknown tool: {}",
                 tool_name

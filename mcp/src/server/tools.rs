@@ -29,12 +29,19 @@ pub struct ToolDefinition {
 /// Get all available tools
 pub fn get_all_tools(exec_context: &ExecutionContext) -> Vec<ToolDefinition> {
     vec![
+        // Package management tools
         tool_package_search(exec_context),
         tool_package_info(exec_context),
         tool_package_list(exec_context),
         tool_package_deps(exec_context),
         tool_package_install(exec_context),
         tool_config_show(exec_context),
+        // Spec validation tools
+        tool_spec_list(exec_context),
+        tool_spec_info(exec_context),
+        tool_spec_validate_system(exec_context),
+        tool_spec_validate_use_flags(exec_context),
+        tool_spec_validate_package_set(exec_context),
     ]
 }
 
@@ -184,6 +191,147 @@ fn tool_config_show(exec_context: &ExecutionContext) -> ToolDefinition {
         input_schema: json!({
             "type": "object",
             "properties": {}
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_spec_list(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("spec_list", exec_context);
+
+    ToolDefinition {
+        name: "spec_list".to_string(),
+        description: "List all BuckOS specifications with their status and version information."
+            .to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Filter by category (core, bootstrap, integration, features, tooling)",
+                    "enum": ["core", "bootstrap", "integration", "features", "tooling"]
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Filter by status (approved, rfc, draft, deprecated, rejected)",
+                    "enum": ["approved", "rfc", "draft", "deprecated", "rejected"]
+                }
+            }
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_spec_info(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("spec_info", exec_context);
+
+    ToolDefinition {
+        name: "spec_info".to_string(),
+        description: "Get detailed information about a specific BuckOS specification.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "spec_id": {
+                    "type": "string",
+                    "description": "Specification ID (e.g., 'SPEC-001', 'SPEC-002')",
+                    "pattern": "^SPEC-\\d{3}$"
+                }
+            },
+            "required": ["spec_id"]
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_spec_validate_system(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("spec_validate_system", exec_context);
+
+    ToolDefinition {
+        name: "spec_validate_system".to_string(),
+        description: "Validate system configuration against BuckOS specifications. Checks package versions, USE flags, dependencies, and conformance to specified profile.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "profile": {
+                    "type": "string",
+                    "description": "System profile to validate against (minimal, server, desktop, developer, hardened, embedded, container)",
+                    "enum": ["minimal", "server", "desktop", "developer", "hardened", "embedded", "container"]
+                },
+                "check_dependencies": {
+                    "type": "boolean",
+                    "description": "Also validate dependency resolution and circular dependencies",
+                    "default": true
+                },
+                "check_use_flags": {
+                    "type": "boolean",
+                    "description": "Validate USE flag configuration",
+                    "default": true
+                }
+            }
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_spec_validate_use_flags(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("spec_validate_use_flags", exec_context);
+
+    ToolDefinition {
+        name: "spec_validate_use_flags".to_string(),
+        description: "Validate USE flag configuration for a package or globally. Checks for unknown flags, conflicts, and profile consistency.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "package": {
+                    "type": "string",
+                    "description": "Package to validate (optional, validates global USE flags if not specified)"
+                },
+                "use_flags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "USE flags to validate (optional, uses current configuration if not specified)"
+                },
+                "profile": {
+                    "type": "string",
+                    "description": "Profile to validate against (minimal, server, desktop, etc.)",
+                    "enum": ["minimal", "server", "desktop", "developer", "hardened", "embedded", "container"]
+                }
+            }
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_spec_validate_package_set(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("spec_validate_package_set", exec_context);
+
+    ToolDefinition {
+        name: "spec_validate_package_set".to_string(),
+        description: "Validate a package set definition. Checks inheritance chains, package availability, and set consistency.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "set_name": {
+                    "type": "string",
+                    "description": "Package set name (e.g., '@system', '@world', 'web-server', 'gnome-desktop')"
+                },
+                "check_inheritance": {
+                    "type": "boolean",
+                    "description": "Check for circular inheritance and validate inheritance chain",
+                    "default": true
+                },
+                "check_packages": {
+                    "type": "boolean",
+                    "description": "Validate that all packages in the set exist and are available",
+                    "default": true
+                }
+            },
+            "required": ["set_name"]
         }),
         available,
         reason,
