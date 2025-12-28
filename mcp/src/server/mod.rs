@@ -7,7 +7,7 @@ pub mod tools;
 
 use crate::context::McpServerContext;
 use crate::error::{McpError, Result};
-use crate::handlers::{package_ops, spec_ops};
+use crate::handlers::{package_create, package_ops, spec_ops};
 use crate::permissions::ExecutionContext;
 use crate::protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, RequestId, StdioTransport};
 use buckos_package::PackageManager;
@@ -191,6 +191,25 @@ impl McpServer {
             }
             "spec_validate_package_set" => {
                 spec_ops::handle_spec_validate_package_set(&self.context, arguments).await
+            }
+            // Package creation operations
+            "package_create_template" => {
+                package_create::handle_create_template(&self.context, arguments).await
+            }
+            "package_validate_definition" => {
+                package_create::handle_validate_definition(&self.context, arguments).await
+            }
+            "package_suggest_dependencies" => {
+                package_create::handle_suggest_dependencies(&self.context, arguments).await
+            }
+            "package_suggest_use_flags" => {
+                package_create::handle_suggest_use_flags(&self.context, arguments).await
+            }
+            "package_convert_ebuild" => {
+                package_create::handle_convert_ebuild(&self.context, arguments).await
+            }
+            "package_get_examples" => {
+                package_create::handle_get_examples(&self.context, arguments).await
             }
             _ => Err(McpError::MethodNotFound(format!(
                 "Unknown tool: {}",

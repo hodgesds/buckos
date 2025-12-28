@@ -42,6 +42,13 @@ pub fn get_all_tools(exec_context: &ExecutionContext) -> Vec<ToolDefinition> {
         tool_spec_validate_system(exec_context),
         tool_spec_validate_use_flags(exec_context),
         tool_spec_validate_package_set(exec_context),
+        // Package creation tools
+        tool_package_create_template(exec_context),
+        tool_package_validate_definition(exec_context),
+        tool_package_suggest_dependencies(exec_context),
+        tool_package_suggest_use_flags(exec_context),
+        tool_package_convert_ebuild(exec_context),
+        tool_package_get_examples(exec_context),
     ]
 }
 
@@ -332,6 +339,209 @@ fn tool_spec_validate_package_set(exec_context: &ExecutionContext) -> ToolDefini
                 }
             },
             "required": ["set_name"]
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_package_create_template(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("package_create_template", exec_context);
+
+    ToolDefinition {
+        name: "package_create_template".to_string(),
+        description: "Generate a BUCK file template for creating a new BuckOS package. Supports different package types (simple, autotools, cmake, meson, cargo, go, python) and generates appropriate structure based on build system.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "package_name": {
+                    "type": "string",
+                    "description": "Name of the package (e.g., 'vim', 'nginx')",
+                    "minLength": 1
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Package category (e.g., 'editors', 'www-servers', 'dev-lang')",
+                    "minLength": 1
+                },
+                "package_type": {
+                    "type": "string",
+                    "description": "Type of package to create based on build system",
+                    "enum": ["simple", "autotools", "cmake", "meson", "cargo", "go", "python"],
+                    "default": "simple"
+                },
+                "version": {
+                    "type": "string",
+                    "description": "Package version (e.g., '9.0.1', '1.2.3')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Brief description of the package"
+                },
+                "homepage": {
+                    "type": "string",
+                    "description": "Package homepage URL"
+                },
+                "license": {
+                    "type": "string",
+                    "description": "Package license (e.g., 'MIT', 'GPL-2', 'Apache-2.0')"
+                }
+            },
+            "required": ["package_name", "category"]
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_package_validate_definition(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("package_validate_definition", exec_context);
+
+    ToolDefinition {
+        name: "package_validate_definition".to_string(),
+        description: "Validate a package BUCK file definition against BuckOS specifications. Checks syntax, required fields, USE flags, dependencies, and conformance to SPEC-001.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "buck_content": {
+                    "type": "string",
+                    "description": "Content of the BUCK file to validate"
+                },
+                "package_path": {
+                    "type": "string",
+                    "description": "Optional path to BUCK file to validate (alternative to buck_content)"
+                }
+            }
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_package_suggest_dependencies(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("package_suggest_dependencies", exec_context);
+
+    ToolDefinition {
+        name: "package_suggest_dependencies".to_string(),
+        description: "Suggest likely dependencies for a package based on package type, build system, and common patterns. Uses package category and build tools to recommend dependencies.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "package_name": {
+                    "type": "string",
+                    "description": "Name of the package"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Package category (e.g., 'dev-lang', 'www-servers')"
+                },
+                "package_type": {
+                    "type": "string",
+                    "description": "Package type based on build system",
+                    "enum": ["simple", "autotools", "cmake", "meson", "cargo", "go", "python"],
+                    "default": "simple"
+                },
+                "build_system": {
+                    "type": "string",
+                    "description": "Build system used (for informational purposes)"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Package description (helps identify likely dependencies)"
+                }
+            },
+            "required": ["package_name"]
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_package_suggest_use_flags(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("package_suggest_use_flags", exec_context);
+
+    ToolDefinition {
+        name: "package_suggest_use_flags".to_string(),
+        description: "Suggest appropriate USE flags for a package based on its type and common optional features. Follows SPEC-002 USE flag conventions.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "package_name": {
+                    "type": "string",
+                    "description": "Name of the package"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Package category"
+                },
+                "package_type": {
+                    "type": "string",
+                    "description": "Package type based on build system",
+                    "enum": ["simple", "autotools", "cmake", "meson", "cargo", "go", "python"],
+                    "default": "simple"
+                },
+                "features": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Known optional features of the package"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Package description"
+                }
+            },
+            "required": ["package_name"]
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_package_convert_ebuild(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("package_convert_ebuild", exec_context);
+
+    ToolDefinition {
+        name: "package_convert_ebuild".to_string(),
+        description: "Help convert a Gentoo ebuild to BuckOS package format. Analyzes ebuild structure and generates equivalent BUCK file with USE flags, dependencies, and build instructions.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "ebuild_content": {
+                    "type": "string",
+                    "description": "Content of the Gentoo ebuild file"
+                },
+                "ebuild_path": {
+                    "type": "string",
+                    "description": "Optional path to ebuild file (alternative to ebuild_content)"
+                },
+                "analyze_only": {
+                    "type": "boolean",
+                    "description": "If true, only analyze the ebuild without generating BUCK file",
+                    "default": false
+                }
+            }
+        }),
+        available,
+        reason,
+    }
+}
+
+fn tool_package_get_examples(exec_context: &ExecutionContext) -> ToolDefinition {
+    let (available, reason) = check_availability("package_get_examples", exec_context);
+
+    ToolDefinition {
+        name: "package_get_examples".to_string(),
+        description: "Get example package definitions and templates from buckos-build. Shows real-world examples of different package types (simple_package, autotools_package, cmake_package, meson_package, cargo_package, go_package, python_package) and macro definitions.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "package_type": {
+                    "type": "string",
+                    "description": "Package type to get template/example for",
+                    "enum": ["simple", "autotools", "cmake", "meson", "cargo", "go", "python"],
+                    "default": "simple"
+                }
+            }
         }),
         available,
         reason,
