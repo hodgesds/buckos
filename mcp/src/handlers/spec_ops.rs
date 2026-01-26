@@ -123,7 +123,7 @@ pub async fn handle_spec_info(_ctx: &McpServerContext, args: Value) -> Result<Va
 }
 
 /// Handle spec_validate_system tool
-pub async fn handle_spec_validate_system(ctx: &McpServerContext, args: Value) -> Result<Value> {
+pub async fn handle_spec_validate_system(_ctx: &McpServerContext, args: Value) -> Result<Value> {
     let profile = args["profile"].as_str();
     let check_dependencies = args["check_dependencies"].as_bool().unwrap_or(true);
     let check_use_flags = args["check_use_flags"].as_bool().unwrap_or(true);
@@ -188,7 +188,7 @@ pub async fn handle_spec_validate_system(ctx: &McpServerContext, args: Value) ->
 }
 
 /// Handle spec_validate_use_flags tool
-pub async fn handle_spec_validate_use_flags(ctx: &McpServerContext, args: Value) -> Result<Value> {
+pub async fn handle_spec_validate_use_flags(_ctx: &McpServerContext, args: Value) -> Result<Value> {
     let package = args["package"].as_str();
     let use_flags = args["use_flags"].as_array();
     let profile = args["profile"].as_str();
@@ -258,7 +258,7 @@ pub async fn handle_spec_validate_use_flags(ctx: &McpServerContext, args: Value)
 
 /// Handle spec_validate_package_set tool
 pub async fn handle_spec_validate_package_set(
-    ctx: &McpServerContext,
+    _ctx: &McpServerContext,
     args: Value,
 ) -> Result<Value> {
     let set_name = args["set_name"]

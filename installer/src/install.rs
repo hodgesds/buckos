@@ -4,6 +4,7 @@ use crate::system;
 use crate::types::{
     AudioSubsystem, DesktopEnvironment, FilesystemType, GpuVendor, InitSystem, InstallConfig,
     InstallProfile, InstallProgress, MountPoint, NetworkInterfaceType, PartitionConfig,
+    SystemLimitsConfig,
 };
 use std::path::PathBuf;
 use std::process::Command;
@@ -803,6 +804,53 @@ fn generate_fstab(
     }
 
     std::fs::write(&fstab_path, fstab_content)?;
+    Ok(())
+}
+
+/// Configure system limits (ulimits and sysctl)
+fn configure_system_limits(
+    target_root: &std::path::Path,
+    limits_config: &SystemLimitsConfig,
+) -> anyhow::Result<()> {
+    // Create limits.d directory
+    if limits_config.apply_ulimits {
+        let limits_dir = target_root.join("etc/security/limits.d");
+        std::fs::create_dir_all(&limits_dir)?;
+
+        let limits_path = limits_dir.join("99-buckos.conf");
+        let limits_content = system::generate_limits_conf(limits_config);
+        std::fs::write(&limits_path, limits_content)?;
+        tracing::info!("Generated /etc/security/limits.d/99-buckos.conf");
+
+        // Also create an audio group if realtime audio is enabled
+        if limits_config.enable_realtime_audio {
+            let group_path = target_root.join("etc/group");
+            if let Ok(group_content) = std::fs::read_to_string(&group_path) {
+                if !group_content.contains("audio:") {
+                    // Add audio group if it doesn't exist
+                    let mut new_content = group_content;
+                    if !new_content.ends_with('\n') {
+                        new_content.push('\n');
+                    }
+                    new_content.push_str("audio:x:18:\n");
+                    std::fs::write(&group_path, new_content)?;
+                    tracing::info!("Added audio group for realtime scheduling");
+                }
+            }
+        }
+    }
+
+    // Create sysctl.d directory
+    if limits_config.apply_sysctl {
+        let sysctl_dir = target_root.join("etc/sysctl.d");
+        std::fs::create_dir_all(&sysctl_dir)?;
+
+        let sysctl_path = sysctl_dir.join("99-buckos.conf");
+        let sysctl_content = system::generate_sysctl_conf(limits_config);
+        std::fs::write(&sysctl_path, sysctl_content)?;
+        tracing::info!("Generated /etc/sysctl.d/99-buckos.conf");
+    }
+
     Ok(())
 }
 
@@ -2545,6 +2593,23 @@ rootfs(
             1.0,
             "✓ Configured init system",
         );
+
+        // Configure system limits (ulimits and sysctl)
+        update_progress(
+            "System configuration",
+            0.915,
+            0.0,
+            "Configuring system limits...",
+        );
+        configure_system_limits(&config.target_root, &config.system_limits)?;
+        if config.system_limits.apply_ulimits || config.system_limits.apply_sysctl {
+            update_progress(
+                "System configuration",
+                0.92,
+                1.0,
+                "✓ Configured system limits",
+            );
+        }
 
         // Generate /etc/buckos/buckos.toml for package manager on target system
         let buckos_config_dir = config.target_root.join("etc/buckos");

@@ -9,7 +9,7 @@ use crate::system;
 use crate::types::{
     AudioSubsystem, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType, FilesystemType,
     HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InstallConfig, InstallProfile,
-    InstallProgress, InstallStep, KernelChannel,
+    InstallProgress, InstallStep, KernelChannel, SystemLimitsConfig,
 };
 
 /// Main installer application state
@@ -61,6 +61,9 @@ struct UiState {
     encryption_type: EncryptionType,
     encryption_passphrase: String,
     confirm_encryption_passphrase: String,
+
+    // System tuning
+    system_limits: SystemLimitsConfig,
 
     // User setup
     new_username: String,
@@ -114,6 +117,7 @@ impl Default for UiState {
             encryption_type: EncryptionType::None,
             encryption_passphrase: String::new(),
             confirm_encryption_passphrase: String::new(),
+            system_limits: SystemLimitsConfig::default(),
             new_username: String::new(),
             new_fullname: String::new(),
             new_password: String::new(),
@@ -162,8 +166,15 @@ impl InstallerApp {
         ui_state.timezones = system::get_timezones();
         ui_state.locales = system::get_locales();
         ui_state.keyboards = system::get_keyboard_layouts();
-        ui_state.hardware_info = hardware_info;
+        ui_state.hardware_info = hardware_info.clone();
         ui_state.hardware_suggestions = hardware_suggestions;
+
+        // Initialize system limits based on detected hardware and default profile
+        ui_state.system_limits = system::detect_system_limits(
+            &hardware_info,
+            &config.profile,
+            &config.audio_subsystem,
+        );
 
         // Auto-detect handheld device
         if let Some(device) = system::detect_handheld_device() {
@@ -217,6 +228,7 @@ impl InstallerApp {
                 disk_ok && enc_ok
             }
             InstallStep::Bootloader => true,
+            InstallStep::SystemTuning => true,
             InstallStep::UserSetup => {
                 // Need root password
                 !self.ui_state.root_password.is_empty()
@@ -335,6 +347,10 @@ impl InstallerApp {
             }
             InstallStep::Bootloader => {
                 // Bootloader is set directly in UI, nothing to validate
+            }
+            InstallStep::SystemTuning => {
+                // Copy system limits config to main config
+                self.config.system_limits = self.ui_state.system_limits.clone();
             }
             InstallStep::UserSetup => {
                 if self.ui_state.root_password.is_empty() {
@@ -545,6 +561,11 @@ impl eframe::App for InstallerApp {
                     ui,
                     &mut self.config.bootloader,
                     system::is_efi_system(),
+                ),
+                InstallStep::SystemTuning => steps::render_system_tuning(
+                    ui,
+                    &mut self.ui_state.system_limits,
+                    &self.system_info,
                 ),
                 InstallStep::UserSetup => steps::render_user_setup(
                     ui,

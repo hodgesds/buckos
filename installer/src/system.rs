@@ -8,6 +8,7 @@ use sysinfo::{Disks, System};
 use crate::types::{
     AudioDeviceInfo, DiskInfo, GpuInfo, GpuVendor, HardwareInfo, HardwarePackageSuggestion,
     NetworkInterfaceInfo, NetworkInterfaceType, PartitionInfo, PowerProfile, StorageControllerType,
+    SystemLimitsConfig, SystemTuningProfile, SysctlConfig, UlimitConfig,
 };
 
 /// Required tools for installation
@@ -1088,6 +1089,484 @@ pub fn detect_handheld_device() -> Option<crate::types::HandheldDevice> {
     }
 
     None
+}
+
+/// Detect system capabilities and generate appropriate system limits configuration
+pub fn detect_system_limits(
+    hardware: &HardwareInfo,
+    profile: &crate::types::InstallProfile,
+    audio_subsystem: &crate::types::AudioSubsystem,
+) -> SystemLimitsConfig {
+    let sys_info = get_system_info();
+    let total_ram_gb = sys_info.total_memory / (1024 * 1024 * 1024);
+    let cpu_count = sys_info.cpu_count;
+
+    // Detect if this is an embedded/resource-constrained device
+    let is_embedded = total_ram_gb < 2 || cpu_count <= 2;
+
+    // VMs typically need lower limits
+    let is_vm = hardware.is_virtual_machine;
+
+    // Determine the best tuning profile based on install profile and hardware
+    let tuning_profile = match profile {
+        crate::types::InstallProfile::Server => {
+            if is_vm {
+                // VMs get slightly lower limits
+                SystemTuningProfile::Desktop
+            } else {
+                SystemTuningProfile::Server
+            }
+        }
+        crate::types::InstallProfile::Minimal => {
+            if is_embedded {
+                SystemTuningProfile::Embedded
+            } else {
+                SystemTuningProfile::Desktop
+            }
+        }
+        crate::types::InstallProfile::Desktop(_) | crate::types::InstallProfile::Handheld(_) => {
+            if is_embedded {
+                SystemTuningProfile::Embedded
+            } else {
+                SystemTuningProfile::Desktop
+            }
+        }
+        crate::types::InstallProfile::Custom => SystemTuningProfile::Auto,
+    };
+
+    generate_system_limits(&tuning_profile, total_ram_gb, cpu_count, audio_subsystem)
+}
+
+/// Generate system limits configuration based on profile and hardware
+pub fn generate_system_limits(
+    profile: &SystemTuningProfile,
+    total_ram_gb: u64,
+    cpu_count: usize,
+    audio_subsystem: &crate::types::AudioSubsystem,
+) -> SystemLimitsConfig {
+    let mut config = SystemLimitsConfig::default();
+    config.profile = *profile;
+
+    // Enable audio-related settings for PipeWire
+    let enable_audio = matches!(
+        audio_subsystem,
+        crate::types::AudioSubsystem::PipeWire | crate::types::AudioSubsystem::PulseAudio
+    );
+    config.enable_realtime_audio = enable_audio;
+    config.enable_audio_memlock = enable_audio;
+
+    // Calculate RAM-based limits
+    let ram_kb = total_ram_gb * 1024 * 1024;
+
+    // Calculate threads-max based on CPU count (roughly 8k threads per core)
+    let threads_max = (cpu_count as u64) * 8192;
+
+    match profile {
+        SystemTuningProfile::Embedded => {
+            // Conservative settings for resource-constrained devices
+            config.ulimit = UlimitConfig {
+                nofile_soft: 1024,
+                nofile_hard: 4096,
+                nproc_soft: 512,
+                nproc_hard: 2048,
+                memlock_soft: 8192,
+                memlock_hard: 16384,
+                core_soft: 0,
+                core_hard: 0, // Disable core dumps
+                stack_soft: 8192,
+                stack_hard: 16384,
+                rtprio_soft: 0,
+                rtprio_hard: 0,
+                nice_soft: 0,
+                nice_hard: 0,
+            };
+            config.sysctl = SysctlConfig {
+                vm_swappiness: 60,
+                vm_dirty_ratio: 40,
+                vm_dirty_background_ratio: 10,
+                vm_vfs_cache_pressure: 200, // Reclaim cache aggressively
+                vm_max_map_count: 65530,
+                vm_overcommit_memory: 0,
+                fs_file_max: 65536,
+                fs_inotify_max_user_watches: 8192,
+                fs_inotify_max_user_instances: 128,
+                fs_aio_max_nr: 65536,
+                net_core_somaxconn: 128,
+                net_core_netdev_max_backlog: 1000,
+                net_core_rmem_max: 212992,
+                net_core_wmem_max: 212992,
+                net_ipv4_tcp_max_syn_backlog: 128,
+                net_ipv4_tcp_tw_reuse: true,
+                net_ipv4_ip_local_port_range: (32768, 60999),
+                kernel_pid_max: 32768,
+                kernel_threads_max: threads_max,
+                kernel_sched_autogroup_enabled: false,
+            };
+        }
+        SystemTuningProfile::Desktop | SystemTuningProfile::Auto => {
+            // Balanced settings for desktop use
+            config.ulimit = UlimitConfig {
+                nofile_soft: 8192,
+                nofile_hard: 524288,
+                nproc_soft: 4096,
+                nproc_hard: 65536,
+                // mlock: Allow locking up to 50% of RAM for audio/gaming
+                memlock_soft: if enable_audio {
+                    ram_kb / 2
+                } else {
+                    65536
+                },
+                memlock_hard: ram_kb / 2,
+                core_soft: 0,
+                core_hard: u64::MAX,
+                stack_soft: 8192,
+                stack_hard: u64::MAX,
+                rtprio_soft: if enable_audio { 95 } else { 0 },
+                rtprio_hard: 99,
+                nice_soft: 0,
+                nice_hard: -20,
+            };
+            config.sysctl = SysctlConfig {
+                vm_swappiness: 10, // Prefer RAM over swap for desktop
+                vm_dirty_ratio: 20,
+                vm_dirty_background_ratio: 5,
+                vm_vfs_cache_pressure: 50, // Cache more aggressively
+                vm_max_map_count: 1048576, // Higher for modern apps
+                vm_overcommit_memory: 0,
+                fs_file_max: 2097152,
+                fs_inotify_max_user_watches: 524288,
+                fs_inotify_max_user_instances: 1024,
+                fs_aio_max_nr: 1048576,
+                net_core_somaxconn: 4096,
+                net_core_netdev_max_backlog: 5000,
+                net_core_rmem_max: 16777216,
+                net_core_wmem_max: 16777216,
+                net_ipv4_tcp_max_syn_backlog: 4096,
+                net_ipv4_tcp_tw_reuse: true,
+                net_ipv4_ip_local_port_range: (1024, 65535),
+                kernel_pid_max: 4194304,
+                kernel_threads_max: threads_max,
+                kernel_sched_autogroup_enabled: true, // Better desktop responsiveness
+            };
+        }
+        SystemTuningProfile::Server => {
+            // Optimized for network services and I/O
+            config.ulimit = UlimitConfig {
+                nofile_soft: 65536,
+                nofile_hard: 1048576,
+                nproc_soft: 65536,
+                nproc_hard: 4194304,
+                memlock_soft: ram_kb / 4,
+                memlock_hard: ram_kb / 2,
+                core_soft: u64::MAX, // Enable core dumps for debugging
+                core_hard: u64::MAX,
+                stack_soft: 8192,
+                stack_hard: u64::MAX,
+                rtprio_soft: 0,
+                rtprio_hard: 99,
+                nice_soft: 0,
+                nice_hard: -20,
+            };
+            config.sysctl = SysctlConfig {
+                vm_swappiness: 1, // Almost never swap
+                vm_dirty_ratio: 40,
+                vm_dirty_background_ratio: 5,
+                vm_vfs_cache_pressure: 50,
+                vm_max_map_count: 2097152,
+                vm_overcommit_memory: 0,
+                fs_file_max: 4194304,
+                fs_inotify_max_user_watches: 1048576,
+                fs_inotify_max_user_instances: 2048,
+                fs_aio_max_nr: 2097152,
+                net_core_somaxconn: 65535,
+                net_core_netdev_max_backlog: 65535,
+                net_core_rmem_max: 67108864,
+                net_core_wmem_max: 67108864,
+                net_ipv4_tcp_max_syn_backlog: 65535,
+                net_ipv4_tcp_tw_reuse: true,
+                net_ipv4_ip_local_port_range: (1024, 65535),
+                kernel_pid_max: 4194304,
+                kernel_threads_max: threads_max,
+                kernel_sched_autogroup_enabled: false, // Disable for servers
+            };
+        }
+        SystemTuningProfile::Development => {
+            // High limits for compilers, IDEs, and build tools
+            config.ulimit = UlimitConfig {
+                nofile_soft: 65536,
+                nofile_hard: 1048576,
+                nproc_soft: 65536,
+                nproc_hard: 4194304,
+                memlock_soft: ram_kb / 2,
+                memlock_hard: ram_kb,
+                core_soft: u64::MAX,
+                core_hard: u64::MAX,
+                stack_soft: 16384, // Larger stack for deep recursion
+                stack_hard: u64::MAX,
+                rtprio_soft: if enable_audio { 95 } else { 0 },
+                rtprio_hard: 99,
+                nice_soft: 0,
+                nice_hard: -20,
+            };
+            config.sysctl = SysctlConfig {
+                vm_swappiness: 10,
+                vm_dirty_ratio: 20,
+                vm_dirty_background_ratio: 5,
+                vm_vfs_cache_pressure: 50,
+                vm_max_map_count: 2097152, // Very high for large builds
+                vm_overcommit_memory: 1,   // Allow overcommit for builds
+                fs_file_max: 4194304,
+                fs_inotify_max_user_watches: 1048576, // IDEs need many watches
+                fs_inotify_max_user_instances: 2048,
+                fs_aio_max_nr: 2097152,
+                net_core_somaxconn: 4096,
+                net_core_netdev_max_backlog: 5000,
+                net_core_rmem_max: 16777216,
+                net_core_wmem_max: 16777216,
+                net_ipv4_tcp_max_syn_backlog: 4096,
+                net_ipv4_tcp_tw_reuse: true,
+                net_ipv4_ip_local_port_range: (1024, 65535),
+                kernel_pid_max: 4194304,
+                kernel_threads_max: threads_max,
+                kernel_sched_autogroup_enabled: true,
+            };
+        }
+        SystemTuningProfile::Database => {
+            // Optimized for database workloads
+            config.ulimit = UlimitConfig {
+                nofile_soft: 65536,
+                nofile_hard: 1048576,
+                nproc_soft: 65536,
+                nproc_hard: 4194304,
+                // Databases need lots of mlock for shared buffers
+                memlock_soft: ram_kb * 3 / 4,
+                memlock_hard: ram_kb,
+                core_soft: u64::MAX,
+                core_hard: u64::MAX,
+                stack_soft: 8192,
+                stack_hard: u64::MAX,
+                rtprio_soft: 0,
+                rtprio_hard: 99,
+                nice_soft: 0,
+                nice_hard: -20,
+            };
+            config.sysctl = SysctlConfig {
+                vm_swappiness: 1,
+                vm_dirty_ratio: 80,           // High for write-heavy workloads
+                vm_dirty_background_ratio: 5, // But flush early in background
+                vm_vfs_cache_pressure: 50,
+                vm_max_map_count: 2097152,
+                vm_overcommit_memory: 2, // Strict accounting for databases
+                fs_file_max: 4194304,
+                fs_inotify_max_user_watches: 524288,
+                fs_inotify_max_user_instances: 1024,
+                fs_aio_max_nr: 4194304, // High for async I/O
+                net_core_somaxconn: 65535,
+                net_core_netdev_max_backlog: 65535,
+                net_core_rmem_max: 67108864,
+                net_core_wmem_max: 67108864,
+                net_ipv4_tcp_max_syn_backlog: 65535,
+                net_ipv4_tcp_tw_reuse: true,
+                net_ipv4_ip_local_port_range: (1024, 65535),
+                kernel_pid_max: 4194304,
+                kernel_threads_max: threads_max,
+                kernel_sched_autogroup_enabled: false,
+            };
+        }
+        SystemTuningProfile::Custom => {
+            // Use defaults, user will customize
+        }
+    }
+
+    config
+}
+
+/// Generate limits.conf content for PAM
+pub fn generate_limits_conf(config: &SystemLimitsConfig) -> String {
+    let mut lines = vec![
+        "# /etc/security/limits.d/99-buckos.conf".to_string(),
+        "# Generated by BuckOS installer".to_string(),
+        "# See limits.conf(5) for details".to_string(),
+        "".to_string(),
+        "# File descriptor limits".to_string(),
+        format!("*               soft    nofile          {}", config.ulimit.nofile_soft),
+        format!("*               hard    nofile          {}", config.ulimit.nofile_hard),
+        format!("root            soft    nofile          {}", config.ulimit.nofile_hard),
+        format!("root            hard    nofile          {}", config.ulimit.nofile_hard),
+        "".to_string(),
+        "# Process limits".to_string(),
+        format!("*               soft    nproc           {}", config.ulimit.nproc_soft),
+        format!("*               hard    nproc           {}", config.ulimit.nproc_hard),
+        "".to_string(),
+        "# Memory locking (for mlock)".to_string(),
+    ];
+
+    // Handle unlimited memlock
+    if config.ulimit.memlock_hard == u64::MAX {
+        lines.push("*               soft    memlock         unlimited".to_string());
+        lines.push("*               hard    memlock         unlimited".to_string());
+    } else {
+        lines.push(format!(
+            "*               soft    memlock         {}",
+            config.ulimit.memlock_soft
+        ));
+        lines.push(format!(
+            "*               hard    memlock         {}",
+            config.ulimit.memlock_hard
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("# Core dump limits".to_string());
+    if config.ulimit.core_hard == u64::MAX {
+        lines.push(format!(
+            "*               soft    core            {}",
+            if config.ulimit.core_soft == u64::MAX {
+                "unlimited".to_string()
+            } else {
+                config.ulimit.core_soft.to_string()
+            }
+        ));
+        lines.push("*               hard    core            unlimited".to_string());
+    } else {
+        lines.push(format!(
+            "*               soft    core            {}",
+            config.ulimit.core_soft
+        ));
+        lines.push(format!(
+            "*               hard    core            {}",
+            config.ulimit.core_hard
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("# Stack size (KB)".to_string());
+    if config.ulimit.stack_hard == u64::MAX {
+        lines.push(format!(
+            "*               soft    stack           {}",
+            config.ulimit.stack_soft
+        ));
+        lines.push("*               hard    stack           unlimited".to_string());
+    } else {
+        lines.push(format!(
+            "*               soft    stack           {}",
+            config.ulimit.stack_soft
+        ));
+        lines.push(format!(
+            "*               hard    stack           {}",
+            config.ulimit.stack_hard
+        ));
+    }
+
+    // Real-time audio settings
+    if config.enable_realtime_audio {
+        lines.push("".to_string());
+        lines.push("# Real-time audio settings (for PipeWire/JACK)".to_string());
+        lines.push(format!(
+            "@audio          soft    rtprio          {}",
+            config.ulimit.rtprio_soft
+        ));
+        lines.push(format!(
+            "@audio          hard    rtprio          {}",
+            config.ulimit.rtprio_hard
+        ));
+        lines.push(format!(
+            "@audio          soft    nice            {}",
+            config.ulimit.nice_soft
+        ));
+        lines.push(format!(
+            "@audio          hard    nice            {}",
+            config.ulimit.nice_hard
+        ));
+        if config.enable_audio_memlock && config.ulimit.memlock_hard > 65536 {
+            lines.push(format!(
+                "@audio          soft    memlock         {}",
+                config.ulimit.memlock_soft
+            ));
+            lines.push(format!(
+                "@audio          hard    memlock         {}",
+                config.ulimit.memlock_hard
+            ));
+        }
+    }
+
+    lines.push("".to_string());
+    lines.join("\n")
+}
+
+/// Generate sysctl.conf content
+pub fn generate_sysctl_conf(config: &SystemLimitsConfig) -> String {
+    let sysctl = &config.sysctl;
+    let mut lines = vec![
+        "# /etc/sysctl.d/99-buckos.conf".to_string(),
+        "# Generated by BuckOS installer".to_string(),
+        "# See sysctl.conf(5) for details".to_string(),
+        "".to_string(),
+        "# Virtual Memory Settings".to_string(),
+        format!("vm.swappiness = {}", sysctl.vm_swappiness),
+        format!("vm.dirty_ratio = {}", sysctl.vm_dirty_ratio),
+        format!(
+            "vm.dirty_background_ratio = {}",
+            sysctl.vm_dirty_background_ratio
+        ),
+        format!("vm.vfs_cache_pressure = {}", sysctl.vm_vfs_cache_pressure),
+        format!("vm.max_map_count = {}", sysctl.vm_max_map_count),
+        format!("vm.overcommit_memory = {}", sysctl.vm_overcommit_memory),
+        "".to_string(),
+        "# File System Settings".to_string(),
+        format!("fs.file-max = {}", sysctl.fs_file_max),
+        format!(
+            "fs.inotify.max_user_watches = {}",
+            sysctl.fs_inotify_max_user_watches
+        ),
+        format!(
+            "fs.inotify.max_user_instances = {}",
+            sysctl.fs_inotify_max_user_instances
+        ),
+        format!("fs.aio-max-nr = {}", sysctl.fs_aio_max_nr),
+        "".to_string(),
+        "# Network Core Settings".to_string(),
+        format!("net.core.somaxconn = {}", sysctl.net_core_somaxconn),
+        format!(
+            "net.core.netdev_max_backlog = {}",
+            sysctl.net_core_netdev_max_backlog
+        ),
+        format!("net.core.rmem_max = {}", sysctl.net_core_rmem_max),
+        format!("net.core.wmem_max = {}", sysctl.net_core_wmem_max),
+        "".to_string(),
+        "# TCP Settings".to_string(),
+        format!(
+            "net.ipv4.tcp_max_syn_backlog = {}",
+            sysctl.net_ipv4_tcp_max_syn_backlog
+        ),
+        format!(
+            "net.ipv4.tcp_tw_reuse = {}",
+            if sysctl.net_ipv4_tcp_tw_reuse { 1 } else { 0 }
+        ),
+        format!(
+            "net.ipv4.ip_local_port_range = {} {}",
+            sysctl.net_ipv4_ip_local_port_range.0, sysctl.net_ipv4_ip_local_port_range.1
+        ),
+        "".to_string(),
+        "# Kernel Settings".to_string(),
+        format!("kernel.pid_max = {}", sysctl.kernel_pid_max),
+        format!(
+            "kernel.sched_autogroup_enabled = {}",
+            if sysctl.kernel_sched_autogroup_enabled {
+                1
+            } else {
+                0
+            }
+        ),
+    ];
+
+    // Only set threads-max if not auto (0)
+    if sysctl.kernel_threads_max > 0 {
+        lines.push(format!("kernel.threads-max = {}", sysctl.kernel_threads_max));
+    }
+
+    lines.push("".to_string());
+    lines.join("\n")
 }
 
 #[cfg(test)]

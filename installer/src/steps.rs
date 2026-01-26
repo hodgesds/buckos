@@ -6,7 +6,8 @@ use crate::system::{self, SystemInfo};
 use crate::types::{
     AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType,
     HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InitSystem, InstallConfig,
-    InstallProfile, InstallProgress, KernelChannel, NetworkInterfaceType, UserConfig,
+    InstallProfile, InstallProgress, KernelChannel, NetworkInterfaceType, SystemLimitsConfig,
+    SystemTuningProfile, UserConfig,
 };
 
 /// Render the welcome step
@@ -472,6 +473,285 @@ pub fn render_bootloader(ui: &mut Ui, bootloader: &mut BootloaderType, is_efi: b
             });
         }
     }
+}
+
+/// Render the system tuning step
+pub fn render_system_tuning(
+    ui: &mut Ui,
+    system_limits: &mut SystemLimitsConfig,
+    system_info: &SystemInfo,
+) {
+    ui.label("Configure system resource limits and kernel tuning parameters.");
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(
+            "These settings optimize file handles, memory locking, and kernel parameters for your workload.",
+        )
+        .small()
+        .weak(),
+    );
+
+    ui.add_space(16.0);
+
+    // System info summary
+    ui.label(RichText::new("Detected Hardware").strong());
+    ui.indent("hw_summary", |ui| {
+        egui::Grid::new("hw_summary_grid")
+            .num_columns(2)
+            .spacing([20.0, 4.0])
+            .show(ui, |ui| {
+                ui.label("Total Memory:");
+                ui.label(system::format_size(system_info.total_memory));
+                ui.end_row();
+
+                ui.label("CPU Cores:");
+                ui.label(format!("{}", system_info.cpu_count));
+                ui.end_row();
+            });
+    });
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Tuning profile selection
+    ui.label(RichText::new("Tuning Profile").strong());
+    ui.add_space(4.0);
+
+    for profile in SystemTuningProfile::all() {
+        let is_selected = system_limits.profile == profile;
+        let response = ui.selectable_label(is_selected, RichText::new(profile.name()).strong());
+        if response.clicked() {
+            system_limits.profile = profile;
+            // Regenerate limits when profile changes
+            let total_ram_gb = system_info.total_memory / (1024 * 1024 * 1024);
+            let audio = if system_limits.enable_realtime_audio {
+                crate::types::AudioSubsystem::PipeWire
+            } else {
+                crate::types::AudioSubsystem::Alsa
+            };
+            let new_limits = system::generate_system_limits(
+                &profile,
+                total_ram_gb,
+                system_info.cpu_count,
+                &audio,
+            );
+            system_limits.ulimit = new_limits.ulimit;
+            system_limits.sysctl = new_limits.sysctl;
+        }
+        ui.indent("profile_desc", |ui| {
+            ui.label(RichText::new(profile.description()).small());
+        });
+        ui.add_space(4.0);
+    }
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Enable/disable toggles
+    ui.checkbox(&mut system_limits.apply_ulimits, "Apply ulimit configuration");
+    ui.indent("ulimit_desc", |ui| {
+        ui.label(
+            RichText::new("Sets file descriptor, process, and memory limits via /etc/security/limits.d/")
+                .small()
+                .weak(),
+        );
+    });
+
+    ui.add_space(4.0);
+    ui.checkbox(&mut system_limits.apply_sysctl, "Apply sysctl configuration");
+    ui.indent("sysctl_desc", |ui| {
+        ui.label(
+            RichText::new("Tunes kernel parameters via /etc/sysctl.d/")
+                .small()
+                .weak(),
+        );
+    });
+
+    ui.add_space(4.0);
+    ui.checkbox(
+        &mut system_limits.enable_realtime_audio,
+        "Enable real-time audio scheduling",
+    );
+    ui.indent("rt_audio_desc", |ui| {
+        ui.label(
+            RichText::new("Allows audio applications (PipeWire/JACK) to use real-time scheduling")
+                .small()
+                .weak(),
+        );
+    });
+
+    ui.add_space(16.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    // Key settings summary
+    ui.label(RichText::new("Key Settings").strong());
+    ui.add_space(4.0);
+
+    egui::Grid::new("limits_summary")
+        .num_columns(2)
+        .spacing([20.0, 4.0])
+        .show(ui, |ui| {
+            ui.label("Max Open Files:");
+            ui.label(format!(
+                "{} (soft) / {} (hard)",
+                system_limits.ulimit.nofile_soft, system_limits.ulimit.nofile_hard
+            ));
+            ui.end_row();
+
+            ui.label("Max Processes:");
+            ui.label(format!(
+                "{} (soft) / {} (hard)",
+                system_limits.ulimit.nproc_soft, system_limits.ulimit.nproc_hard
+            ));
+            ui.end_row();
+
+            ui.label("Memory Lock (KB):");
+            let memlock_str = if system_limits.ulimit.memlock_hard == u64::MAX {
+                "unlimited".to_string()
+            } else {
+                format!("{}", system_limits.ulimit.memlock_hard)
+            };
+            ui.label(memlock_str);
+            ui.end_row();
+
+            ui.label("Swappiness:");
+            ui.label(format!("{}", system_limits.sysctl.vm_swappiness));
+            ui.end_row();
+
+            ui.label("Max File Handles:");
+            ui.label(format!("{}", system_limits.sysctl.fs_file_max));
+            ui.end_row();
+
+            ui.label("Inotify Watches:");
+            ui.label(format!("{}", system_limits.sysctl.fs_inotify_max_user_watches));
+            ui.end_row();
+        });
+
+    ui.add_space(16.0);
+
+    // Advanced toggle
+    ui.collapsing("Advanced Settings", |ui| {
+        ui.add_space(8.0);
+        ui.label(RichText::new("ulimit Settings").strong());
+        ui.add_space(4.0);
+
+        egui::Grid::new("ulimit_advanced")
+            .num_columns(3)
+            .spacing([10.0, 4.0])
+            .show(ui, |ui| {
+                ui.label("Open Files (nofile):");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.ulimit.nofile_soft)
+                        .range(256..=u64::MAX)
+                        .prefix("soft: "),
+                );
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.ulimit.nofile_hard)
+                        .range(256..=u64::MAX)
+                        .prefix("hard: "),
+                );
+                ui.end_row();
+
+                ui.label("Processes (nproc):");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.ulimit.nproc_soft)
+                        .range(64..=u64::MAX)
+                        .prefix("soft: "),
+                );
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.ulimit.nproc_hard)
+                        .range(64..=u64::MAX)
+                        .prefix("hard: "),
+                );
+                ui.end_row();
+
+                ui.label("Memory Lock KB (memlock):");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.ulimit.memlock_soft)
+                        .range(0..=u64::MAX)
+                        .prefix("soft: "),
+                );
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.ulimit.memlock_hard)
+                        .range(0..=u64::MAX)
+                        .prefix("hard: "),
+                );
+                ui.end_row();
+
+                ui.label("Stack Size KB:");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.ulimit.stack_soft)
+                        .range(1024..=u64::MAX)
+                        .prefix("soft: "),
+                );
+                ui.end_row();
+            });
+
+        ui.add_space(16.0);
+        ui.label(RichText::new("sysctl Settings").strong());
+        ui.add_space(4.0);
+
+        egui::Grid::new("sysctl_advanced")
+            .num_columns(2)
+            .spacing([10.0, 4.0])
+            .show(ui, |ui| {
+                ui.label("vm.swappiness:");
+                ui.add(
+                    egui::Slider::new(&mut system_limits.sysctl.vm_swappiness, 0..=100)
+                        .text(""),
+                );
+                ui.end_row();
+
+                ui.label("vm.dirty_ratio:");
+                ui.add(
+                    egui::Slider::new(&mut system_limits.sysctl.vm_dirty_ratio, 1..=100)
+                        .text("%"),
+                );
+                ui.end_row();
+
+                ui.label("vm.vfs_cache_pressure:");
+                ui.add(
+                    egui::Slider::new(&mut system_limits.sysctl.vm_vfs_cache_pressure, 0..=500)
+                        .text(""),
+                );
+                ui.end_row();
+
+                ui.label("vm.max_map_count:");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.sysctl.vm_max_map_count)
+                        .range(65530..=16777216),
+                );
+                ui.end_row();
+
+                ui.label("fs.file-max:");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.sysctl.fs_file_max)
+                        .range(1024..=67108864),
+                );
+                ui.end_row();
+
+                ui.label("fs.inotify.max_user_watches:");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.sysctl.fs_inotify_max_user_watches)
+                        .range(8192..=4194304),
+                );
+                ui.end_row();
+
+                ui.label("net.core.somaxconn:");
+                ui.add(
+                    egui::DragValue::new(&mut system_limits.sysctl.net_core_somaxconn)
+                        .range(128..=65535),
+                );
+                ui.end_row();
+
+                ui.label("kernel.sched_autogroup:");
+                ui.checkbox(&mut system_limits.sysctl.kernel_sched_autogroup_enabled, "Enabled");
+                ui.end_row();
+            });
+    });
 }
 
 /// Render the profile selection step
