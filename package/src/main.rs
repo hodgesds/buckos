@@ -7,7 +7,7 @@ use buckos_package::{
     config::SyncType,
     overlay::{OverlayConfig, OverlayManager, OverlayQuality},
     BuildOptions, CleanOptions, Config, DepcleanOptions, EmergeOptions, InstallOptions,
-    PackageManager, RemoveOptions, Resolution, SyncOptions, UpdateOptions,
+    PackageManager, RemoveOptions, Resolution, UpdateOptions,
 };
 use clap::{Args, Parser, Subcommand};
 use console::style;
@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::process::ExitCode;
-use tracing::{error, info};
+use tracing::error;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]

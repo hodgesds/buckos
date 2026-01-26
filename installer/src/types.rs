@@ -540,6 +540,228 @@ pub enum PowerProfile {
     Server,
 }
 
+/// System tuning profile for resource limits and sysctl settings
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum SystemTuningProfile {
+    /// Automatic detection based on hardware
+    Auto,
+    /// Desktop workstation - balanced settings
+    Desktop,
+    /// Server - optimized for network and I/O
+    Server,
+    /// Development workstation - high file limits, relaxed security
+    Development,
+    /// Database server - optimized for memory-mapped I/O
+    Database,
+    /// Embedded/minimal - conservative resource usage
+    Embedded,
+    /// Custom - user-defined settings
+    Custom,
+}
+
+impl SystemTuningProfile {
+    pub fn name(&self) -> &'static str {
+        match self {
+            SystemTuningProfile::Auto => "Automatic",
+            SystemTuningProfile::Desktop => "Desktop",
+            SystemTuningProfile::Server => "Server",
+            SystemTuningProfile::Development => "Development",
+            SystemTuningProfile::Database => "Database",
+            SystemTuningProfile::Embedded => "Embedded/Minimal",
+            SystemTuningProfile::Custom => "Custom",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            SystemTuningProfile::Auto => "Automatically detect optimal settings based on hardware",
+            SystemTuningProfile::Desktop => "Balanced settings for desktop workstations",
+            SystemTuningProfile::Server => "Optimized for network services and I/O throughput",
+            SystemTuningProfile::Development => "High limits for compilers, IDEs, and build tools",
+            SystemTuningProfile::Database => "Optimized for database workloads with high memory usage",
+            SystemTuningProfile::Embedded => "Conservative settings for resource-constrained devices",
+            SystemTuningProfile::Custom => "Manually configure all system limits",
+        }
+    }
+
+    pub fn all() -> Vec<SystemTuningProfile> {
+        vec![
+            SystemTuningProfile::Auto,
+            SystemTuningProfile::Desktop,
+            SystemTuningProfile::Server,
+            SystemTuningProfile::Development,
+            SystemTuningProfile::Database,
+            SystemTuningProfile::Embedded,
+            SystemTuningProfile::Custom,
+        ]
+    }
+}
+
+impl Default for SystemTuningProfile {
+    fn default() -> Self {
+        SystemTuningProfile::Auto
+    }
+}
+
+/// ulimit configuration for process resource limits
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UlimitConfig {
+    /// Maximum number of open file descriptors (nofile)
+    pub nofile_soft: u64,
+    pub nofile_hard: u64,
+    /// Maximum number of processes per user (nproc)
+    pub nproc_soft: u64,
+    pub nproc_hard: u64,
+    /// Maximum locked memory in KB (memlock) - used for mlock()
+    pub memlock_soft: u64,
+    pub memlock_hard: u64,
+    /// Maximum size of core files in KB (core)
+    pub core_soft: u64,
+    pub core_hard: u64,
+    /// Maximum stack size in KB (stack)
+    pub stack_soft: u64,
+    pub stack_hard: u64,
+    /// Real-time priority (rtprio) - for audio applications
+    pub rtprio_soft: u64,
+    pub rtprio_hard: u64,
+    /// Maximum nice priority (nice)
+    pub nice_soft: i64,
+    pub nice_hard: i64,
+}
+
+impl Default for UlimitConfig {
+    fn default() -> Self {
+        Self {
+            nofile_soft: 1024,
+            nofile_hard: 524288,
+            nproc_soft: 4096,
+            nproc_hard: 65536,
+            memlock_soft: 65536,
+            memlock_hard: 65536,
+            core_soft: 0,
+            core_hard: u64::MAX,
+            stack_soft: 8192,
+            stack_hard: u64::MAX,
+            rtprio_soft: 0,
+            rtprio_hard: 99,
+            nice_soft: 0,
+            nice_hard: -20,
+        }
+    }
+}
+
+/// sysctl configuration for kernel tunable parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SysctlConfig {
+    // Virtual memory settings
+    /// vm.swappiness (0-100, lower = prefer RAM)
+    pub vm_swappiness: u32,
+    /// vm.dirty_ratio (percentage of RAM for dirty pages)
+    pub vm_dirty_ratio: u32,
+    /// vm.dirty_background_ratio (percentage for background writeback)
+    pub vm_dirty_background_ratio: u32,
+    /// vm.vfs_cache_pressure (100 = balanced, lower = cache dentries/inodes more)
+    pub vm_vfs_cache_pressure: u32,
+    /// vm.max_map_count (max memory map areas per process)
+    pub vm_max_map_count: u64,
+    /// vm.overcommit_memory (0=heuristic, 1=always, 2=never)
+    pub vm_overcommit_memory: u32,
+
+    // File system settings
+    /// fs.file-max (system-wide max open files)
+    pub fs_file_max: u64,
+    /// fs.inotify.max_user_watches
+    pub fs_inotify_max_user_watches: u64,
+    /// fs.inotify.max_user_instances
+    pub fs_inotify_max_user_instances: u64,
+    /// fs.aio-max-nr (max async I/O requests)
+    pub fs_aio_max_nr: u64,
+
+    // Network settings
+    /// net.core.somaxconn (max socket listen backlog)
+    pub net_core_somaxconn: u32,
+    /// net.core.netdev_max_backlog
+    pub net_core_netdev_max_backlog: u32,
+    /// net.core.rmem_max (max receive buffer)
+    pub net_core_rmem_max: u64,
+    /// net.core.wmem_max (max send buffer)
+    pub net_core_wmem_max: u64,
+    /// net.ipv4.tcp_max_syn_backlog
+    pub net_ipv4_tcp_max_syn_backlog: u32,
+    /// net.ipv4.tcp_tw_reuse
+    pub net_ipv4_tcp_tw_reuse: bool,
+    /// net.ipv4.ip_local_port_range (start, end)
+    pub net_ipv4_ip_local_port_range: (u32, u32),
+
+    // Kernel settings
+    /// kernel.pid_max
+    pub kernel_pid_max: u64,
+    /// kernel.threads-max
+    pub kernel_threads_max: u64,
+    /// kernel.sched_autogroup_enabled
+    pub kernel_sched_autogroup_enabled: bool,
+}
+
+impl Default for SysctlConfig {
+    fn default() -> Self {
+        Self {
+            vm_swappiness: 60,
+            vm_dirty_ratio: 20,
+            vm_dirty_background_ratio: 10,
+            vm_vfs_cache_pressure: 100,
+            vm_max_map_count: 65530,
+            vm_overcommit_memory: 0,
+            fs_file_max: 2097152,
+            fs_inotify_max_user_watches: 524288,
+            fs_inotify_max_user_instances: 512,
+            fs_aio_max_nr: 1048576,
+            net_core_somaxconn: 4096,
+            net_core_netdev_max_backlog: 5000,
+            net_core_rmem_max: 16777216,
+            net_core_wmem_max: 16777216,
+            net_ipv4_tcp_max_syn_backlog: 8192,
+            net_ipv4_tcp_tw_reuse: true,
+            net_ipv4_ip_local_port_range: (1024, 65535),
+            kernel_pid_max: 4194304,
+            kernel_threads_max: 0, // 0 = auto-detect based on RAM
+            kernel_sched_autogroup_enabled: true,
+        }
+    }
+}
+
+/// Complete system limits configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemLimitsConfig {
+    /// Selected tuning profile
+    pub profile: SystemTuningProfile,
+    /// Whether to apply ulimit configuration
+    pub apply_ulimits: bool,
+    /// Whether to apply sysctl configuration
+    pub apply_sysctl: bool,
+    /// ulimit settings
+    pub ulimit: UlimitConfig,
+    /// sysctl settings
+    pub sysctl: SysctlConfig,
+    /// Enable real-time audio group for PipeWire/JACK
+    pub enable_realtime_audio: bool,
+    /// Enable memlock for audio applications
+    pub enable_audio_memlock: bool,
+}
+
+impl Default for SystemLimitsConfig {
+    fn default() -> Self {
+        Self {
+            profile: SystemTuningProfile::Auto,
+            apply_ulimits: true,
+            apply_sysctl: true,
+            ulimit: UlimitConfig::default(),
+            sysctl: SysctlConfig::default(),
+            enable_realtime_audio: false,
+            enable_audio_memlock: false,
+        }
+    }
+}
+
 impl PowerProfile {
     pub fn packages(&self) -> Vec<&'static str> {
         match self {
@@ -944,6 +1166,8 @@ pub struct InstallConfig {
     pub kernel_config_fragment: Option<String>,
     /// Additional packages to install
     pub extra_packages: Vec<String>,
+    /// System limits and tuning configuration
+    pub system_limits: SystemLimitsConfig,
     /// Dry run mode
     pub dry_run: bool,
 }
@@ -988,6 +1212,7 @@ impl Default for InstallConfig {
             hardware_packages: Vec::new(),
             kernel_config_fragment: None,
             extra_packages: Vec::new(),
+            system_limits: SystemLimitsConfig::default(),
             dry_run: false,
         }
     }
@@ -1002,6 +1227,7 @@ pub enum InstallStep {
     KernelSelection,
     DiskSetup,
     Bootloader,
+    SystemTuning,
     UserSetup,
     NetworkSetup,
     Timezone,
@@ -1019,6 +1245,7 @@ impl InstallStep {
             InstallStep::KernelSelection => "Kernel Selection",
             InstallStep::DiskSetup => "Disk Setup",
             InstallStep::Bootloader => "Bootloader",
+            InstallStep::SystemTuning => "System Tuning",
             InstallStep::UserSetup => "User Setup",
             InstallStep::NetworkSetup => "Network Setup",
             InstallStep::Timezone => "Timezone & Locale",
@@ -1035,7 +1262,8 @@ impl InstallStep {
             InstallStep::ProfileSelection => Some(InstallStep::KernelSelection),
             InstallStep::KernelSelection => Some(InstallStep::DiskSetup),
             InstallStep::DiskSetup => Some(InstallStep::Bootloader),
-            InstallStep::Bootloader => Some(InstallStep::UserSetup),
+            InstallStep::Bootloader => Some(InstallStep::SystemTuning),
+            InstallStep::SystemTuning => Some(InstallStep::UserSetup),
             InstallStep::UserSetup => Some(InstallStep::NetworkSetup),
             InstallStep::NetworkSetup => Some(InstallStep::Timezone),
             InstallStep::Timezone => Some(InstallStep::Summary),
@@ -1053,7 +1281,8 @@ impl InstallStep {
             InstallStep::KernelSelection => Some(InstallStep::ProfileSelection),
             InstallStep::DiskSetup => Some(InstallStep::KernelSelection),
             InstallStep::Bootloader => Some(InstallStep::DiskSetup),
-            InstallStep::UserSetup => Some(InstallStep::Bootloader),
+            InstallStep::SystemTuning => Some(InstallStep::Bootloader),
+            InstallStep::UserSetup => Some(InstallStep::SystemTuning),
             InstallStep::NetworkSetup => Some(InstallStep::UserSetup),
             InstallStep::Timezone => Some(InstallStep::NetworkSetup),
             InstallStep::Summary => Some(InstallStep::Timezone),
@@ -1070,17 +1299,18 @@ impl InstallStep {
             InstallStep::KernelSelection => 3,
             InstallStep::DiskSetup => 4,
             InstallStep::Bootloader => 5,
-            InstallStep::UserSetup => 6,
-            InstallStep::NetworkSetup => 7,
-            InstallStep::Timezone => 8,
-            InstallStep::Summary => 9,
-            InstallStep::Installing => 10,
-            InstallStep::Complete => 11,
+            InstallStep::SystemTuning => 6,
+            InstallStep::UserSetup => 7,
+            InstallStep::NetworkSetup => 8,
+            InstallStep::Timezone => 9,
+            InstallStep::Summary => 10,
+            InstallStep::Installing => 11,
+            InstallStep::Complete => 12,
         }
     }
 
     pub fn total_steps() -> usize {
-        12
+        13
     }
 }
 
