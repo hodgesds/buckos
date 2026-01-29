@@ -39,9 +39,30 @@ impl Default for ServerConfig {
 
 impl ServerConfig {
     /// Load configuration from a file
-    pub fn load_from(_path: &str) -> Result<Self> {
-        // TODO: Implement configuration file loading
-        Ok(Self::default())
+    pub fn load_from(path: &str) -> Result<Self> {
+        let path = std::path::Path::new(path);
+
+        if !path.exists() {
+            // If config file doesn't exist, return defaults
+            return Ok(Self::default());
+        }
+
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| McpError::Internal(format!("Failed to read config file: {}", e)))?;
+
+        let config: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| McpError::Internal(format!("Failed to parse config file: {}", e)))?;
+
+        Ok(Self {
+            name: config["name"]
+                .as_str()
+                .unwrap_or("buckos-mcp")
+                .to_string(),
+            version: config["version"]
+                .as_str()
+                .unwrap_or(env!("CARGO_PKG_VERSION"))
+                .to_string(),
+        })
     }
 }
 
@@ -113,6 +134,7 @@ impl McpServer {
             "tools/list" => self.handle_tools_list().await,
             "tools/call" => self.handle_tool_call(request.params).await,
             "resources/list" => self.handle_resources_list().await,
+            "resources/read" => self.handle_resources_read(request.params).await,
             _ => Err(McpError::MethodNotFound(request.method.clone())),
         };
 
@@ -220,9 +242,172 @@ impl McpServer {
 
     /// Handle resources/list request
     async fn handle_resources_list(&self) -> Result<Value> {
-        // TODO: Implement resource listing
+        // Define available resources that clients can access
+        let resources = vec![
+            json!({
+                "uri": "buckos://config/make.conf",
+                "name": "System Configuration",
+                "description": "Main system configuration (make.conf)",
+                "mimeType": "application/json"
+            }),
+            json!({
+                "uri": "buckos://config/use",
+                "name": "USE Flags",
+                "description": "Global and per-package USE flag configuration",
+                "mimeType": "application/json"
+            }),
+            json!({
+                "uri": "buckos://config/repos",
+                "name": "Repositories",
+                "description": "Configured package repositories",
+                "mimeType": "application/json"
+            }),
+            json!({
+                "uri": "buckos://packages/installed",
+                "name": "Installed Packages",
+                "description": "List of currently installed packages",
+                "mimeType": "application/json"
+            }),
+            json!({
+                "uri": "buckos://packages/world",
+                "name": "World Set",
+                "description": "User-selected packages (@world set)",
+                "mimeType": "application/json"
+            }),
+            json!({
+                "uri": "buckos://specs/registry",
+                "name": "Specification Registry",
+                "description": "Available BuckOS specifications",
+                "mimeType": "application/json"
+            }),
+            json!({
+                "uri": "buckos://templates/list",
+                "name": "Package Templates",
+                "description": "Available package definition templates",
+                "mimeType": "application/json"
+            }),
+        ];
+
         Ok(json!({
-            "resources": []
+            "resources": resources
+        }))
+    }
+
+    /// Handle resources/read request
+    async fn handle_resources_read(&self, params: Option<Value>) -> Result<Value> {
+        let params =
+            params.ok_or_else(|| McpError::InvalidParams("Missing parameters".to_string()))?;
+
+        let uri = params["uri"]
+            .as_str()
+            .ok_or_else(|| McpError::InvalidParams("Missing 'uri' parameter".to_string()))?;
+
+        info!(uri = uri, "Reading resource");
+
+        // Parse the URI
+        let content = match uri {
+            "buckos://config/make.conf" => {
+                let config = buckos_config::load_system_config()
+                    .map_err(|e| McpError::Internal(format!("Failed to load config: {}", e)))?;
+                json!({
+                    "cflags": config.make_conf.cflags,
+                    "cxxflags": config.make_conf.cxxflags,
+                    "chost": config.make_conf.chost,
+                    "use_flags": config.make_conf.use_config.global,
+                    "features": config.make_conf.features.enabled,
+                    "makeopts": config.make_conf.makeopts,
+                })
+            }
+            "buckos://config/use" => {
+                let config = buckos_config::load_system_config()
+                    .map_err(|e| McpError::Internal(format!("Failed to load config: {}", e)))?;
+                json!({
+                    "global": config.make_conf.use_config.global,
+                    "expand": config.make_conf.use_config.expand,
+                })
+            }
+            "buckos://config/repos" => {
+                let config = buckos_config::load_system_config()
+                    .map_err(|e| McpError::Internal(format!("Failed to load config: {}", e)))?;
+                let repos: Vec<_> = config.repos.repos.iter().map(|(name, repo)| {
+                    json!({
+                        "name": name,
+                        "location": repo.location.to_string_lossy(),
+                        "sync_type": format!("{:?}", repo.sync_type),
+                        "priority": repo.priority,
+                    })
+                }).collect();
+                json!({ "repos": repos })
+            }
+            "buckos://packages/installed" => {
+                let packages = self.context.pm.list_installed().await?;
+                let result: Vec<Value> = packages
+                    .iter()
+                    .map(|pkg| {
+                        json!({
+                            "name": pkg.id.to_string(),
+                            "version": pkg.version,
+                            "category": pkg.id.category,
+                            "package": pkg.id.name
+                        })
+                    })
+                    .collect();
+                json!({ "packages": result, "count": result.len() })
+            }
+            "buckos://packages/world" => {
+                let config = buckos_config::load_system_config()
+                    .map_err(|e| McpError::Internal(format!("Failed to load config: {}", e)))?;
+                let world_set = config.sets.get("world");
+                let packages: Vec<String> = world_set
+                    .map(|s| s.atoms.iter().map(|a| a.to_string()).collect())
+                    .unwrap_or_default();
+                json!({
+                    "packages": packages,
+                    "count": packages.len(),
+                })
+            }
+            "buckos://specs/registry" => {
+                use crate::spec_registry::SpecRegistry;
+                let specs_path = std::env::var("BUCKOS_SPECS_PATH")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|_| std::path::PathBuf::from("/usr/share/buckos/specs"));
+                let registry = SpecRegistry::load(&specs_path)
+                    .map_err(|e| McpError::Internal(format!("Failed to load specs: {}", e)))?;
+                let specs = registry.list_specs(None, None);
+                json!({
+                    "specs": specs.iter().map(|s| json!({
+                        "id": s.id,
+                        "title": s.title,
+                        "status": s.status,
+                        "category": s.category,
+                    })).collect::<Vec<_>>(),
+                    "count": specs.len(),
+                })
+            }
+            "buckos://templates/list" => {
+                let templates = vec![
+                    "simple", "autotools", "cmake", "meson", "cargo", "go", "python"
+                ];
+                json!({
+                    "templates": templates,
+                    "count": templates.len(),
+                })
+            }
+            _ => {
+                return Err(McpError::InvalidParams(format!(
+                    "Unknown resource URI: {}",
+                    uri
+                )));
+            }
+        };
+
+        Ok(json!({
+            "contents": [{
+                "uri": uri,
+                "mimeType": "application/json",
+                "text": serde_json::to_string_pretty(&content)
+                    .map_err(|e| McpError::Internal(format!("Failed to serialize: {}", e)))?
+            }]
         }))
     }
 }

@@ -194,10 +194,16 @@ fn tool_config_show(exec_context: &ExecutionContext) -> ToolDefinition {
 
     ToolDefinition {
         name: "config_show".to_string(),
-        description: "Show current package manager configuration.".to_string(),
+        description: "Show current package manager configuration. Can display specific sections or an overview of all configuration.".to_string(),
         input_schema: json!({
             "type": "object",
-            "properties": {}
+            "properties": {
+                "section": {
+                    "type": "string",
+                    "description": "Configuration section to display. If not specified, shows an overview.",
+                    "enum": ["make_conf", "use", "features", "repos", "profile", "all"]
+                }
+            }
         }),
         available,
         reason,
@@ -537,8 +543,8 @@ fn tool_package_get_examples(exec_context: &ExecutionContext) -> ToolDefinition 
             "properties": {
                 "package_type": {
                     "type": "string",
-                    "description": "Package type to get template/example for",
-                    "enum": ["simple", "autotools", "cmake", "meson", "cargo", "go", "python"],
+                    "description": "Package type to get template/example for. Use 'all' to get all templates.",
+                    "enum": ["simple", "autotools", "cmake", "meson", "cargo", "go", "python", "all"],
                     "default": "simple"
                 }
             }

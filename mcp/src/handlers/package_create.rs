@@ -3,6 +3,49 @@
 use crate::context::McpServerContext;
 use crate::error::{McpError, Result};
 use serde_json::{json, Value};
+use std::path::PathBuf;
+
+/// Get the templates path from environment or use default
+/// Checks in this order:
+/// 1. BUCKOS_TEMPLATES_PATH environment variable
+/// 2. BUCKOS_SPECS_PATH/templates (if specs path is set)
+/// 3. /usr/share/buckos/specs/templates (system installation)
+/// 4. BUCKOS_BUILD_PATH/specs/templates (development)
+/// 5. ../buckos-build/specs/templates (relative fallback)
+fn get_templates_path() -> PathBuf {
+    // Check for explicit templates path
+    if let Ok(templates_path) = std::env::var("BUCKOS_TEMPLATES_PATH") {
+        let path = PathBuf::from(templates_path);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // Check if specs path is set and has templates subdir
+    if let Ok(specs_path) = std::env::var("BUCKOS_SPECS_PATH") {
+        let path = PathBuf::from(specs_path).join("templates");
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // Check system installation location
+    let system_path = PathBuf::from("/usr/share/buckos/specs/templates");
+    if system_path.exists() {
+        return system_path;
+    }
+
+    // Check buckos-build repo location
+    if let Ok(build_path) = std::env::var("BUCKOS_BUILD_PATH") {
+        let path = PathBuf::from(build_path).join("specs/templates");
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // Fallback to relative path (for development)
+    PathBuf::from("../buckos-build/specs/templates")
+}
 
 /// Handle package_create_template tool call
 pub async fn handle_create_template(_ctx: &McpServerContext, args: Value) -> Result<Value> {
@@ -18,14 +61,17 @@ pub async fn handle_create_template(_ctx: &McpServerContext, args: Value) -> Res
         .and_then(|v| v.as_str())
         .unwrap_or("VERSION");
 
-    // Read template file from specs/templates/
-    let template_path = format!(
-        "/home/daniel/git/buckos-build/specs/templates/{}-package-template.bzl",
-        package_type
-    );
+    // Read template file from templates directory
+    let templates_path = get_templates_path();
+    let template_path = templates_path.join(format!("{}-package-template.bzl", package_type));
 
     let template = std::fs::read_to_string(&template_path)
-        .map_err(|e| McpError::Internal(format!("Failed to read template: {}", e)))?;
+        .map_err(|e| McpError::Internal(format!(
+            "Failed to read template '{}' from {}: {}. Set BUCKOS_TEMPLATES_PATH or BUCKOS_BUILD_PATH environment variable.",
+            package_type,
+            template_path.display(),
+            e
+        )))?;
 
     // Basic substitutions
     let result = template
@@ -35,7 +81,7 @@ pub async fn handle_create_template(_ctx: &McpServerContext, args: Value) -> Res
     Ok(json!({
         "template": result,
         "template_type": package_type,
-        "path": template_path,
+        "path": template_path.to_string_lossy(),
         "description": format!("Template for {} package: {}-{}", package_type, name, version)
     }))
 }
@@ -187,38 +233,37 @@ pub async fn handle_get_examples(_ctx: &McpServerContext, args: Value) -> Result
         .and_then(|v| v.as_str())
         .unwrap_or("simple");
 
-    // Map package types to example files
-    let examples = match package_type {
-        "simple" => vec![
-            "/home/daniel/git/buckos-build/specs/templates/simple-package-template.bzl",
-        ],
-        "autotools" => vec![
-            "/home/daniel/git/buckos-build/specs/templates/autotools-package-template.bzl",
-        ],
-        "cmake" => vec![
-            "/home/daniel/git/buckos-build/specs/templates/cmake-package-template.bzl",
-        ],
-        "meson" => vec![
-            "/home/daniel/git/buckos-build/specs/templates/meson-package-template.bzl",
-        ],
-        "cargo" => vec![
-            "/home/daniel/git/buckos-build/specs/templates/cargo-package-template.bzl",
-        ],
-        "go" => vec![
-            "/home/daniel/git/buckos-build/specs/templates/go-package-template.bzl",
-        ],
-        "python" => vec![
-            "/home/daniel/git/buckos-build/specs/templates/python-package-template.bzl",
+    let templates_path = get_templates_path();
+
+    // Map package types to template filenames
+    let template_files: Vec<&str> = match package_type {
+        "simple" => vec!["simple-package-template.bzl"],
+        "autotools" => vec!["autotools-package-template.bzl"],
+        "cmake" => vec!["cmake-package-template.bzl"],
+        "meson" => vec!["meson-package-template.bzl"],
+        "cargo" => vec!["cargo-package-template.bzl"],
+        "go" => vec!["go-package-template.bzl"],
+        "python" => vec!["python-package-template.bzl"],
+        "all" => vec![
+            "simple-package-template.bzl",
+            "autotools-package-template.bzl",
+            "cmake-package-template.bzl",
+            "meson-package-template.bzl",
+            "cargo-package-template.bzl",
+            "go-package-template.bzl",
+            "python-package-template.bzl",
         ],
         _ => vec![],
     };
 
     // Read example files
     let mut example_contents = Vec::new();
-    for path in examples {
-        if let Ok(content) = std::fs::read_to_string(path) {
+    for filename in template_files {
+        let path = templates_path.join(filename);
+        if let Ok(content) = std::fs::read_to_string(&path) {
             example_contents.push(json!({
-                "path": path,
+                "path": path.to_string_lossy(),
+                "filename": filename,
                 "content": content,
             }));
         }
@@ -226,6 +271,8 @@ pub async fn handle_get_examples(_ctx: &McpServerContext, args: Value) -> Result
 
     Ok(json!({
         "package_type": package_type,
+        "templates_path": templates_path.to_string_lossy(),
         "examples": example_contents,
+        "count": example_contents.len(),
     }))
 }

@@ -218,13 +218,85 @@ pub async fn handle_install(ctx: &McpServerContext, args: Value) -> Result<Value
 }
 
 /// Handle config_show tool
-pub async fn handle_config_show(_ctx: &McpServerContext, _args: Value) -> Result<Value> {
+pub async fn handle_config_show(_ctx: &McpServerContext, args: Value) -> Result<Value> {
     info!("Showing configuration");
 
-    // Return basic configuration info
-    // TODO: Load actual config when buckos_config::Config is available
-    Ok(json!({
-        "note": "Configuration display placeholder",
-        "profile": "default"
-    }))
+    let section = args["section"].as_str();
+
+    // Load system configuration
+    let config = buckos_config::load_system_config()
+        .map_err(|e| McpError::Internal(format!("Failed to load configuration: {}", e)))?;
+
+    match section {
+        Some("make_conf") | Some("make.conf") => {
+            Ok(json!({
+                "section": "make.conf",
+                "cflags": config.make_conf.cflags,
+                "cxxflags": config.make_conf.cxxflags,
+                "chost": config.make_conf.chost,
+                "use_flags": config.make_conf.use_config.global,
+                "features": config.make_conf.features.enabled,
+                "makeopts": config.make_conf.makeopts,
+            }))
+        }
+        Some("use") | Some("use_flags") => {
+            Ok(json!({
+                "section": "use_flags",
+                "global": config.make_conf.use_config.global,
+                "use_expand": config.make_conf.use_config.expand,
+            }))
+        }
+        Some("features") => {
+            Ok(json!({
+                "section": "features",
+                "enabled": config.make_conf.features.enabled,
+                "disabled": config.make_conf.features.disabled,
+            }))
+        }
+        Some("repos") | Some("repositories") => {
+            let repos: Vec<_> = config.repos.repos.iter().map(|(name, repo)| {
+                json!({
+                    "name": name,
+                    "location": repo.location.to_string_lossy(),
+                    "sync_type": format!("{:?}", repo.sync_type),
+                    "priority": repo.priority,
+                })
+            }).collect();
+            Ok(json!({
+                "section": "repositories",
+                "repos": repos,
+                "count": repos.len(),
+            }))
+        }
+        Some("profile") => {
+            Ok(json!({
+                "section": "profile",
+                "current": config.profile.current,
+            }))
+        }
+        None | Some("all") => {
+            // Return overview of all configuration sections
+            Ok(json!({
+                "section": "overview",
+                "make_conf": {
+                    "cflags": config.make_conf.cflags,
+                    "chost": config.make_conf.chost,
+                    "use_count": config.make_conf.use_config.global.len(),
+                    "features_count": config.make_conf.features.enabled.len(),
+                },
+                "repos": {
+                    "count": config.repos.repos.len(),
+                    "names": config.repos.repos.keys().collect::<Vec<_>>(),
+                },
+                "profile": config.profile.current,
+                "available_sections": ["make_conf", "use", "features", "repos", "profile"],
+            }))
+        }
+        Some(other) => {
+            Err(McpError::InvalidParams(format!(
+                "Unknown configuration section: '{}'. Available: make_conf, use, features, repos, profile",
+                other
+            )))
+        }
+    }
 }
