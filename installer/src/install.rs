@@ -454,48 +454,177 @@ fn kill_disk_processes(disk_device: &str) {
     }
 }
 
+/// Clean up device-mapper entries (LVM, dm-crypt, etc.) on a disk
+fn cleanup_device_mapper(disk_device: &str) {
+    tracing::info!("Cleaning up device-mapper entries on {}", disk_device);
+
+    // Get the disk name without /dev/ prefix for matching
+    let disk_name = disk_device.trim_start_matches("/dev/");
+
+    // Deactivate LVM volume groups that use this disk
+    if let Ok(output) = Command::new("pvs")
+        .args(["--noheadings", "-o", "pv_name,vg_name"])
+        .output()
+    {
+        if output.status.success() {
+            let pv_list = String::from_utf8_lossy(&output.stdout);
+            for line in pv_list.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 && parts[0].contains(disk_name) {
+                    let vg_name = parts[1];
+                    tracing::info!("Deactivating LVM volume group: {}", vg_name);
+                    let _ = Command::new("vgchange").args(["-an", vg_name]).output();
+                }
+            }
+        }
+    }
+
+    // Remove device-mapper entries related to this disk
+    if let Ok(output) = Command::new("dmsetup").args(["ls"]).output() {
+        if output.status.success() {
+            let dm_list = String::from_utf8_lossy(&output.stdout);
+            for line in dm_list.lines() {
+                if let Some(dm_name) = line.split_whitespace().next() {
+                    // Check if this dm device is backed by our target disk
+                    if let Ok(deps) = Command::new("dmsetup")
+                        .args(["deps", "-o", "devname", dm_name])
+                        .output()
+                    {
+                        let deps_str = String::from_utf8_lossy(&deps.stdout);
+                        if deps_str.contains(disk_name) {
+                            tracing::info!("Removing device-mapper entry: {}", dm_name);
+                            let _ = Command::new("dmsetup")
+                                .args(["remove", "--force", dm_name])
+                                .output();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Prepare disk for partitioning by flushing buffers and settling udev
+fn prepare_disk_for_partitioning(disk_device: &str) {
+    tracing::info!("Preparing disk {} for partitioning", disk_device);
+
+    // Sync filesystem buffers
+    let _ = Command::new("sync").output();
+
+    // Flush block device buffers
+    if let Err(e) = Command::new("blockdev")
+        .args(["--flushbufs", disk_device])
+        .output()
+    {
+        tracing::debug!("blockdev --flushbufs failed: {}", e);
+    }
+
+    // Re-read partition table (clear kernel's cached partition info)
+    if let Err(e) = Command::new("blockdev")
+        .args(["--rereadpt", disk_device])
+        .output()
+    {
+        tracing::debug!("blockdev --rereadpt failed: {}", e);
+    }
+
+    // Wait for udev to settle
+    let _ = Command::new("udevadm")
+        .args(["settle", "--timeout=5"])
+        .output();
+
+    // Small delay to ensure everything is settled
+    std::thread::sleep(std::time::Duration::from_millis(500));
+}
+
 /// Create partition table on a disk
 fn create_partition_table(disk_device: &str, use_gpt: bool) -> anyhow::Result<()> {
     let pt_type = if use_gpt { "gpt" } else { "msdos" };
     tracing::info!("Creating {} partition table on {}", pt_type, disk_device);
 
-    let output = Command::new("parted")
-        .args(&["-s", disk_device, "mklabel", pt_type])
-        .output()
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to execute parted command: {}. Make sure parted is installed and in PATH.",
-                e
-            )
-        })?;
+    // Retry logic - sometimes the kernel needs a moment to release the device
+    let max_retries = 3;
+    let mut last_error = String::new();
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        tracing::error!("Failed to create partition table on {}", disk_device);
+    for attempt in 1..=max_retries {
+        // Before each attempt, ensure the kernel's view is fresh
+        let _ = Command::new("sync").output();
+        let _ = Command::new("blockdev")
+            .args(["--flushbufs", disk_device])
+            .output();
+        let _ = Command::new("blockdev")
+            .args(["--rereadpt", disk_device])
+            .output();
+        let _ = Command::new("udevadm")
+            .args(["settle", "--timeout=3"])
+            .output();
 
-        // Diagnostic: check what's still mounted
-        if let Ok(mounts) = Command::new("findmnt")
-            .args(&["-rno", "TARGET,SOURCE"])
-            .output()
-        {
-            if mounts.status.success() {
-                let mount_list = String::from_utf8_lossy(&mounts.stdout);
-                for line in mount_list.lines() {
-                    if line.contains(disk_device) {
-                        tracing::error!("Still mounted: {}", line);
-                    }
-                }
-            }
+        if attempt > 1 {
+            tracing::info!(
+                "Retry attempt {} of {} for partition table creation",
+                attempt,
+                max_retries
+            );
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
 
-        anyhow::bail!(
-            "Failed to create partition table: {}\n\
-            The disk may still be in use. Check the logs for details.",
-            stderr
+        let output = Command::new("parted")
+            .args(&["-s", disk_device, "mklabel", pt_type])
+            .output()
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to execute parted command: {}. Make sure parted is installed and in PATH.",
+                    e
+                )
+            })?;
+
+        if output.status.success() {
+            if attempt > 1 {
+                tracing::info!("Partition table created successfully on retry {}", attempt);
+            }
+            return Ok(());
+        }
+
+        last_error = String::from_utf8_lossy(&output.stderr).to_string();
+        tracing::warn!(
+            "Attempt {} failed to create partition table: {}",
+            attempt,
+            last_error
         );
     }
 
-    Ok(())
+    // All retries failed - provide diagnostics
+    tracing::error!("Failed to create partition table on {} after {} attempts", disk_device, max_retries);
+
+    // Diagnostic: check what's still mounted
+    if let Ok(mounts) = Command::new("findmnt")
+        .args(&["-rno", "TARGET,SOURCE"])
+        .output()
+    {
+        if mounts.status.success() {
+            let mount_list = String::from_utf8_lossy(&mounts.stdout);
+            for line in mount_list.lines() {
+                if line.contains(disk_device) {
+                    tracing::error!("Still mounted: {}", line);
+                }
+            }
+        }
+    }
+
+    // Check for holders (dm, md, etc.)
+    let disk_name = disk_device.trim_start_matches("/dev/");
+    let holders_path = format!("/sys/block/{}/holders", disk_name);
+    if let Ok(entries) = std::fs::read_dir(&holders_path) {
+        for entry in entries.flatten() {
+            tracing::error!("Device has holder: {:?}", entry.file_name());
+        }
+    }
+
+    anyhow::bail!(
+        "Failed to create partition table after {} attempts: {}\n\
+        Check logs for diagnostic information.",
+        max_retries,
+        last_error
+    );
 }
 
 /// Create a single partition on a disk
@@ -1534,6 +1663,18 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 "Checking for processes using disk...",
             );
             kill_disk_processes(&disk_config.device);
+
+            // Clean up device-mapper entries (LVM, dm-crypt) that may be holding the disk
+            update_progress(
+                "Disk partitioning",
+                0.034,
+                0.45,
+                "Cleaning up device-mapper entries...",
+            );
+            cleanup_device_mapper(&disk_config.device);
+
+            // Prepare disk by flushing buffers and settling udev
+            prepare_disk_for_partitioning(&disk_config.device);
 
             tracing::info!("Starting disk partitioning on {}", disk_config.device);
             update_progress(

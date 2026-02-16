@@ -9,6 +9,7 @@ mod install;
 mod kernel_config;
 mod steps;
 mod system;
+mod tui;
 mod types;
 
 use anyhow::Result;
@@ -194,95 +195,7 @@ fn run_gui_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Resu
 }
 
 fn run_text_installer(args: &Args, buckos_build_path: std::path::PathBuf) -> Result<()> {
-    use console::style;
-
-    println!(
-        "\n{}",
-        style("═══════════════════════════════════════").cyan()
-    );
-    println!(
-        "{}",
-        style("       BuckOS Text-Mode Installer       ")
-            .cyan()
-            .bold()
-    );
-    println!(
-        "{}",
-        style("═══════════════════════════════════════").cyan()
-    );
-    println!();
-    println!(
-        "Target installation directory: {}",
-        style(&args.target).yellow()
-    );
-    println!(
-        "Buckos-build repository: {}",
-        style(buckos_build_path.display()).yellow()
-    );
-    if args.dry_run {
-        println!(
-            "{}",
-            style("DRY RUN MODE - No changes will be made")
-                .yellow()
-                .bold()
-        );
-    }
-    println!();
-
-    // Text-mode installation steps
-    let steps = [
-        "Disk Partitioning",
-        "Filesystem Setup",
-        "Base System Installation",
-        "Bootloader Configuration",
-        "User Setup",
-        "Network Configuration",
-        "Finalization",
-    ];
-
-    println!("Installation steps:");
-    for (i, step) in steps.iter().enumerate() {
-        println!("  {}. {}", i + 1, step);
-    }
-    println!();
-
-    println!(
-        "{}",
-        style("For manual installation, you can perform these steps yourself:").cyan()
-    );
-    println!();
-    println!("  1. Partition your disk:");
-    println!("     # fdisk /dev/sdX  or  parted /dev/sdX");
-    println!();
-    println!("  2. Create filesystems:");
-    println!("     # mkfs.ext4 /dev/sdX1");
-    println!("     # mkswap /dev/sdX2");
-    println!();
-    println!("  3. Mount the target:");
-    println!("     # mount /dev/sdX1 {}", args.target);
-    println!();
-    println!("  4. Install the base system:");
-    println!("     # buckos --root {} install @system", args.target);
-    println!();
-    println!("  5. Configure the bootloader:");
-    println!("     # chroot {} grub-install /dev/sdX", args.target);
-    println!(
-        "     # chroot {} grub-mkconfig -o /boot/grub/grub.cfg",
-        args.target
-    );
-    println!();
-    println!("  6. Set up users and finalize:");
-    println!("     # chroot {} passwd root", args.target);
-    println!("     # chroot {} useradd -m -G wheel username", args.target);
-    println!();
-
-    println!(
-        "{}",
-        style("Text-mode interactive installer coming soon!").yellow()
-    );
-    println!("For now, please use the GUI installer or follow the manual steps above.");
-
-    Ok(())
+    tui::run_tui_installer(args.target.clone(), args.dry_run, buckos_build_path)
 }
 
 fn setup_custom_styles(ctx: &egui::Context) {

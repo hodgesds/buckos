@@ -45,6 +45,10 @@ clap = { workspace = true, features = ["derive"] }
 indicatif = "0.17"
 console = "0.15"
 
+# TUI framework
+ratatui = "0.29"
+crossterm = "0.28"
+
 # File operations
 walkdir = "2.0"
 tempfile = "3.0"
