@@ -5,6 +5,22 @@ use crate::types::{
     DiskConfig, DiskInfo, DiskLayoutPreset, FilesystemType, MountPoint, PartitionConfig,
 };
 
+/// Construct the correct partition device path for a given disk and partition number.
+/// NVMe devices (nvmeXnY) and some other devices (mmcblk, loop) require a 'p' separator
+/// before the partition number, while SATA/SCSI devices (sdX) do not.
+fn partition_device_path(disk_device: &str, part_num: u32) -> String {
+    // Devices that need 'p' separator before partition number
+    let needs_p_separator = disk_device.contains("nvme")
+        || disk_device.contains("mmcblk")
+        || disk_device.contains("loop");
+
+    if needs_p_separator {
+        format!("{}p{}", disk_device, part_num)
+    } else {
+        format!("{}{}", disk_device, part_num)
+    }
+}
+
 /// Create automatic partition configuration for a disk
 pub fn create_auto_partition_config(
     disk: &DiskInfo,
@@ -24,7 +40,7 @@ pub fn create_auto_partition_config(
     // Boot/EFI partition
     if is_efi {
         partitions.push(PartitionConfig {
-            device: format!("{}{}", disk.device, part_num),
+            device: partition_device_path(&disk.device, part_num),
             size: 512 * 1024 * 1024, // 512 MB
             filesystem: FilesystemType::Fat32,
             mount_point: MountPoint::BootEfi,
@@ -34,7 +50,7 @@ pub fn create_auto_partition_config(
         part_num += 1;
     } else {
         partitions.push(PartitionConfig {
-            device: format!("{}{}", disk.device, part_num),
+            device: partition_device_path(&disk.device, part_num),
             size: 1024 * 1024, // 1 MB for BIOS boot
             filesystem: FilesystemType::None,
             mount_point: MountPoint::Boot,
@@ -76,7 +92,7 @@ pub fn create_auto_partition_config(
             swap_size / 1024 / 1024
         );
         partitions.push(PartitionConfig {
-            device: format!("{}{}", disk.device, part_num),
+            device: partition_device_path(&disk.device, part_num),
             size: swap_size,
             filesystem: FilesystemType::Swap,
             mount_point: MountPoint::Swap,
@@ -91,7 +107,7 @@ pub fn create_auto_partition_config(
         DiskLayoutPreset::Simple => {
             // Single root partition
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 0,
                 filesystem: root_fs,
                 mount_point: MountPoint::Root,
@@ -102,7 +118,7 @@ pub fn create_auto_partition_config(
         DiskLayoutPreset::Standard => {
             // Root partition only
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 0,
                 filesystem: root_fs,
                 mount_point: MountPoint::Root,
@@ -114,7 +130,7 @@ pub fn create_auto_partition_config(
             // Root partition (50GB or 50% of remaining, whichever is smaller)
             let root_size = std::cmp::min(50 * 1024 * 1024 * 1024, disk.size / 2);
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: root_size,
                 filesystem: root_fs,
                 mount_point: MountPoint::Root,
@@ -125,7 +141,7 @@ pub fn create_auto_partition_config(
 
             // Home partition (remaining space)
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 0,
                 filesystem: root_fs,
                 mount_point: MountPoint::Home,
@@ -136,7 +152,7 @@ pub fn create_auto_partition_config(
         DiskLayoutPreset::Server => {
             // Root partition (30GB)
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 30 * 1024 * 1024 * 1024,
                 filesystem: root_fs,
                 mount_point: MountPoint::Root,
@@ -147,7 +163,7 @@ pub fn create_auto_partition_config(
 
             // Var partition (20GB)
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 20 * 1024 * 1024 * 1024,
                 filesystem: root_fs,
                 mount_point: MountPoint::Var,
@@ -158,7 +174,7 @@ pub fn create_auto_partition_config(
 
             // Home partition (remaining)
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 0,
                 filesystem: root_fs,
                 mount_point: MountPoint::Home,
@@ -169,7 +185,7 @@ pub fn create_auto_partition_config(
         DiskLayoutPreset::BtrfsSubvolumes => {
             // Single btrfs partition with subvolumes
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 0,
                 filesystem: FilesystemType::Btrfs,
                 mount_point: MountPoint::Root,
@@ -182,7 +198,7 @@ pub fn create_auto_partition_config(
             // Custom layout - user will configure manually
             // Just create a basic root partition as placeholder
             partitions.push(PartitionConfig {
-                device: format!("{}{}", disk.device, part_num),
+                device: partition_device_path(&disk.device, part_num),
                 size: 0,
                 filesystem: root_fs,
                 mount_point: MountPoint::Root,
