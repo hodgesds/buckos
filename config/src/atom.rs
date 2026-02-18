@@ -12,9 +12,10 @@ use std::fmt;
 use std::str::FromStr;
 
 /// Version comparison operators
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum VersionOp {
     /// No version constraint
+    #[default]
     Any,
     /// Exact version match (=)
     Equal,
@@ -30,12 +31,6 @@ pub enum VersionOp {
     GlobEqual,
     /// Revision bump match (~)
     RevisionBump,
-}
-
-impl Default for VersionOp {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 /// A package atom representing a package specification

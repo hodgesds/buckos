@@ -426,8 +426,8 @@ impl MaskManager {
             }
 
             // Parse comments for metadata
-            if line.starts_with('#') {
-                let comment = line[1..].trim();
+            if let Some(comment) = line.strip_prefix('#') {
+                let comment = comment.trim();
 
                 // Look for author pattern
                 if comment.contains('<') && comment.contains('@') {

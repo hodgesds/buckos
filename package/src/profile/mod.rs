@@ -200,8 +200,8 @@ impl ResolvedProfile {
         for (pattern, pkg_flags) in &self.package_use {
             if package_matches(package, pattern) {
                 for flag in pkg_flags {
-                    if flag.starts_with('-') {
-                        flags.remove(&flag[1..]);
+                    if let Some(stripped) = flag.strip_prefix('-') {
+                        flags.remove(stripped);
                     } else {
                         flags.insert(flag.clone());
                     }

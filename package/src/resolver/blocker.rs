@@ -105,10 +105,10 @@ impl BlockerResolver {
     ) -> Result<Blocker> {
         let s = s.trim();
 
-        let (blocker_type, rest) = if s.starts_with("!!") {
-            (BlockerType::Hard, &s[2..])
-        } else if s.starts_with('!') {
-            (BlockerType::Soft, &s[1..])
+        let (blocker_type, rest) = if let Some(stripped) = s.strip_prefix("!!") {
+            (BlockerType::Hard, stripped)
+        } else if let Some(stripped) = s.strip_prefix('!') {
+            (BlockerType::Soft, stripped)
         } else {
             return Err(Error::InvalidBlocker(s.to_string()));
         };
@@ -219,12 +219,9 @@ impl BlockerResolver {
             let blocked_present = to_install
                 .iter()
                 .any(|p| p.id == blocker.blocked && blocker.blocked_version.matches(&p.version))
-                || installed
-                    .iter()
-                    .find(|p| {
-                        p.id == blocker.blocked && blocker.blocked_version.matches(&p.version)
-                    })
-                    .is_some();
+                || installed.iter().any(|p| {
+                    p.id == blocker.blocked && blocker.blocked_version.matches(&p.version)
+                });
 
             if blocked_present {
                 active_blockers.push(blocker.clone());

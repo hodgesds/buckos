@@ -74,6 +74,7 @@ impl PackageManager {
         // Initialize database
         let db_path = config.db_path.clone();
         let db = db::PackageDb::open(&db_path)?;
+        #[allow(clippy::arc_with_non_send_sync)]
         let db = Arc::new(RwLock::new(db));
 
         // Initialize cache

@@ -1509,7 +1509,7 @@ pub fn parse_buck2_progress(line: &str) -> Option<f32> {
                         0.90
                     } else {
                         let log_progress = 1.0 - ((remaining as f32).log10() / 2.5);
-                        log_progress.max(0.1).min(0.85)
+                        log_progress.clamp(0.1, 0.85)
                     };
                     return Some(progress);
                 }
@@ -1570,6 +1570,7 @@ pub fn parse_buck2_progress(line: &str) -> Option<f32> {
 }
 
 /// Run the installation process in the background
+#[allow(clippy::vec_init_then_push)]
 pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgress>>) {
     use anyhow::Result;
 

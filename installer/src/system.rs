@@ -1143,8 +1143,10 @@ pub fn generate_system_limits(
     cpu_count: usize,
     audio_subsystem: &crate::types::AudioSubsystem,
 ) -> SystemLimitsConfig {
-    let mut config = SystemLimitsConfig::default();
-    config.profile = *profile;
+    let mut config = SystemLimitsConfig {
+        profile: *profile,
+        ..Default::default()
+    };
 
     // Enable audio-related settings for PipeWire
     let enable_audio = matches!(

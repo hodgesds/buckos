@@ -235,9 +235,10 @@ impl Repository {
 }
 
 /// Repository sync type
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SyncType {
     /// Git repository
+    #[default]
     Git,
     /// Rsync
     Rsync,
@@ -253,12 +254,6 @@ pub enum SyncType {
     Mercurial,
     /// WebRsync (for initial sync)
     WebRsync,
-}
-
-impl Default for SyncType {
-    fn default() -> Self {
-        Self::Git
-    }
 }
 
 impl SyncType {

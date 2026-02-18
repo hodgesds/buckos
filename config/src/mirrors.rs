@@ -283,9 +283,10 @@ pub fn public_mirrors() -> Vec<Mirror> {
 }
 
 /// Mirror selection strategy
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MirrorStrategy {
     /// Use mirrors in order
+    #[default]
     Ordered,
     /// Randomly select mirror
     Random,
@@ -295,12 +296,6 @@ pub enum MirrorStrategy {
     Bandwidth,
     /// Round-robin selection
     RoundRobin,
-}
-
-impl Default for MirrorStrategy {
-    fn default() -> Self {
-        Self::Ordered
-    }
 }
 
 /// Thirdparty mirror sources for specific packages

@@ -149,7 +149,7 @@ impl SoftwareInfo {
 
             process_list.push(ProcessInfo {
                 pid: pid.as_u32(),
-                name: redactor.redact(&process.name().to_string()),
+                name: redactor.redact(process.name()),
                 cpu_usage: process.cpu_usage(),
                 memory: process.memory(),
                 status,

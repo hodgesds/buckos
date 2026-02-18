@@ -22,7 +22,7 @@ pub enum Operation {
     Remove(InstalledPackage),
     Upgrade {
         old: InstalledPackage,
-        new: PackageInfo,
+        new: Box<PackageInfo>,
     },
 }
 
@@ -68,7 +68,10 @@ impl Transaction {
 
     /// Add an upgrade operation
     pub fn add_upgrade(&mut self, old: InstalledPackage, new: PackageInfo) {
-        self.operations.push(Operation::Upgrade { old, new });
+        self.operations.push(Operation::Upgrade {
+            old,
+            new: Box::new(new),
+        });
     }
 
     /// Execute the transaction

@@ -150,28 +150,33 @@ impl InstallerApp {
         let available_disks = system::get_available_disks().unwrap_or_default();
         let system_info = system::get_system_info();
 
-        let mut config = InstallConfig::default();
-        config.target_root = PathBuf::from(target);
-        config.buckos_build_path = buckos_build_path;
-        config.dry_run = dry_run;
+        let config = InstallConfig {
+            target_root: PathBuf::from(target),
+            buckos_build_path,
+            dry_run,
+            ..Default::default()
+        };
 
         // Perform hardware detection
         let hardware_info = system::detect_hardware();
         let hardware_suggestions = system::generate_hardware_suggestions(&hardware_info);
 
         // Initialize UI state with defaults
-        let mut ui_state = UiState::default();
-        ui_state.auto_partition = true;
-        ui_state.hostname = config.network.hostname.clone();
-        ui_state.timezones = system::get_timezones();
-        ui_state.locales = system::get_locales();
-        ui_state.keyboards = system::get_keyboard_layouts();
-        ui_state.hardware_info = hardware_info.clone();
-        ui_state.hardware_suggestions = hardware_suggestions;
-
-        // Initialize system limits based on detected hardware and default profile
-        ui_state.system_limits =
-            system::detect_system_limits(&hardware_info, &config.profile, &config.audio_subsystem);
+        let mut ui_state = UiState {
+            auto_partition: true,
+            hostname: config.network.hostname.clone(),
+            timezones: system::get_timezones(),
+            locales: system::get_locales(),
+            keyboards: system::get_keyboard_layouts(),
+            hardware_info: hardware_info.clone(),
+            hardware_suggestions,
+            system_limits: system::detect_system_limits(
+                &hardware_info,
+                &config.profile,
+                &config.audio_subsystem,
+            ),
+            ..Default::default()
+        };
 
         // Auto-detect handheld device
         if let Some(device) = system::detect_handheld_device() {

@@ -71,6 +71,7 @@ pub struct McpServer {
 
 impl McpServer {
     /// Create a new MCP server
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new(pm: PackageManager, config: ServerConfig, exec_context: ExecutionContext) -> Self {
         let context = Arc::new(McpServerContext::new(pm, exec_context));
 

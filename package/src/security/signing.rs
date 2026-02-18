@@ -896,9 +896,7 @@ impl SigningManager {
         let mut signature = String::new();
 
         for line in content.lines() {
-            if line.starts_with("-----BEGIN PGP SIGNED MESSAGE-----") {
-                continue;
-            } else if line.starts_with("Hash:") {
+            if line.starts_with("-----BEGIN PGP SIGNED MESSAGE-----") || line.starts_with("Hash:") {
                 continue;
             } else if line.starts_with("-----BEGIN PGP SIGNATURE-----") {
                 in_content = false;

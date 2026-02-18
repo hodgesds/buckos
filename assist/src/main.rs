@@ -143,8 +143,10 @@ fn run_collect(args: CollectArgs, quiet: bool) -> Result<()> {
 
 /// Run the summary command.
 fn run_summary(args: SummaryArgs, _quiet: bool) -> Result<()> {
-    let mut settings = PrivacySettings::default();
-    settings.collect_processes = args.processes;
+    let settings = PrivacySettings {
+        collect_processes: args.processes,
+        ..Default::default()
+    };
 
     let diagnostics =
         SystemDiagnostics::collect(&settings).context("Failed to collect system diagnostics")?;

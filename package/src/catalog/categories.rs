@@ -180,7 +180,7 @@ impl Category {
     }
 
     /// Parse a category from string
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "app-admin" => Some(Category::AppAdmin),
             "app-arch" => Some(Category::AppArch),

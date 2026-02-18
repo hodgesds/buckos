@@ -1,6 +1,6 @@
 use super::*;
 pub mod build;
-pub mod package;
+pub mod pkg;
 
 pub use build::*;
-pub use package::*;
+pub use pkg::*;

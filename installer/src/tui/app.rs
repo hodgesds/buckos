@@ -245,26 +245,31 @@ impl TuiApp {
         let available_disks = system::get_available_disks().unwrap_or_default();
         let system_info = system::get_system_info();
 
-        let mut config = InstallConfig::default();
-        config.target_root = PathBuf::from(target);
-        config.buckos_build_path = buckos_build_path;
-        config.dry_run = dry_run;
+        let config = InstallConfig {
+            target_root: PathBuf::from(target),
+            buckos_build_path,
+            dry_run,
+            ..Default::default()
+        };
 
         // Perform hardware detection
         let hardware_info = system::detect_hardware();
         let hardware_suggestions = system::generate_hardware_suggestions(&hardware_info);
 
-        let mut ui = UiState::default();
-        ui.hostname = config.network.hostname.clone();
-        ui.timezones = system::get_timezones();
-        ui.locales = system::get_locales();
-        ui.keyboards = system::get_keyboard_layouts();
-        ui.hardware_info = hardware_info.clone();
-        ui.hardware_suggestions = hardware_suggestions;
-
-        // Initialize system limits
-        ui.system_limits =
-            system::detect_system_limits(&hardware_info, &config.profile, &config.audio_subsystem);
+        let mut ui = UiState {
+            hostname: config.network.hostname.clone(),
+            timezones: system::get_timezones(),
+            locales: system::get_locales(),
+            keyboards: system::get_keyboard_layouts(),
+            hardware_info: hardware_info.clone(),
+            hardware_suggestions,
+            system_limits: system::detect_system_limits(
+                &hardware_info,
+                &config.profile,
+                &config.audio_subsystem,
+            ),
+            ..Default::default()
+        };
 
         // Set initial selections
         if let Some(pos) = ui.timezones.iter().position(|tz| tz == "UTC") {

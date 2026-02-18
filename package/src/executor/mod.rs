@@ -244,6 +244,7 @@ impl ParallelExecutor {
         R: Send + 'static,
         F: Fn(T) -> Result<R> + Send + Sync + Clone + 'static,
     {
+        #[allow(clippy::type_complexity)]
         let results: Arc<Mutex<Vec<(usize, Result<R>)>>> =
             Arc::new(Mutex::new(Vec::with_capacity(items.len())));
         let mut handles = Vec::new();
@@ -296,6 +297,7 @@ pub struct ThreadPoolExecutor {
 
 impl ThreadPoolExecutor {
     /// Create a new thread pool
+    #[allow(clippy::type_complexity)]
     pub fn new(num_threads: usize) -> Self {
         let (sender, receiver): (
             Sender<Box<dyn FnOnce() + Send>>,

@@ -171,7 +171,7 @@ impl ProcessSupervisor {
             let service_name = service.name.clone();
             tokio::spawn(async move {
                 let reader = BufReader::new(stdout_read);
-                for line in reader.lines().flatten() {
+                for line in reader.lines().map_while(|r| r.ok()) {
                     let entry = JournalEntry::new(&service_name, &line, "stdout").with_pid(pid);
                     journal.log(entry).await;
                 }
@@ -183,7 +183,7 @@ impl ProcessSupervisor {
             let service_name = service.name.clone();
             tokio::spawn(async move {
                 let reader = BufReader::new(stderr_read);
-                for line in reader.lines().flatten() {
+                for line in reader.lines().map_while(|r| r.ok()) {
                     let entry = JournalEntry::new(&service_name, &line, "stderr").with_pid(pid);
                     journal.log(entry).await;
                 }

@@ -241,6 +241,7 @@ pub struct NetworkInterfaceInfo {
 
 /// Kernel version channel
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum KernelChannel {
     LTS, // Long-term support (e.g., 6.6 LTS)
     #[default]
@@ -1395,9 +1396,7 @@ impl InstallProgress {
         }
 
         // Step progress resets when operation changes, otherwise only increases
-        if new_operation != self.operation {
-            self.step_progress = step;
-        } else if step > self.step_progress {
+        if new_operation != self.operation || step > self.step_progress {
             self.step_progress = step;
         }
 

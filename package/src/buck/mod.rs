@@ -373,7 +373,7 @@ impl BuckIntegration {
 
         // Copy or link the output
         if source_path.is_dir() {
-            self.copy_dir_recursive(source_path, &cache_path)?;
+            Self::copy_dir_recursive(source_path, &cache_path)?;
         } else {
             std::fs::copy(source_path, &cache_path)
                 .map_err(|e| Error::BuckError(format!("Failed to cache output: {}", e)))?;
@@ -384,7 +384,7 @@ impl BuckIntegration {
     }
 
     /// Recursively copy a directory
-    fn copy_dir_recursive(&self, src: &PathBuf, dst: &PathBuf) -> Result<()> {
+    fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> Result<()> {
         std::fs::create_dir_all(dst)
             .map_err(|e| Error::BuckError(format!("Failed to create directory: {}", e)))?;
 
@@ -397,7 +397,7 @@ impl BuckIntegration {
             let dst_path = dst.join(entry.file_name());
 
             if src_path.is_dir() {
-                self.copy_dir_recursive(&src_path, &dst_path)?;
+                Self::copy_dir_recursive(&src_path, &dst_path)?;
             } else {
                 std::fs::copy(&src_path, &dst_path)
                     .map_err(|e| Error::BuckError(format!("Failed to copy file: {}", e)))?;
@@ -412,11 +412,11 @@ impl BuckIntegration {
         if !self.output_dir.exists() {
             return Ok(0);
         }
-        self.dir_size(&self.output_dir)
+        Self::dir_size(&self.output_dir)
     }
 
     /// Calculate directory size recursively
-    fn dir_size(&self, path: &PathBuf) -> Result<u64> {
+    fn dir_size(path: &PathBuf) -> Result<u64> {
         let mut size = 0;
         if path.is_dir() {
             for entry in std::fs::read_dir(path)
@@ -426,7 +426,7 @@ impl BuckIntegration {
                     entry.map_err(|e| Error::BuckError(format!("Failed to read entry: {}", e)))?;
                 let entry_path = entry.path();
                 if entry_path.is_dir() {
-                    size += self.dir_size(&entry_path)?;
+                    size += Self::dir_size(&entry_path)?;
                 } else {
                     size += entry
                         .metadata()
