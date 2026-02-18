@@ -415,15 +415,10 @@ impl RepositoryManager {
             let search_area = &content[start..search_end];
 
             // Extract slot
-            let slot = if let Some(slot_match) =
-                regex::Regex::new(r#"["']slot["']\s*:\s*["']([^"']+)["']"#)
-                    .ok()
-                    .and_then(|re| re.captures(search_area))
-            {
-                Some(slot_match[1].to_string())
-            } else {
-                None
-            };
+            let slot = regex::Regex::new(r#"["']slot["']\s*:\s*["']([^"']+)["']"#)
+                .ok()
+                .and_then(|re| re.captures(search_area))
+                .map(|slot_match| slot_match[1].to_string());
 
             // For now, we don't have license/description in registry.bzl
             // These would need to come from BUCK files or separate metadata

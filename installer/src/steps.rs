@@ -550,17 +550,25 @@ pub fn render_system_tuning(
     ui.add_space(8.0);
 
     // Enable/disable toggles
-    ui.checkbox(&mut system_limits.apply_ulimits, "Apply ulimit configuration");
+    ui.checkbox(
+        &mut system_limits.apply_ulimits,
+        "Apply ulimit configuration",
+    );
     ui.indent("ulimit_desc", |ui| {
         ui.label(
-            RichText::new("Sets file descriptor, process, and memory limits via /etc/security/limits.d/")
-                .small()
-                .weak(),
+            RichText::new(
+                "Sets file descriptor, process, and memory limits via /etc/security/limits.d/",
+            )
+            .small()
+            .weak(),
         );
     });
 
     ui.add_space(4.0);
-    ui.checkbox(&mut system_limits.apply_sysctl, "Apply sysctl configuration");
+    ui.checkbox(
+        &mut system_limits.apply_sysctl,
+        "Apply sysctl configuration",
+    );
     ui.indent("sysctl_desc", |ui| {
         ui.label(
             RichText::new("Tunes kernel parameters via /etc/sysctl.d/")
@@ -626,7 +634,10 @@ pub fn render_system_tuning(
             ui.end_row();
 
             ui.label("Inotify Watches:");
-            ui.label(format!("{}", system_limits.sysctl.fs_inotify_max_user_watches));
+            ui.label(format!(
+                "{}",
+                system_limits.sysctl.fs_inotify_max_user_watches
+            ));
             ui.end_row();
         });
 
@@ -700,15 +711,13 @@ pub fn render_system_tuning(
             .show(ui, |ui| {
                 ui.label("vm.swappiness:");
                 ui.add(
-                    egui::Slider::new(&mut system_limits.sysctl.vm_swappiness, 0..=100)
-                        .text(""),
+                    egui::Slider::new(&mut system_limits.sysctl.vm_swappiness, 0..=100).text(""),
                 );
                 ui.end_row();
 
                 ui.label("vm.dirty_ratio:");
                 ui.add(
-                    egui::Slider::new(&mut system_limits.sysctl.vm_dirty_ratio, 1..=100)
-                        .text("%"),
+                    egui::Slider::new(&mut system_limits.sysctl.vm_dirty_ratio, 1..=100).text("%"),
                 );
                 ui.end_row();
 
@@ -748,7 +757,10 @@ pub fn render_system_tuning(
                 ui.end_row();
 
                 ui.label("kernel.sched_autogroup:");
-                ui.checkbox(&mut system_limits.sysctl.kernel_sched_autogroup_enabled, "Enabled");
+                ui.checkbox(
+                    &mut system_limits.sysctl.kernel_sched_autogroup_enabled,
+                    "Enabled",
+                );
                 ui.end_row();
             });
     });

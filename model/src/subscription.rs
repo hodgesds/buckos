@@ -22,8 +22,7 @@ pub struct Subscription {
 impl Subscription {
     pub fn is_expired(&self) -> bool {
         let now = Utc::now();
-        self.expiration
-            .map_or(false, |exp| bool::from((now - exp).is_zero()))
+        self.expiration.is_some_and(|exp| (now - exp).is_zero())
     }
 }
 

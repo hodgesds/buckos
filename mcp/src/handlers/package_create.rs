@@ -49,15 +49,18 @@ fn get_templates_path() -> PathBuf {
 
 /// Handle package_create_template tool call
 pub async fn handle_create_template(_ctx: &McpServerContext, args: Value) -> Result<Value> {
-    let package_type = args.get("package_type")
+    let package_type = args
+        .get("package_type")
         .and_then(|v| v.as_str())
         .ok_or_else(|| McpError::InvalidParams("package_type is required".to_string()))?;
 
-    let name = args.get("name")
+    let name = args
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("PACKAGE_NAME");
 
-    let version = args.get("version")
+    let version = args
+        .get("version")
         .and_then(|v| v.as_str())
         .unwrap_or("VERSION");
 
@@ -88,7 +91,8 @@ pub async fn handle_create_template(_ctx: &McpServerContext, args: Value) -> Res
 
 /// Handle package_validate_definition tool call
 pub async fn handle_validate_definition(_ctx: &McpServerContext, args: Value) -> Result<Value> {
-    let definition = args.get("definition")
+    let definition = args
+        .get("definition")
         .and_then(|v| v.as_str())
         .ok_or_else(|| McpError::InvalidParams("definition is required".to_string()))?;
 
@@ -120,12 +124,12 @@ pub async fn handle_validate_definition(_ctx: &McpServerContext, args: Value) ->
 
 /// Handle package_suggest_dependencies tool call
 pub async fn handle_suggest_dependencies(_ctx: &McpServerContext, args: Value) -> Result<Value> {
-    let package_type = args.get("package_type")
+    let package_type = args
+        .get("package_type")
         .and_then(|v| v.as_str())
         .unwrap_or("simple");
 
-    let _build_system = args.get("build_system")
-        .and_then(|v| v.as_str());
+    let _build_system = args.get("build_system").and_then(|v| v.as_str());
 
     // Provide common dependency suggestions based on package type
     let suggestions = match package_type {
@@ -143,12 +147,8 @@ pub async fn handle_suggest_dependencies(_ctx: &McpServerContext, args: Value) -
             "//packages/linux/dev-util:ninja",
             "//packages/linux/dev-util:pkg-config",
         ],
-        "cargo" => vec![
-            "//packages/linux/dev-lang:rust",
-        ],
-        "go" => vec![
-            "//packages/linux/dev-lang:go",
-        ],
+        "cargo" => vec!["//packages/linux/dev-lang:rust"],
+        "go" => vec!["//packages/linux/dev-lang:go"],
         "python" => vec![
             "//packages/linux/dev-lang:python",
             "//packages/linux/dev-python:setuptools",
@@ -167,12 +167,12 @@ pub async fn handle_suggest_dependencies(_ctx: &McpServerContext, args: Value) -
 
 /// Handle package_suggest_use_flags tool call
 pub async fn handle_suggest_use_flags(_ctx: &McpServerContext, args: Value) -> Result<Value> {
-    let package_type = args.get("package_type")
+    let package_type = args
+        .get("package_type")
         .and_then(|v| v.as_str())
         .unwrap_or("simple");
 
-    let _package_name = args.get("package_name")
-        .and_then(|v| v.as_str());
+    let _package_name = args.get("package_name").and_then(|v| v.as_str());
 
     // Provide common USE flag suggestions
     let suggestions = match package_type {
@@ -188,15 +188,9 @@ pub async fn handle_suggest_use_flags(_ctx: &McpServerContext, args: Value) -> R
             ("test", "Run test suite"),
             ("examples", "Build example programs"),
         ],
-        "cargo" => vec![
-            ("default", "Enable default features"),
-        ],
-        "go" => vec![
-            ("netgo", "Pure Go networking (no CGO)"),
-        ],
-        "python" => vec![
-            ("test", "Run test suite"),
-        ],
+        "cargo" => vec![("default", "Enable default features")],
+        "go" => vec![("netgo", "Pure Go networking (no CGO)")],
+        "python" => vec![("test", "Run test suite")],
         _ => vec![],
     };
 
@@ -213,7 +207,8 @@ pub async fn handle_suggest_use_flags(_ctx: &McpServerContext, args: Value) -> R
 
 /// Handle package_convert_ebuild tool call
 pub async fn handle_convert_ebuild(_ctx: &McpServerContext, args: Value) -> Result<Value> {
-    let _ebuild_content = args.get("ebuild_content")
+    let _ebuild_content = args
+        .get("ebuild_content")
         .and_then(|v| v.as_str())
         .ok_or_else(|| McpError::InvalidParams("ebuild_content is required".to_string()))?;
 
@@ -229,7 +224,8 @@ pub async fn handle_convert_ebuild(_ctx: &McpServerContext, args: Value) -> Resu
 
 /// Handle package_get_examples tool call
 pub async fn handle_get_examples(_ctx: &McpServerContext, args: Value) -> Result<Value> {
-    let package_type = args.get("package_type")
+    let package_type = args
+        .get("package_type")
         .and_then(|v| v.as_str())
         .unwrap_or("simple");
 

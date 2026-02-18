@@ -1,20 +1,15 @@
 use serde::Deserialize;
 
 /// CPU frequency boost state
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub enum FrequencyBoost {
     /// Boost is enabled
     Enabled,
     /// Boost is disabled
     Disabled,
     /// Boost is not supported
+    #[default]
     NotSupported,
-}
-
-impl Default for FrequencyBoost {
-    fn default() -> Self {
-        FrequencyBoost::NotSupported
-    }
 }
 
 impl std::str::FromStr for FrequencyBoost {

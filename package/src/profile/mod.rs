@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 /// A system profile defining defaults and package configurations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Profile {
     /// Profile name (e.g., "default/linux/amd64/desktop")
     pub name: String,
@@ -53,18 +53,13 @@ pub struct Profile {
 }
 
 /// Toolchain selection for the profile
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Toolchain {
     /// GNU Compiler Collection
+    #[default]
     Gcc,
     /// LLVM/Clang toolchain
     Llvm,
-}
-
-impl Default for Toolchain {
-    fn default() -> Self {
-        Toolchain::Gcc
-    }
 }
 
 impl std::fmt::Display for Toolchain {
@@ -77,18 +72,13 @@ impl std::fmt::Display for Toolchain {
 }
 
 /// Libc selection for the profile
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Libc {
     /// GNU C Library
+    #[default]
     Glibc,
     /// musl libc
     Musl,
-}
-
-impl Default for Libc {
-    fn default() -> Self {
-        Libc::Glibc
-    }
 }
 
 impl std::fmt::Display for Libc {
@@ -101,9 +91,10 @@ impl std::fmt::Display for Libc {
 }
 
 /// Profile stability level
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ProfileStability {
     /// Production-ready profile
+    #[default]
     Stable,
     /// Testing profile with newer packages
     Testing,
@@ -113,12 +104,6 @@ pub enum ProfileStability {
     Dev,
 }
 
-impl Default for ProfileStability {
-    fn default() -> Self {
-        ProfileStability::Stable
-    }
-}
-
 impl std::fmt::Display for ProfileStability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -126,30 +111,6 @@ impl std::fmt::Display for ProfileStability {
             ProfileStability::Testing => write!(f, "testing"),
             ProfileStability::Experimental => write!(f, "exp"),
             ProfileStability::Dev => write!(f, "dev"),
-        }
-    }
-}
-
-impl Default for Profile {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            parents: Vec::new(),
-            description: String::new(),
-            arch: None,
-            keywords: Vec::new(),
-            use_flags: HashSet::new(),
-            use_mask: HashSet::new(),
-            use_force: HashSet::new(),
-            package_mask: Vec::new(),
-            package_unmask: Vec::new(),
-            make_defaults: HashMap::new(),
-            package_use: HashMap::new(),
-            toolchain: Toolchain::default(),
-            libc: Libc::default(),
-            deprecated: false,
-            deprecation_message: None,
-            stability: ProfileStability::default(),
         }
     }
 }
@@ -864,7 +825,7 @@ impl ProfileManager {
                     resolved
                         .package_use
                         .entry(pkg.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .extend(flags.clone());
                 }
 
@@ -1060,7 +1021,7 @@ fn package_matches(package: &str, pattern: &str) -> bool {
         || pattern.starts_with('=')
     {
         // Version comparison - simplified
-        let pkg_name = pattern.trim_start_matches(|c| c == '>' || c == '<' || c == '=' || c == '!');
+        let pkg_name = pattern.trim_start_matches(['>', '<', '=', '!']);
         package.starts_with(pkg_name.split('-').next().unwrap_or(pkg_name))
     } else {
         package == pattern || package.starts_with(&format!("{}-", pattern))
@@ -1164,7 +1125,7 @@ pub fn format_profile_info(info: &ProfileInfo) -> String {
         output.push_str(&format!("Parents: {}\n", info.parents.join(", ")));
     }
 
-    output.push_str(&format!("\nInheritance chain:\n"));
+    output.push_str("\nInheritance chain:\n");
     for (i, name) in info.chain.iter().enumerate() {
         output.push_str(&format!("  {}. {}\n", i + 1, name));
     }

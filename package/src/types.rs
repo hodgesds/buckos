@@ -46,8 +46,9 @@ impl std::fmt::Display for PackageId {
 }
 
 /// Version specification with comparison operator
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum VersionSpec {
+    #[default]
     Any,
     Exact(semver::Version),
     GreaterThan(semver::Version),
@@ -75,12 +76,6 @@ impl VersionSpec {
                 min_ok && max_ok
             }
         }
-    }
-}
-
-impl Default for VersionSpec {
-    fn default() -> Self {
-        VersionSpec::Any
     }
 }
 
@@ -302,18 +297,18 @@ impl PackageSpec {
         let s = s.trim();
 
         // Extract version operator if present
-        let (version_op, rest) = if s.starts_with(">=") {
-            (Some(">="), &s[2..])
-        } else if s.starts_with("<=") {
-            (Some("<="), &s[2..])
-        } else if s.starts_with('>') {
-            (Some(">"), &s[1..])
-        } else if s.starts_with('<') {
-            (Some("<"), &s[1..])
-        } else if s.starts_with('=') {
-            (Some("="), &s[1..])
-        } else if s.starts_with('~') {
-            (Some("~"), &s[1..])
+        let (version_op, rest) = if let Some(stripped) = s.strip_prefix(">=") {
+            (Some(">="), stripped)
+        } else if let Some(stripped) = s.strip_prefix("<=") {
+            (Some("<="), stripped)
+        } else if let Some(stripped) = s.strip_prefix('>') {
+            (Some(">"), stripped)
+        } else if let Some(stripped) = s.strip_prefix('<') {
+            (Some("<"), stripped)
+        } else if let Some(stripped) = s.strip_prefix('=') {
+            (Some("="), stripped)
+        } else if let Some(stripped) = s.strip_prefix('~') {
+            (Some("~"), stripped)
         } else {
             (None, s)
         };
@@ -361,15 +356,14 @@ impl PackageSpec {
             // Find last dash followed by digit
             let mut last_dash = None;
             for (i, c) in name_version.char_indices() {
-                if c == '-' {
-                    if name_version[i + 1..]
+                if c == '-'
+                    && name_version[i + 1..]
                         .chars()
                         .next()
                         .map(|c| c.is_ascii_digit())
                         .unwrap_or(false)
-                    {
-                        last_dash = Some(i);
-                    }
+                {
+                    last_dash = Some(i);
                 }
             }
 
@@ -536,17 +530,12 @@ impl From<&PackageId> for BuckTarget {
 }
 
 /// Buck build mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum BuckBuildMode {
     Debug,
+    #[default]
     Release,
     Profile,
-}
-
-impl Default for BuckBuildMode {
-    fn default() -> Self {
-        BuckBuildMode::Release
-    }
 }
 
 impl std::fmt::Display for BuckBuildMode {

@@ -1555,21 +1555,19 @@ fn print_emerge_list(
         );
 
         // Show USE flags if verbose or tree mode
-        if opts.verbose > 0 || opts.tree {
-            if !pkg.use_flags.is_empty() {
-                print!(" USE=\"");
-                for (i, flag) in pkg.use_flags.iter().enumerate() {
-                    if i > 0 {
-                        print!(" ");
-                    }
-                    if flag.enabled {
-                        print!("{}", style(&flag.name).green());
-                    } else {
-                        print!("{}", style(format!("-{}", flag.name)).red());
-                    }
+        if (opts.verbose > 0 || opts.tree) && !pkg.use_flags.is_empty() {
+            print!(" USE=\"");
+            for (i, flag) in pkg.use_flags.iter().enumerate() {
+                if i > 0 {
+                    print!(" ");
                 }
-                print!("\"");
+                if flag.enabled {
+                    print!("{}", style(&flag.name).green());
+                } else {
+                    print!("{}", style(format!("-{}", flag.name)).red());
+                }
             }
+            print!("\"");
         }
 
         // Show size if verbose
@@ -2079,8 +2077,8 @@ async fn cmd_useflags_set(flags: &[String]) -> buckos_package::Result<()> {
     let mut disabled = Vec::new();
 
     for flag in flags {
-        if flag.starts_with('-') {
-            disabled.push(&flag[1..]);
+        if let Some(stripped) = flag.strip_prefix('-') {
+            disabled.push(stripped);
         } else {
             enabled.push(flag.as_str());
         }
@@ -2250,7 +2248,7 @@ async fn cmd_useflags_expand(variable: Option<String>) -> buckos_package::Result
         if let Some(values) = expand_vars.get(&var.to_uppercase()) {
             println!(
                 "{}",
-                style(format!("{}", var.to_uppercase())).bold().underlined()
+                style(var.to_uppercase().to_string()).bold().underlined()
             );
             println!();
             for value in values {
@@ -3285,7 +3283,7 @@ async fn cmd_patch_list(package: &str) -> buckos_package::Result<()> {
         if path.exists() {
             if let Ok(entries) = fs::read_dir(path) {
                 for entry in entries.flatten() {
-                    if entry.path().extension().map_or(false, |e| e == "patch") {
+                    if entry.path().extension().is_some_and(|e| e == "patch") {
                         let name = entry.file_name().to_string_lossy().to_string();
                         found_patches.push((name, dir.clone()));
                     }
@@ -3552,7 +3550,7 @@ async fn cmd_patch_order(package: &str) -> buckos_package::Result<()> {
         if path.exists() {
             let mut patches: Vec<_> = fs::read_dir(path)?
                 .flatten()
-                .filter(|e| e.path().extension().map_or(false, |e| e == "patch"))
+                .filter(|e| e.path().extension().is_some_and(|e| e == "patch"))
                 .map(|e| e.file_name().to_string_lossy().to_string())
                 .collect();
             patches.sort();
@@ -4303,7 +4301,7 @@ async fn cmd_sign(args: SignArgs) -> buckos_package::Result<()> {
             println!("{} Verifying file {}...", style(">>>").blue().bold(), file);
 
             let path = std::path::Path::new(&file);
-            let sig_path = signature.map(|s| std::path::PathBuf::from(s));
+            let sig_path = signature.map(std::path::PathBuf::from);
 
             let verification = manager.verify_file(path, sig_path.as_deref())?;
             println!("\n{}", format_verification(&verification));

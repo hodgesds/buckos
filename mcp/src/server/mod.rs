@@ -54,10 +54,7 @@ impl ServerConfig {
             .map_err(|e| McpError::Internal(format!("Failed to parse config file: {}", e)))?;
 
         Ok(Self {
-            name: config["name"]
-                .as_str()
-                .unwrap_or("buckos-mcp")
-                .to_string(),
+            name: config["name"].as_str().unwrap_or("buckos-mcp").to_string(),
             version: config["version"]
                 .as_str()
                 .unwrap_or(env!("CARGO_PKG_VERSION"))
@@ -329,14 +326,19 @@ impl McpServer {
             "buckos://config/repos" => {
                 let config = buckos_config::load_system_config()
                     .map_err(|e| McpError::Internal(format!("Failed to load config: {}", e)))?;
-                let repos: Vec<_> = config.repos.repos.iter().map(|(name, repo)| {
-                    json!({
-                        "name": name,
-                        "location": repo.location.to_string_lossy(),
-                        "sync_type": format!("{:?}", repo.sync_type),
-                        "priority": repo.priority,
+                let repos: Vec<_> = config
+                    .repos
+                    .repos
+                    .iter()
+                    .map(|(name, repo)| {
+                        json!({
+                            "name": name,
+                            "location": repo.location.to_string_lossy(),
+                            "sync_type": format!("{:?}", repo.sync_type),
+                            "priority": repo.priority,
+                        })
                     })
-                }).collect();
+                    .collect();
                 json!({ "repos": repos })
             }
             "buckos://packages/installed" => {
@@ -386,7 +388,13 @@ impl McpServer {
             }
             "buckos://templates/list" => {
                 let templates = vec![
-                    "simple", "autotools", "cmake", "meson", "cargo", "go", "python"
+                    "simple",
+                    "autotools",
+                    "cmake",
+                    "meson",
+                    "cargo",
+                    "go",
+                    "python",
                 ];
                 json!({
                     "templates": templates,

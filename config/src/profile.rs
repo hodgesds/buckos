@@ -72,9 +72,9 @@ impl ProfileConfig {
                     }
 
                     // Resolve parent path
-                    let parent_path = if line.starts_with(':') {
+                    let parent_path = if let Some(stripped) = line.strip_prefix(':') {
                         // Absolute path within profiles
-                        current.parent().unwrap().parent().unwrap().join(&line[1..])
+                        current.parent().unwrap().parent().unwrap().join(stripped)
                     } else {
                         current.join(line)
                     };
@@ -219,8 +219,8 @@ impl ProfileInfo {
                 if line.is_empty() || line.starts_with('#') {
                     continue;
                 }
-                if line.starts_with('-') {
-                    info.use_config.force.remove(&line[1..].to_string());
+                if let Some(stripped) = line.strip_prefix('-') {
+                    info.use_config.force.remove(stripped);
                 } else {
                     info.use_config.force.insert(line.to_string());
                 }
@@ -235,8 +235,8 @@ impl ProfileInfo {
                 if line.is_empty() || line.starts_with('#') {
                     continue;
                 }
-                if line.starts_with('-') {
-                    info.use_config.mask.remove(&line[1..].to_string());
+                if let Some(stripped) = line.strip_prefix('-') {
+                    info.use_config.mask.remove(stripped);
                 } else {
                     info.use_config.mask.insert(line.to_string());
                 }
@@ -307,8 +307,8 @@ fn parse_make_defaults(content: &str, variables: &mut HashMap<String, String>) -
 
         // Check for continuation
         if let Some(ref var) = current_var {
-            if line.ends_with('\\') {
-                current_value.push_str(&line[..line.len() - 1]);
+            if let Some(stripped) = line.strip_suffix('\\') {
+                current_value.push_str(stripped);
                 current_value.push(' ');
                 continue;
             } else {
@@ -333,9 +333,9 @@ fn parse_make_defaults(content: &str, variables: &mut HashMap<String, String>) -
             // Remove quotes
             let value = value.trim_matches('"').trim_matches('\'');
 
-            if value.ends_with('\\') {
+            if let Some(stripped) = value.strip_suffix('\\') {
                 current_var = Some(var.to_string());
-                current_value = value[..value.len() - 1].to_string();
+                current_value = stripped.to_string();
                 current_value.push(' ');
             } else {
                 variables.insert(var.to_string(), value.to_string());

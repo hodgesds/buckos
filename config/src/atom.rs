@@ -358,12 +358,10 @@ impl FromStr for UseDep {
         };
 
         // Check for negation
-        let flag = if flag.starts_with('-') {
+        let flag = if let Some(stripped) = flag.strip_prefix('-').or_else(|| flag.strip_prefix('!'))
+        {
             enabled = false;
-            &flag[1..]
-        } else if flag.starts_with('!') {
-            enabled = false;
-            &flag[1..]
+            stripped
         } else {
             flag
         };

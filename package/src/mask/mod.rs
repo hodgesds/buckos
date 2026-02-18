@@ -27,16 +27,14 @@ pub enum KeywordState {
 
 impl KeywordState {
     /// Parse a keyword string to determine its state
-    pub fn from_str(s: &str) -> (String, Self) {
+    pub fn parse(s: &str) -> (String, Self) {
         let s = s.trim();
-        if s.starts_with('-') {
-            (s[1..].to_string(), KeywordState::Broken)
-        } else if s.starts_with('~') {
-            (s[1..].to_string(), KeywordState::Testing)
+        if let Some(stripped) = s.strip_prefix('-') {
+            (stripped.to_string(), KeywordState::Broken)
+        } else if let Some(stripped) = s.strip_prefix('~') {
+            (stripped.to_string(), KeywordState::Testing)
         } else if s == "**" {
             (s.to_string(), KeywordState::Experimental)
-        } else if s == "*" {
-            (s.to_string(), KeywordState::Stable)
         } else {
             (s.to_string(), KeywordState::Stable)
         }
@@ -680,7 +678,7 @@ impl MaskManager {
             if self.matches_entry(pkg, &entry.package_id, &entry.version) {
                 // Apply keyword overrides
                 for keyword in &entry.keywords {
-                    let (arch, state) = KeywordState::from_str(keyword);
+                    let (arch, state) = KeywordState::parse(keyword);
 
                     // Check if this override makes the package available
                     match state {
@@ -712,7 +710,7 @@ impl MaskManager {
 
         // Check against global ACCEPT_KEYWORDS
         for pkg_keyword in &pkg.keywords {
-            let (arch, state) = KeywordState::from_str(pkg_keyword);
+            let (arch, state) = KeywordState::parse(pkg_keyword);
 
             // Skip broken keywords
             if state == KeywordState::Broken {
@@ -760,10 +758,8 @@ impl MaskManager {
                 None => true, // Global entry
             };
 
-            if matches {
-                if self.license_matches(license, &entry.licenses) {
-                    return true;
-                }
+            if matches && self.license_matches(license, &entry.licenses) {
+                return true;
             }
         }
 
@@ -775,8 +771,7 @@ impl MaskManager {
     fn license_matches(&self, license: &str, accepted: &[String]) -> bool {
         for rule in accepted {
             // Handle negation
-            if rule.starts_with('-') {
-                let neg_license = &rule[1..];
+            if let Some(neg_license) = rule.strip_prefix('-') {
                 if license == neg_license {
                     return false;
                 }
@@ -789,8 +784,7 @@ impl MaskManager {
             }
 
             // Handle license groups
-            if rule.starts_with('@') {
-                let group_name = &rule[1..];
+            if let Some(group_name) = rule.strip_prefix('@') {
                 let group = match group_name.to_uppercase().as_str() {
                     "FREE" => Some(&self.license_groups.free),
                     "FREE-SOFTWARE" | "FSF-APPROVED" => Some(&self.license_groups.free_software),
@@ -1117,19 +1111,19 @@ mod tests {
     #[test]
     fn test_keyword_state_parsing() {
         assert_eq!(
-            KeywordState::from_str("amd64"),
+            KeywordState::parse("amd64"),
             ("amd64".to_string(), KeywordState::Stable)
         );
         assert_eq!(
-            KeywordState::from_str("~amd64"),
+            KeywordState::parse("~amd64"),
             ("amd64".to_string(), KeywordState::Testing)
         );
         assert_eq!(
-            KeywordState::from_str("-amd64"),
+            KeywordState::parse("-amd64"),
             ("amd64".to_string(), KeywordState::Broken)
         );
         assert_eq!(
-            KeywordState::from_str("**"),
+            KeywordState::parse("**"),
             ("**".to_string(), KeywordState::Experimental)
         );
     }

@@ -127,8 +127,8 @@ fn cmd_lsblk() -> Result<(), String> {
     let disks = Disks::new_with_refreshed_list();
 
     println!(
-        "{:<20} {:<15} {:<12} {:<10} {}",
-        "NAME", "SIZE", "TYPE", "MOUNT", "FS"
+        "{:<20} {:<15} {:<12} {:<10} FS",
+        "NAME", "SIZE", "TYPE", "MOUNT"
     );
     println!("{}", "-".repeat(70));
 
@@ -301,8 +301,8 @@ fn cmd_netinfo() -> Result<(), String> {
     let networks = Networks::new_with_refreshed_list();
 
     println!(
-        "{:<20} {:<15} {:<15} {:<15} {}",
-        "INTERFACE", "RX", "TX", "RX/s", "TX/s"
+        "{:<20} {:<15} {:<15} {:<15} TX/s",
+        "INTERFACE", "RX", "TX", "RX/s"
     );
     println!("{}", "-".repeat(80));
 
@@ -564,8 +564,8 @@ fn cmd_diskfree() -> Result<(), String> {
     let disks = Disks::new_with_refreshed_list();
 
     println!(
-        "{:<30} {:<12} {:<12} {:<12} {:<8} {}",
-        "FILESYSTEM", "SIZE", "USED", "AVAIL", "USE%", "MOUNT"
+        "{:<30} {:<12} {:<12} {:<12} {:<8} MOUNT",
+        "FILESYSTEM", "SIZE", "USED", "AVAIL", "USE%"
     );
     println!("{}", "-".repeat(90));
 
@@ -719,20 +719,20 @@ fn cmd_report(args: ReportArgs) -> Result<(), String> {
             System::name().unwrap_or_default(),
             System::os_version().unwrap_or_default()
         ));
-        report.push_str("\n");
+        report.push('\n');
 
         report.push_str("Memory:\n");
         report.push_str(&format!("  Total: {}\n", format_bytes(sys.total_memory())));
         report.push_str(&format!("  Used: {}\n", format_bytes(sys.used_memory())));
         report.push_str(&format!("  Free: {}\n", format_bytes(sys.free_memory())));
-        report.push_str("\n");
+        report.push('\n');
 
         report.push_str("CPU:\n");
         if let Some(cpu) = sys.cpus().first() {
             report.push_str(&format!("  Brand: {}\n", cpu.brand()));
         }
         report.push_str(&format!("  Cores: {}\n", sys.cpus().len()));
-        report.push_str("\n");
+        report.push('\n');
 
         report.push_str("Disks:\n");
         for disk in disks.list() {
@@ -743,10 +743,10 @@ fn cmd_report(args: ReportArgs) -> Result<(), String> {
                 format_bytes(disk.available_space())
             ));
         }
-        report.push_str("\n");
+        report.push('\n');
 
         report.push_str("Network Interfaces:\n");
-        for (name, _data) in networks.list() {
+        for name in networks.list().keys() {
             report.push_str(&format!("  {}\n", name));
         }
 

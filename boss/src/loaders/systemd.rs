@@ -249,10 +249,7 @@ fn parse_unit_file(content: &str, path: &Path) -> Result<ServiceDefinition> {
     let exec_reload = sections.service.get("ExecReload").cloned();
 
     // Working directory
-    let working_directory = sections
-        .service
-        .get("WorkingDirectory")
-        .map(|s| PathBuf::from(s));
+    let working_directory = sections.service.get("WorkingDirectory").map(PathBuf::from);
 
     // User and group
     let user = sections.service.get("User").cloned();
@@ -304,7 +301,7 @@ fn parse_unit_file(content: &str, path: &Path) -> Result<ServiceDefinition> {
 
     // Check if enabled (based on WantedBy/RequiredBy)
     let enabled =
-        sections.install.get("WantedBy").is_some() || sections.install.get("RequiredBy").is_some();
+        sections.install.contains_key("WantedBy") || sections.install.contains_key("RequiredBy");
 
     // Standard output/error
     let standard_output = sections

@@ -263,8 +263,8 @@ impl PackageSet {
             }
 
             // Check for set reference
-            if line.starts_with('@') {
-                set.dependencies.push(line[1..].to_string());
+            if let Some(stripped) = line.strip_prefix('@') {
+                set.dependencies.push(stripped.to_string());
                 continue;
             }
 

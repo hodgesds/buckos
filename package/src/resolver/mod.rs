@@ -233,7 +233,7 @@ impl DependencyResolver {
             versions_by_pkg.entry(id.clone()).or_default().push(lit);
         }
 
-        for (_pkg_id, versions) in &versions_by_pkg {
+        for versions in versions_by_pkg.values() {
             if versions.len() > 1 {
                 // At most one: for each pair, !a || !b
                 for i in 0..versions.len() {
@@ -280,7 +280,7 @@ impl DependencyResolver {
                         .filter(|p| {
                             p.id == dep.package
                                 && dep.version.matches(&p.version)
-                                && dep.slot.as_ref().map_or(true, |s| &p.slot == s)
+                                && dep.slot.as_ref().is_none_or(|s| &p.slot == s)
                         })
                         .map(|p| var_map[&(p.id.clone(), p.version.clone())])
                         .collect();

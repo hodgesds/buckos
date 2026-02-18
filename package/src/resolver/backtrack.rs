@@ -269,13 +269,11 @@ impl BacktrackResolver {
             if let Some(pkg) = selected_pkg {
                 // Check if this package has a dependency on the package we're selecting
                 for dep in &pkg.dependencies {
-                    if &dep.package == pkg_id {
-                        if !dep.version.matches(version) {
-                            return Err(Error::ResolutionFailed(format!(
-                                "{} requires {} {:?} but got {}",
-                                selected_id, pkg_id, dep.version, version
-                            )));
-                        }
+                    if &dep.package == pkg_id && !dep.version.matches(version) {
+                        return Err(Error::ResolutionFailed(format!(
+                            "{} requires {} {:?} but got {}",
+                            selected_id, pkg_id, dep.version, version
+                        )));
                     }
                 }
             }

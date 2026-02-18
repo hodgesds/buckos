@@ -28,7 +28,7 @@ pub struct PackageSets {
 impl PackageSets {
     /// Parse package sets from a bzl file
     pub fn from_file(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path).map_err(|e| ConfigError::Io(e))?;
+        let content = std::fs::read_to_string(path).map_err(ConfigError::Io)?;
 
         Self::parse(&content)
     }

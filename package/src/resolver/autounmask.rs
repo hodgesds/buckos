@@ -239,13 +239,12 @@ impl AutounmaskResolver {
                 }
 
                 // Check if unmasking is needed
-                if instability == InstabilityLevel::Masked {
-                    if self.masked_packages.contains(pkg_id) {
-                        changes.push(AutounmaskChange::Unmask {
-                            package: pkg_id.clone(),
-                            version: Some(pkg.version.clone()),
-                        });
-                    }
+                if instability == InstabilityLevel::Masked && self.masked_packages.contains(pkg_id)
+                {
+                    changes.push(AutounmaskChange::Unmask {
+                        package: pkg_id.clone(),
+                        version: Some(pkg.version.clone()),
+                    });
                 }
 
                 // Check USE flag requirements
@@ -373,7 +372,7 @@ impl AutounmaskResolver {
                 } => {
                     let flags: Vec<String> = enable
                         .iter()
-                        .map(|f| f.clone())
+                        .cloned()
                         .chain(disable.iter().map(|f| format!("-{}", f)))
                         .collect();
                     output.push_str(&format!(
@@ -430,7 +429,7 @@ impl AutounmaskResolver {
                 } => {
                     let flags: Vec<String> = enable
                         .iter()
-                        .map(|f| f.clone())
+                        .cloned()
                         .chain(disable.iter().map(|f| format!("-{}", f)))
                         .collect();
                     use_content.push_str(&format!("{} {}\n", package, flags.join(" ")));

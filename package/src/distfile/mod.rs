@@ -252,7 +252,7 @@ impl DistfileManager {
             // Progress reporting
             if let Some(total) = total_size {
                 let percent = (downloaded as f64 / total as f64 * 100.0) as u8;
-                if percent % 10 == 0 {
+                if percent.is_multiple_of(10) {
                     tracing::debug!("Download progress: {}%", percent);
                 }
             }

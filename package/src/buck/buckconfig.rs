@@ -127,7 +127,7 @@ impl BuckConfigFile {
     pub fn set(&mut self, section: &str, key: &str, value: &str) {
         self.sections
             .entry(section.to_string())
-            .or_insert_with(BuckConfigSection::default)
+            .or_default()
             .values
             .insert(key.to_string(), value.to_string());
     }
@@ -135,10 +135,7 @@ impl BuckConfigFile {
     /// Merge another config into this one (other takes precedence)
     pub fn merge(&mut self, other: &BuckConfigFile) {
         for (section_name, section) in &other.sections {
-            let target_section = self
-                .sections
-                .entry(section_name.clone())
-                .or_insert_with(BuckConfigSection::default);
+            let target_section = self.sections.entry(section_name.clone()).or_default();
 
             for (key, value) in &section.values {
                 target_section.values.insert(key.clone(), value.clone());

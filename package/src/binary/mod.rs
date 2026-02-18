@@ -583,10 +583,7 @@ impl BinaryPackageManager {
 
         // Verify signature if present
         let signature_valid = if let Some(ref sig) = binpkg.signature {
-            match self.signing_manager.verify_data(&content, sig) {
-                Ok(verification) => Some(verification),
-                Err(_) => None,
-            }
+            self.signing_manager.verify_data(&content, sig).ok()
         } else {
             None
         };
@@ -916,15 +913,14 @@ impl BinaryPackageManager {
         // Find last dash followed by digit (version separator)
         let mut last_dash = None;
         for (i, c) in stem.char_indices() {
-            if c == '-' {
-                if stem[i + 1..]
+            if c == '-'
+                && stem[i + 1..]
                     .chars()
                     .next()
                     .map(|c| c.is_ascii_digit())
                     .unwrap_or(false)
-                {
-                    last_dash = Some(i);
-                }
+            {
+                last_dash = Some(i);
             }
         }
 

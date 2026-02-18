@@ -304,7 +304,7 @@ fn detect_target_arch() -> (&'static str, &'static str, &'static str) {
 /// Check disk safety - ensure we're not installing on the running system's disk
 fn check_disk_safety(disk_device: &str) -> anyhow::Result<()> {
     let root_device_result = Command::new("findmnt")
-        .args(&["-n", "-o", "SOURCE", "/"])
+        .args(["-n", "-o", "SOURCE", "/"])
         .output();
 
     if let Ok(output) = root_device_result {
@@ -313,7 +313,7 @@ fn check_disk_safety(disk_device: &str) -> anyhow::Result<()> {
 
             // Use lsblk to get the parent disk device
             let lsblk_result = Command::new("lsblk")
-                .args(&["-no", "PKNAME", &root_partition])
+                .args(["-no", "PKNAME", &root_partition])
                 .output();
 
             let root_disk = if let Ok(lsblk_output) = lsblk_result {
@@ -355,7 +355,7 @@ fn check_disk_safety(disk_device: &str) -> anyhow::Result<()> {
 /// Unmount all partitions from a target disk
 fn unmount_disk_partitions(disk_device: &str) -> anyhow::Result<()> {
     let findmnt_output = Command::new("findmnt")
-        .args(&["-rno", "TARGET,SOURCE"])
+        .args(["-rno", "TARGET,SOURCE"])
         .output();
 
     let mut mount_points_to_unmount = Vec::new();
@@ -402,7 +402,7 @@ fn unmount_disk_partitions(disk_device: &str) -> anyhow::Result<()> {
                     mount_point,
                     stderr
                 );
-                let _ = Command::new("umount").args(&["-l", mount_point]).output();
+                let _ = Command::new("umount").args(["-l", mount_point]).output();
             }
             Err(e) => {
                 tracing::warn!("Failed to unmount {}: {}", mount_point, e);
@@ -439,12 +439,12 @@ fn deactivate_swap(disk_device: &str) {
 
 /// Kill processes using a disk device
 fn kill_disk_processes(disk_device: &str) {
-    match Command::new("fuser").args(&["-m", disk_device]).output() {
+    match Command::new("fuser").args(["-m", disk_device]).output() {
         Ok(output) => {
             let users = String::from_utf8_lossy(&output.stdout);
             if !users.trim().is_empty() {
                 tracing::warn!("Processes still using {}: {}", disk_device, users);
-                let _ = Command::new("fuser").args(&["-km", disk_device]).output();
+                let _ = Command::new("fuser").args(["-km", disk_device]).output();
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
@@ -568,7 +568,7 @@ fn create_partition_table(disk_device: &str, use_gpt: bool) -> anyhow::Result<()
         }
 
         let output = Command::new("parted")
-            .args(&["-s", disk_device, "mklabel", pt_type])
+            .args(["-s", disk_device, "mklabel", pt_type])
             .output()
             .map_err(|e| {
                 anyhow::anyhow!(
@@ -593,11 +593,15 @@ fn create_partition_table(disk_device: &str, use_gpt: bool) -> anyhow::Result<()
     }
 
     // All retries failed - provide diagnostics
-    tracing::error!("Failed to create partition table on {} after {} attempts", disk_device, max_retries);
+    tracing::error!(
+        "Failed to create partition table on {} after {} attempts",
+        disk_device,
+        max_retries
+    );
 
     // Diagnostic: check what's still mounted
     if let Ok(mounts) = Command::new("findmnt")
-        .args(&["-rno", "TARGET,SOURCE"])
+        .args(["-rno", "TARGET,SOURCE"])
         .output()
     {
         if mounts.status.success() {
@@ -658,7 +662,7 @@ fn create_partition(
 
     let start = format!("{}MB", start_mb);
     let output = Command::new("parted")
-        .args(&[
+        .args([
             "-s",
             disk_device,
             "mkpart",
@@ -689,7 +693,7 @@ fn create_partition(
     if partition.mount_point == MountPoint::BootEfi && use_gpt {
         let part_num = (idx + 1).to_string();
         let output = Command::new("parted")
-            .args(&["-s", disk_device, "set", &part_num, "esp", "on"])
+            .args(["-s", disk_device, "set", &part_num, "esp", "on"])
             .output()
             .map_err(|e| anyhow::anyhow!("Failed to execute parted set esp: {}", e))?;
 
@@ -710,7 +714,7 @@ fn create_partition(
     {
         let part_num = (idx + 1).to_string();
         let output = Command::new("parted")
-            .args(&["-s", disk_device, "set", &part_num, "bios_grub", "on"])
+            .args(["-s", disk_device, "set", &part_num, "bios_grub", "on"])
             .output()
             .map_err(|e| anyhow::anyhow!("Failed to execute parted set bios_grub: {}", e))?;
 
@@ -1015,7 +1019,7 @@ fn configure_timezone(target_root: &std::path::Path, timezone: &str) -> anyhow::
     let timezone_src = format!("/usr/share/zoneinfo/{}", timezone);
     let timezone_dst = target_root.join("etc/localtime");
 
-    let timezone_src_in_target = target_root.join(&timezone_src.trim_start_matches('/'));
+    let timezone_src_in_target = target_root.join(timezone_src.trim_start_matches('/'));
     if timezone_src_in_target.exists() {
         if timezone_dst.exists() {
             std::fs::remove_file(&timezone_dst)?;
@@ -1236,7 +1240,7 @@ fn setup_chroot_mounts(
         std::fs::create_dir_all(&target_path)?;
 
         let output = Command::new("mount")
-            .args(&["--bind", source, target_path.to_str().unwrap()])
+            .args(["--bind", source, target_path.to_str().unwrap()])
             .output()
             .map_err(|e| {
                 anyhow::anyhow!(
@@ -1260,7 +1264,7 @@ fn setup_chroot_mounts(
         let run_target = target_root.join("run");
         std::fs::create_dir_all(&run_target)?;
         let _ = Command::new("mount")
-            .args(&["--bind", "/run", run_target.to_str().unwrap()])
+            .args(["--bind", "/run", run_target.to_str().unwrap()])
             .output();
     }
 
@@ -1288,7 +1292,7 @@ fn cleanup_chroot_mounts(target_root: &std::path::Path, bind_mounts: &[(&str, &s
                 tracing::warn!("Failed to unmount {}: {}", target_path.display(), stderr);
                 // Try lazy unmount
                 let _ = Command::new("umount")
-                    .args(&["-l", target_path.to_str().unwrap()])
+                    .args(["-l", target_path.to_str().unwrap()])
                     .output();
             }
             Err(e) => {
@@ -1695,7 +1699,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
                 // Wipe partition table signatures (optional, parted mklabel will also clear the table)
                 match Command::new("wipefs")
-                    .args(&["-a", &disk_config.device])
+                    .args(["-a", &disk_config.device])
                     .output()
                 {
                     Ok(output) => {
@@ -1754,7 +1758,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
                 // partprobe might not be available, try alternative
                 tracing::warn!("partprobe failed: {}, trying blockdev --rereadpt", e);
                 let _ = Command::new("blockdev")
-                    .args(&["--rereadpt", &disk_config.device])
+                    .args(["--rereadpt", &disk_config.device])
                     .output();
             }
 
@@ -1874,7 +1878,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
                         for subvol in &["@home", "@snapshots"] {
                             let output = Command::new("btrfs")
-                                .args(&["subvolume", "create"])
+                                .args(["subvolume", "create"])
                                 .arg(btrfs_root.join(subvol.trim_start_matches('@')))
                                 .output()
                                 .map_err(|e| anyhow::anyhow!(
@@ -2260,7 +2264,7 @@ rootfs(
         let rootfs_path = output_str
             .lines()
             .filter(|line| !line.trim().is_empty())
-            .last()
+            .next_back()
             .and_then(|line| line.split_whitespace().nth(1))
             .ok_or_else(|| {
                 anyhow::anyhow!(
@@ -2346,7 +2350,7 @@ rootfs(
 
             // Use rsync for efficient copying, excluding buck-out
             let output = Command::new("rsync")
-                .args(&[
+                .args([
                     "-a",
                     "--exclude=buck-out",
                     "--exclude=.git/objects/pack/*.pack",
@@ -2361,14 +2365,14 @@ rootfs(
                 tracing::warn!("rsync warning: {}", stderr);
                 // Fall back to cp if rsync fails
                 let output = Command::new("cp")
-                    .args(&[
+                    .args([
                         "-a",
-                        &config.buckos_build_path.to_string_lossy().to_string(),
-                        &target_repo_path
+                        config.buckos_build_path.to_string_lossy().as_ref(),
+                        target_repo_path
                             .parent()
                             .unwrap()
                             .to_string_lossy()
-                            .to_string(),
+                            .as_ref(),
                     ])
                     .output()?;
                 if !output.status.success() {
@@ -2392,11 +2396,11 @@ rootfs(
             );
 
             let output = Command::new("git")
-                .args(&[
+                .args([
                     "clone",
                     "--depth=1",
                     "https://github.com/hodgesds/buckos-build.git",
-                    &target_repo_path.to_string_lossy().to_string(),
+                    target_repo_path.to_string_lossy().as_ref(),
                 ])
                 .output()
                 .map_err(|e| anyhow::anyhow!("Failed to clone buckos-build repo: {}", e))?;
@@ -2432,11 +2436,11 @@ rootfs(
 
             // Copy specs directory to target
             let output = Command::new("cp")
-                .args(&[
+                .args([
                     "-a",
                     "-r",
                     &format!("{}/.", source_specs_path.display()),
-                    &target_specs_path.to_string_lossy().to_string(),
+                    target_specs_path.to_string_lossy().as_ref(),
                 ])
                 .output()
                 .map_err(|e| anyhow::anyhow!("Failed to copy specs: {}", e))?;
@@ -2463,7 +2467,7 @@ rootfs(
         );
 
         // Try to find the buckos binary - check common locations
-        let buckos_binary_candidates = vec![
+        let buckos_binary_candidates = [
             PathBuf::from("/usr/bin/buckos"),
             PathBuf::from("/usr/local/bin/buckos"),
             std::env::current_exe()
@@ -2617,7 +2621,7 @@ rootfs(
                                 if let Some(pkg_path) = output_str
                                     .lines()
                                     .filter(|l| !l.trim().is_empty())
-                                    .last()
+                                    .next_back()
                                     .and_then(|l| l.split_whitespace().nth(1))
                                 {
                                     let pkg_src = config.buckos_build_path.join(pkg_path);
@@ -2884,7 +2888,7 @@ rootfs(
                                 config.target_root.join("sys/firmware/efi/efivars");
                             std::fs::create_dir_all(&efivars_target)?;
                             let output = Command::new("mount")
-                                .args(&[
+                                .args([
                                     "-t",
                                     "efivarfs",
                                     "efivarfs",
@@ -2947,7 +2951,7 @@ rootfs(
                             )
                             .env("HOME", "/root")
                             .env("TERM", "linux")
-                            .args(&["ldconfig", "-X"])
+                            .args(["ldconfig", "-X"])
                             .output()
                             .map_err(|e| anyhow::anyhow!("Failed to run ldconfig: {}", e))?;
 

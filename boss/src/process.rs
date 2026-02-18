@@ -98,7 +98,7 @@ impl ProcessSupervisor {
                 unsafe {
                     cmd.pre_exec(move || {
                         nix::unistd::setuid(nix::unistd::Uid::from_raw(uid))
-                            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                            .map_err(std::io::Error::other)?;
                         Ok(())
                     });
                 }
@@ -110,8 +110,7 @@ impl ProcessSupervisor {
             let limits = limits.clone();
             unsafe {
                 cmd.pre_exec(move || {
-                    set_resource_limits(&limits)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                    set_resource_limits(&limits).map_err(std::io::Error::other)?;
                     Ok(())
                 });
             }
@@ -120,8 +119,7 @@ impl ProcessSupervisor {
         // Create new session for the process
         unsafe {
             cmd.pre_exec(|| {
-                nix::unistd::setsid()
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                nix::unistd::setsid().map_err(std::io::Error::other)?;
                 Ok(())
             });
         }
@@ -173,11 +171,9 @@ impl ProcessSupervisor {
             let service_name = service.name.clone();
             tokio::spawn(async move {
                 let reader = BufReader::new(stdout_read);
-                for line in reader.lines() {
-                    if let Ok(line) = line {
-                        let entry = JournalEntry::new(&service_name, &line, "stdout").with_pid(pid);
-                        journal.log(entry).await;
-                    }
+                for line in reader.lines().flatten() {
+                    let entry = JournalEntry::new(&service_name, &line, "stdout").with_pid(pid);
+                    journal.log(entry).await;
                 }
             });
         }
@@ -187,11 +183,9 @@ impl ProcessSupervisor {
             let service_name = service.name.clone();
             tokio::spawn(async move {
                 let reader = BufReader::new(stderr_read);
-                for line in reader.lines() {
-                    if let Ok(line) = line {
-                        let entry = JournalEntry::new(&service_name, &line, "stderr").with_pid(pid);
-                        journal.log(entry).await;
-                    }
+                for line in reader.lines().flatten() {
+                    let entry = JournalEntry::new(&service_name, &line, "stderr").with_pid(pid);
+                    journal.log(entry).await;
                 }
             });
         }

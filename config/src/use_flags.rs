@@ -101,7 +101,7 @@ impl UseConfig {
     pub fn parse_use_string(s: &str) -> Vec<UseFlag> {
         s.split_whitespace()
             .filter(|s| !s.is_empty())
-            .map(|s| UseFlag::parse(s))
+            .map(UseFlag::parse)
             .collect()
     }
 
@@ -184,8 +184,8 @@ impl UseFlag {
     /// Parse a USE flag string (e.g., "-gtk" or "systemd")
     pub fn parse(s: &str) -> Self {
         let s = s.trim();
-        if s.starts_with('-') {
-            Self::disabled(&s[1..])
+        if let Some(stripped) = s.strip_prefix('-') {
+            Self::disabled(stripped)
         } else {
             Self::enabled(s)
         }

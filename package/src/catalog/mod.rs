@@ -42,10 +42,7 @@ impl PackageCatalog {
 
     /// Add a package to the catalog
     pub fn add_package(&mut self, info: PackageInfo) {
-        self.packages
-            .entry(info.id.clone())
-            .or_insert_with(Vec::new)
-            .push(info);
+        self.packages.entry(info.id.clone()).or_default().push(info);
     }
 
     /// Get all versions of a package

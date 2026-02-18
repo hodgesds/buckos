@@ -416,7 +416,7 @@ impl GlsaChecker {
                 // Try to extract CVE ID from link
                 let id = if ref_type == "CVE" {
                     link.split('/')
-                        .last()
+                        .next_back()
                         .map(|s| s.to_string())
                         .unwrap_or(link.clone())
                 } else {

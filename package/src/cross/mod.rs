@@ -159,7 +159,7 @@ impl CrossConfig {
     /// Create a cross-compilation configuration
     pub fn cross(target: TargetTriplet) -> Result<Self> {
         let build = TargetTriplet::host()?;
-        let sysroot = PathBuf::from(format!("/usr/{}", target.to_string()));
+        let sysroot = PathBuf::from(format!("/usr/{}", target));
 
         let mut config = Self {
             cbuild: build,

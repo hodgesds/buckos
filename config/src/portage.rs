@@ -81,8 +81,10 @@ impl PortageConfig {
 
     /// Load configuration from the filesystem
     pub fn load(config_root: &Path) -> Result<Self> {
-        let mut config = Self::default();
-        config.config_root = config_root.to_path_buf();
+        let mut config = Self {
+            config_root: config_root.to_path_buf(),
+            ..Default::default()
+        };
 
         // Load make.conf
         let make_conf_path = config_root.join("make.conf");

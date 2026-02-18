@@ -8,7 +8,7 @@ use sysinfo::{Disks, System};
 use crate::types::{
     AudioDeviceInfo, DiskInfo, GpuInfo, GpuVendor, HardwareInfo, HardwarePackageSuggestion,
     NetworkInterfaceInfo, NetworkInterfaceType, PartitionInfo, PowerProfile, StorageControllerType,
-    SystemLimitsConfig, SystemTuningProfile, SysctlConfig, UlimitConfig,
+    SysctlConfig, SystemLimitsConfig, SystemTuningProfile, UlimitConfig,
 };
 
 /// Required tools for installation
@@ -224,22 +224,21 @@ pub fn get_available_disks() -> Result<Vec<DiskInfo>> {
         for disk in disks.list() {
             let device = disk.name().to_string_lossy().to_string();
             // Only include actual disk devices, not partitions
-            if device.starts_with("/dev/sd")
+            if (device.starts_with("/dev/sd")
                 || device.starts_with("/dev/nvme")
-                || device.starts_with("/dev/vd")
+                || device.starts_with("/dev/vd"))
+                && !disk_map.contains_key(&device)
             {
-                if !disk_map.contains_key(&device) {
-                    disk_map.insert(
-                        device.clone(),
-                        DiskInfo {
-                            device: device.clone(),
-                            model: "Unknown".to_string(),
-                            size: disk.total_space(),
-                            removable: disk.is_removable(),
-                            partitions: Vec::new(),
-                        },
-                    );
-                }
+                disk_map.insert(
+                    device.clone(),
+                    DiskInfo {
+                        device: device.clone(),
+                        model: "Unknown".to_string(),
+                        size: disk.total_space(),
+                        removable: disk.is_removable(),
+                        partitions: Vec::new(),
+                    },
+                );
             }
         }
     }
@@ -1211,11 +1210,7 @@ pub fn generate_system_limits(
                 nproc_soft: 4096,
                 nproc_hard: 65536,
                 // mlock: Allow locking up to 50% of RAM for audio/gaming
-                memlock_soft: if enable_audio {
-                    ram_kb / 2
-                } else {
-                    65536
-                },
+                memlock_soft: if enable_audio { ram_kb / 2 } else { 65536 },
                 memlock_hard: ram_kb / 2,
                 core_soft: 0,
                 core_hard: u64::MAX,
@@ -1389,14 +1384,32 @@ pub fn generate_limits_conf(config: &SystemLimitsConfig) -> String {
         "# See limits.conf(5) for details".to_string(),
         "".to_string(),
         "# File descriptor limits".to_string(),
-        format!("*               soft    nofile          {}", config.ulimit.nofile_soft),
-        format!("*               hard    nofile          {}", config.ulimit.nofile_hard),
-        format!("root            soft    nofile          {}", config.ulimit.nofile_hard),
-        format!("root            hard    nofile          {}", config.ulimit.nofile_hard),
+        format!(
+            "*               soft    nofile          {}",
+            config.ulimit.nofile_soft
+        ),
+        format!(
+            "*               hard    nofile          {}",
+            config.ulimit.nofile_hard
+        ),
+        format!(
+            "root            soft    nofile          {}",
+            config.ulimit.nofile_hard
+        ),
+        format!(
+            "root            hard    nofile          {}",
+            config.ulimit.nofile_hard
+        ),
         "".to_string(),
         "# Process limits".to_string(),
-        format!("*               soft    nproc           {}", config.ulimit.nproc_soft),
-        format!("*               hard    nproc           {}", config.ulimit.nproc_hard),
+        format!(
+            "*               soft    nproc           {}",
+            config.ulimit.nproc_soft
+        ),
+        format!(
+            "*               hard    nproc           {}",
+            config.ulimit.nproc_hard
+        ),
         "".to_string(),
         "# Memory locking (for mlock)".to_string(),
     ];
@@ -1562,7 +1575,10 @@ pub fn generate_sysctl_conf(config: &SystemLimitsConfig) -> String {
 
     // Only set threads-max if not auto (0)
     if sysctl.kernel_threads_max > 0 {
-        lines.push(format!("kernel.threads-max = {}", sysctl.kernel_threads_max));
+        lines.push(format!(
+            "kernel.threads-max = {}",
+            sysctl.kernel_threads_max
+        ));
     }
 
     lines.push("".to_string());

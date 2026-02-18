@@ -240,10 +240,11 @@ pub struct NetworkInterfaceInfo {
 }
 
 /// Kernel version channel
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum KernelChannel {
-    LTS,      // Long-term support (e.g., 6.6 LTS)
-    Stable,   // Latest stable (e.g., 6.17)
+    LTS, // Long-term support (e.g., 6.6 LTS)
+    #[default]
+    Stable, // Latest stable (e.g., 6.17)
     Mainline, // Rolling/bleeding edge
 }
 
@@ -319,7 +320,7 @@ impl KernelChannel {
         // First, resolve the alias to get the actual source target
         let output = Command::new("buck2")
             .current_dir(&working_dir)
-            .args(&["uquery", source_target, "--output-all-attributes"])
+            .args(["uquery", source_target, "--output-all-attributes"])
             .output()?;
 
         if !output.status.success() {
@@ -351,7 +352,7 @@ impl KernelChannel {
         // Query the archive target for URLs
         let output = Command::new("buck2")
             .current_dir(&working_dir)
-            .args(&["uquery", &archive_target, "--output-all-attributes"])
+            .args(["uquery", &archive_target, "--output-all-attributes"])
             .output()?;
 
         if !output.status.success() {
@@ -403,12 +404,6 @@ impl KernelChannel {
             KernelChannel::Stable,
             KernelChannel::Mainline,
         ]
-    }
-}
-
-impl Default for KernelChannel {
-    fn default() -> Self {
-        KernelChannel::Stable
     }
 }
 
@@ -541,9 +536,10 @@ pub enum PowerProfile {
 }
 
 /// System tuning profile for resource limits and sysctl settings
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 pub enum SystemTuningProfile {
     /// Automatic detection based on hardware
+    #[default]
     Auto,
     /// Desktop workstation - balanced settings
     Desktop,
@@ -578,8 +574,12 @@ impl SystemTuningProfile {
             SystemTuningProfile::Desktop => "Balanced settings for desktop workstations",
             SystemTuningProfile::Server => "Optimized for network services and I/O throughput",
             SystemTuningProfile::Development => "High limits for compilers, IDEs, and build tools",
-            SystemTuningProfile::Database => "Optimized for database workloads with high memory usage",
-            SystemTuningProfile::Embedded => "Conservative settings for resource-constrained devices",
+            SystemTuningProfile::Database => {
+                "Optimized for database workloads with high memory usage"
+            }
+            SystemTuningProfile::Embedded => {
+                "Conservative settings for resource-constrained devices"
+            }
             SystemTuningProfile::Custom => "Manually configure all system limits",
         }
     }
@@ -594,12 +594,6 @@ impl SystemTuningProfile {
             SystemTuningProfile::Embedded,
             SystemTuningProfile::Custom,
         ]
-    }
-}
-
-impl Default for SystemTuningProfile {
-    fn default() -> Self {
-        SystemTuningProfile::Auto
     }
 }
 

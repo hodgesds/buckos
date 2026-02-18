@@ -293,7 +293,7 @@ impl SigningManager {
                         .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
                         .map(|dt| dt.date_naive());
 
-                    let trust = match fields.get(1).map(|s| *s) {
+                    let trust = match fields.get(1).copied() {
                         Some("o") => TrustLevel::Unknown,
                         Some("i") | Some("d") | Some("r") => TrustLevel::Never,
                         Some("n") => TrustLevel::Never,
@@ -604,16 +604,16 @@ impl SigningManager {
         }
 
         // Check trusted keys
-        if verification.valid && !self.trusted_keys.is_empty() {
-            if !self
+        if verification.valid
+            && !self.trusted_keys.is_empty()
+            && !self
                 .trusted_keys
                 .iter()
                 .any(|k| verification.key_id.ends_with(k) || k.ends_with(&verification.key_id))
-            {
-                verification
-                    .warnings
-                    .push("Signature is valid but key is not in trusted keys list".to_string());
-            }
+        {
+            verification
+                .warnings
+                .push("Signature is valid but key is not in trusted keys list".to_string());
         }
 
         Ok(verification)

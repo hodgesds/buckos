@@ -5,9 +5,10 @@ use url::Url;
 use uuid::Uuid;
 
 /// State of an action
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ActionState {
     /// Action is waiting to be executed
+    #[default]
     Pending,
     /// Action is currently running
     Running,
@@ -19,12 +20,6 @@ pub enum ActionState {
     Skipped,
     /// Action state is unknown
     Unknown,
-}
-
-impl Default for ActionState {
-    fn default() -> Self {
-        ActionState::Pending
-    }
 }
 
 /// Unique identifier for an action in the DAG

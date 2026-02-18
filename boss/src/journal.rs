@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 const MAX_MEMORY_ENTRIES: usize = 1000;
 
 /// Priority level for journal entries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Priority {
     /// Emergency - system is unusable
@@ -32,15 +32,10 @@ pub enum Priority {
     /// Notice - normal but significant condition
     Notice = 5,
     /// Info - informational messages
+    #[default]
     Info = 6,
     /// Debug - debug-level messages
     Debug = 7,
-}
-
-impl Default for Priority {
-    fn default() -> Self {
-        Priority::Info
-    }
 }
 
 impl std::fmt::Display for Priority {
@@ -237,7 +232,7 @@ impl Journal {
         };
 
         let reader = BufReader::new(file);
-        let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+        let lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
 
         let entries: Vec<JournalEntry> = match limit {
             Some(n) => lines.iter().rev().take(n).rev(),

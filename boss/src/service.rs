@@ -220,10 +220,11 @@ mod option_humantime_serde {
 }
 
 /// Type of service execution model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceType {
     /// Simple service - main process is the service
+    #[default]
     Simple,
     /// Forking service - forks and parent exits
     Forking,
@@ -235,14 +236,8 @@ pub enum ServiceType {
     Idle,
 }
 
-impl Default for ServiceType {
-    fn default() -> Self {
-        ServiceType::Simple
-    }
-}
-
 /// Service restart policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum RestartPolicy {
     /// Never restart
@@ -250,6 +245,7 @@ pub enum RestartPolicy {
     /// Restart on success (exit 0)
     OnSuccess,
     /// Restart on failure (non-zero exit)
+    #[default]
     OnFailure,
     /// Restart on abnormal exit (signal, timeout)
     OnAbnormal,
@@ -257,17 +253,12 @@ pub enum RestartPolicy {
     Always,
 }
 
-impl Default for RestartPolicy {
-    fn default() -> Self {
-        RestartPolicy::OnFailure
-    }
-}
-
 /// Current state of a service.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceState {
     /// Service is inactive and not running
+    #[default]
     Inactive,
     /// Service is starting up
     Starting,
@@ -281,12 +272,6 @@ pub enum ServiceState {
     Failed,
     /// Service is reloading configuration
     Reloading,
-}
-
-impl Default for ServiceState {
-    fn default() -> Self {
-        ServiceState::Inactive
-    }
 }
 
 impl std::fmt::Display for ServiceState {
@@ -497,10 +482,11 @@ impl ServiceDefinition {
 }
 
 /// Health status for a service.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {
     /// No health check configured
+    #[default]
     None,
     /// Health check starting (in start_period)
     Starting,
@@ -508,12 +494,6 @@ pub enum HealthStatus {
     Healthy,
     /// Service is unhealthy
     Unhealthy,
-}
-
-impl Default for HealthStatus {
-    fn default() -> Self {
-        HealthStatus::None
-    }
 }
 
 impl std::fmt::Display for HealthStatus {

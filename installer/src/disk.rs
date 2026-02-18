@@ -74,7 +74,7 @@ pub fn create_auto_partition_config(
         );
 
         let desired_swap = if disk.removable {
-            1 * 1024 * 1024 * 1024 // 1 GB for USB drives
+            1024 * 1024 * 1024 // 1 GB for USB drives
         } else {
             std::cmp::min(
                 8 * 1024 * 1024 * 1024,

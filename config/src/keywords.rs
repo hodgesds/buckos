@@ -92,8 +92,7 @@ impl KeywordConfig {
             }
 
             // Check if package has testing keyword that we accept
-            if pkg_kw.starts_with('~') {
-                let base = &pkg_kw[1..];
+            if let Some(base) = pkg_kw.strip_prefix('~') {
                 if self.accept_keywords.contains(&format!("~{}", base)) {
                     return true;
                 }
@@ -168,10 +167,10 @@ impl Keyword {
             };
         }
 
-        let (stability, arch) = if s.starts_with("~") {
-            (KeywordStability::Testing, &s[1..])
-        } else if s.starts_with("-") {
-            (KeywordStability::Masked, &s[1..])
+        let (stability, arch) = if let Some(stripped) = s.strip_prefix('~') {
+            (KeywordStability::Testing, stripped)
+        } else if let Some(stripped) = s.strip_prefix('-') {
+            (KeywordStability::Masked, stripped)
         } else {
             (KeywordStability::Stable, s)
         };

@@ -74,8 +74,8 @@ impl FeaturesConfig {
                 continue;
             }
 
-            if part.starts_with('-') {
-                config.disable(&part[1..]);
+            if let Some(stripped) = part.strip_prefix('-') {
+                config.disable(stripped);
             } else {
                 config.enable(part);
             }

@@ -383,8 +383,10 @@ fn save_section(
         }
     } else {
         // Repository definition
-        let mut repo = Repository::default();
-        repo.name = section.to_string();
+        let mut repo = Repository {
+            name: section.to_string(),
+            ..Default::default()
+        };
 
         if let Some(v) = values.get("location") {
             repo.location = PathBuf::from(v);

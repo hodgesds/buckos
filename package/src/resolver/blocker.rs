@@ -114,20 +114,15 @@ impl BlockerResolver {
         };
 
         // Parse version operator if present
-        let (version_spec, pkg_str) = if rest.starts_with(">=") {
-            let pkg_str = &rest[2..];
+        let (version_spec, pkg_str) = if let Some(pkg_str) = rest.strip_prefix(">=") {
             (Self::parse_versioned_atom(pkg_str, ">=")?, pkg_str)
-        } else if rest.starts_with("<=") {
-            let pkg_str = &rest[2..];
+        } else if let Some(pkg_str) = rest.strip_prefix("<=") {
             (Self::parse_versioned_atom(pkg_str, "<=")?, pkg_str)
-        } else if rest.starts_with('>') {
-            let pkg_str = &rest[1..];
+        } else if let Some(pkg_str) = rest.strip_prefix('>') {
             (Self::parse_versioned_atom(pkg_str, ">")?, pkg_str)
-        } else if rest.starts_with('<') {
-            let pkg_str = &rest[1..];
+        } else if let Some(pkg_str) = rest.strip_prefix('<') {
             (Self::parse_versioned_atom(pkg_str, "<")?, pkg_str)
-        } else if rest.starts_with('=') {
-            let pkg_str = &rest[1..];
+        } else if let Some(pkg_str) = rest.strip_prefix('=') {
             (Self::parse_versioned_atom(pkg_str, "=")?, pkg_str)
         } else {
             (VersionSpec::Any, rest)
@@ -158,15 +153,14 @@ impl BlockerResolver {
         // Find version part (after last hyphen followed by digit)
         let mut last_dash = None;
         for (i, c) in s.char_indices() {
-            if c == '-' {
-                if s[i + 1..]
+            if c == '-'
+                && s[i + 1..]
                     .chars()
                     .next()
                     .map(|c| c.is_ascii_digit())
                     .unwrap_or(false)
-                {
-                    last_dash = Some(i);
-                }
+            {
+                last_dash = Some(i);
             }
         }
 
@@ -224,8 +218,7 @@ impl BlockerResolver {
             // Check if the blocked package is being installed or is installed
             let blocked_present = to_install
                 .iter()
-                .find(|p| p.id == blocker.blocked && blocker.blocked_version.matches(&p.version))
-                .is_some()
+                .any(|p| p.id == blocker.blocked && blocker.blocked_version.matches(&p.version))
                 || installed
                     .iter()
                     .find(|p| {

@@ -170,11 +170,8 @@ impl InstallerApp {
         ui_state.hardware_suggestions = hardware_suggestions;
 
         // Initialize system limits based on detected hardware and default profile
-        ui_state.system_limits = system::detect_system_limits(
-            &hardware_info,
-            &config.profile,
-            &config.audio_subsystem,
-        );
+        ui_state.system_limits =
+            system::detect_system_limits(&hardware_info, &config.profile, &config.audio_subsystem);
 
         // Auto-detect handheld device
         if let Some(device) = system::detect_handheld_device() {

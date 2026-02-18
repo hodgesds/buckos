@@ -21,10 +21,10 @@ use ratatui::{
 };
 
 use crate::types::{
-    AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset,
-    EncryptionType, FilesystemType, HandheldDevice, HardwareInfo, HardwarePackageSuggestion,
-    InitSystem, InstallConfig, InstallProfile, InstallProgress, InstallStep, KernelChannel,
-    SystemLimitsConfig, SystemTuningProfile, UserConfig,
+    AudioSubsystem, BootloaderType, DesktopEnvironment, DiskInfo, DiskLayoutPreset, EncryptionType,
+    FilesystemType, HandheldDevice, HardwareInfo, HardwarePackageSuggestion, InitSystem,
+    InstallConfig, InstallProfile, InstallProgress, InstallStep, KernelChannel, SystemLimitsConfig,
+    SystemTuningProfile, UserConfig,
 };
 use crate::{disk, install, system};
 
@@ -263,11 +263,8 @@ impl TuiApp {
         ui.hardware_suggestions = hardware_suggestions;
 
         // Initialize system limits
-        ui.system_limits = system::detect_system_limits(
-            &hardware_info,
-            &config.profile,
-            &config.audio_subsystem,
-        );
+        ui.system_limits =
+            system::detect_system_limits(&hardware_info, &config.profile, &config.audio_subsystem);
 
         // Set initial selections
         if let Some(pos) = ui.timezones.iter().position(|tz| tz == "UTC") {
@@ -409,8 +406,7 @@ impl TuiApp {
                     return false;
                 }
                 if self.config.disk.is_some() && !self.config.dry_run && !self.ui.confirm_wipe {
-                    self.ui.validation_error =
-                        Some("Please confirm data destruction".to_string());
+                    self.ui.validation_error = Some("Please confirm data destruction".to_string());
                     return false;
                 }
                 true
@@ -426,8 +422,9 @@ impl TuiApp {
                 self.config.hardware_packages = self.ui.hardware_suggestions.clone();
 
                 // Generate kernel config fragments
-                let mut fragments =
-                    crate::kernel_config::generate_hardware_config_fragments(&self.config.hardware_info);
+                let mut fragments = crate::kernel_config::generate_hardware_config_fragments(
+                    &self.config.hardware_info,
+                );
 
                 let is_removable = self
                     .config
@@ -435,7 +432,9 @@ impl TuiApp {
                     .as_ref()
                     .map(|d| d.removable)
                     .unwrap_or(false);
-                fragments.push(crate::kernel_config::generate_boot_critical_config(is_removable));
+                fragments.push(crate::kernel_config::generate_boot_critical_config(
+                    is_removable,
+                ));
 
                 let config_content = crate::kernel_config::fragments_to_config_file(&fragments);
                 self.config.kernel_config_fragment = Some(config_content);
@@ -443,7 +442,10 @@ impl TuiApp {
             InstallStep::ProfileSelection => {
                 let de_idx = self.ui.de_list_state.selected().unwrap_or(0);
                 let des = DesktopEnvironment::all();
-                let selected_de = des.get(de_idx).cloned().unwrap_or(DesktopEnvironment::Gnome);
+                let selected_de = des
+                    .get(de_idx)
+                    .cloned()
+                    .unwrap_or(DesktopEnvironment::Gnome);
 
                 let handheld_idx = self.ui.handheld_list_state.selected().unwrap_or(0);
                 let handhelds = HandheldDevice::all();
@@ -514,8 +516,11 @@ impl TuiApp {
                             2 => FilesystemType::Xfs,
                             _ => FilesystemType::F2fs,
                         };
-                        self.config.disk =
-                            Some(disk::create_auto_partition_config(disk, &self.config.disk_layout, fs));
+                        self.config.disk = Some(disk::create_auto_partition_config(
+                            disk,
+                            &self.config.disk_layout,
+                            fs,
+                        ));
                     }
                 }
             }
@@ -622,25 +627,22 @@ impl TuiApp {
             KeyCode::Left | KeyCode::Backspace => self.navigate_back(),
             KeyCode::Tab => {
                 // Cycle through profile categories
-                self.ui.selected_profile_category =
-                    (self.ui.selected_profile_category + 1) % 5;
+                self.ui.selected_profile_category = (self.ui.selected_profile_category + 1) % 5;
             }
-            KeyCode::Up => match self.ui.focus {
-                FocusField::List => {
+            KeyCode::Up => {
+                if self.ui.focus == FocusField::List {
                     let len = 5; // Number of profile categories
                     let i = self.ui.selected_profile_category;
                     self.ui.selected_profile_category = if i == 0 { len - 1 } else { i - 1 };
                 }
-                _ => {}
-            },
-            KeyCode::Down => match self.ui.focus {
-                FocusField::List => {
+            }
+            KeyCode::Down => {
+                if self.ui.focus == FocusField::List {
                     let len = 5;
                     self.ui.selected_profile_category =
                         (self.ui.selected_profile_category + 1) % len;
                 }
-                _ => {}
-            },
+            }
             _ => {}
         }
     }
@@ -1229,7 +1231,9 @@ impl TuiApp {
             )),
             Line::from(""),
             Line::from("This installer will guide you through setting up BuckOS on your system."),
-            Line::from("Press Enter or Right Arrow to continue, Left Arrow or Backspace to go back."),
+            Line::from(
+                "Press Enter or Right Arrow to continue, Left Arrow or Backspace to go back.",
+            ),
         ];
 
         let welcome = Paragraph::new(welcome_text).wrap(Wrap { trim: true });
@@ -1323,12 +1327,7 @@ impl TuiApp {
             .iter()
             .map(|s| {
                 let checkbox = if s.selected { "[x]" } else { "[ ]" };
-                let text = format!(
-                    "{} {} - {}",
-                    checkbox,
-                    s.category,
-                    s.packages.join(", ")
-                );
+                let text = format!("{} {} - {}", checkbox, s.category, s.packages.join(", "));
                 ListItem::new(Line::from(text))
             })
             .collect();
@@ -1351,7 +1350,7 @@ impl TuiApp {
     }
 
     fn render_profile(&mut self, frame: &mut Frame, area: Rect) {
-        let categories = vec![
+        let categories = [
             ("Desktop", "Full desktop environment with GUI"),
             ("Server", "Headless server configuration"),
             ("Handheld", "Gaming handheld device"),
@@ -1412,7 +1411,7 @@ impl TuiApp {
             .split(area);
 
         // Kernel selection
-        let kernels = vec![
+        let kernels = [
             ("LTS", "Long-term support - maximum stability"),
             ("Stable", "Latest stable - balanced (recommended)"),
             ("Mainline", "Bleeding edge - latest features"),
@@ -1459,7 +1458,7 @@ impl TuiApp {
         frame.render_widget(checkbox, chunks[1]);
 
         // Init system selection
-        let init_systems = vec![
+        let init_systems = [
             "systemd (recommended)",
             "OpenRC",
             "runit",
@@ -1504,9 +1503,9 @@ impl TuiApp {
         let right_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(8),  // Filesystem
-                Constraint::Length(8),  // Encryption
-                Constraint::Min(5),     // Password fields
+                Constraint::Length(8), // Filesystem
+                Constraint::Length(8), // Encryption
+                Constraint::Min(5),    // Password fields
             ])
             .split(chunks[1]);
 
@@ -1575,11 +1574,8 @@ impl TuiApp {
         frame.render_stateful_widget(layout_list, left_chunks[1], &mut self.ui.layout_list_state);
 
         // Filesystem selection
-        let filesystems = vec!["ext4 (recommended)", "btrfs", "xfs", "f2fs"];
-        let fs_items: Vec<ListItem> = filesystems
-            .iter()
-            .map(|s| ListItem::new(*s))
-            .collect();
+        let filesystems = ["ext4 (recommended)", "btrfs", "xfs", "f2fs"];
+        let fs_items: Vec<ListItem> = filesystems.iter().map(|s| ListItem::new(*s)).collect();
 
         let fs_list = List::new(fs_items)
             .block(
@@ -1626,7 +1622,11 @@ impl TuiApp {
             )
             .highlight_symbol(">> ");
 
-        frame.render_stateful_widget(enc_list, right_chunks[1], &mut self.ui.encryption_list_state);
+        frame.render_stateful_widget(
+            enc_list,
+            right_chunks[1],
+            &mut self.ui.encryption_list_state,
+        );
 
         // Password fields (only if encryption selected)
         let encryption_idx = self.ui.encryption_list_state.selected().unwrap_or(0);
@@ -1737,9 +1737,9 @@ impl TuiApp {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(7),  // Root password section
-                Constraint::Min(10),    // New user section
-                Constraint::Length(5),  // Users list
+                Constraint::Length(7), // Root password section
+                Constraint::Min(10),   // New user section
+                Constraint::Length(5), // Users list
             ])
             .split(area);
 
@@ -1986,7 +1986,10 @@ impl TuiApp {
             ("Kernel", self.config.kernel_channel.name().to_string()),
             ("Target Disk", disk_info),
             ("Bootloader", self.config.bootloader.as_str().to_string()),
-            ("Encryption", self.config.encryption.encryption_type.name().to_string()),
+            (
+                "Encryption",
+                self.config.encryption.encryption_type.name().to_string(),
+            ),
             ("Root Password", "********".to_string()),
             ("Users", format!("{} user(s)", self.config.users.len())),
             ("Hostname", self.config.network.hostname.clone()),
@@ -2047,11 +2050,7 @@ impl TuiApp {
         // Step progress
         let step_percent = (progress.step_progress * 100.0) as u16;
         let step_gauge = Gauge::default()
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Current Step"),
-            )
+            .block(Block::default().borders(Borders::ALL).title("Current Step"))
             .gauge_style(Style::default().fg(Color::Cyan).bg(Color::DarkGray))
             .percent(step_percent);
         frame.render_widget(step_gauge, chunks[1]);
@@ -2111,9 +2110,7 @@ impl TuiApp {
                 Line::from(""),
                 Line::from(Span::styled(
                     "Installation completed with errors!",
-                    Style::default()
-                        .fg(Color::Red)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from("Please review the errors below and try again."),
@@ -2161,7 +2158,10 @@ impl TuiApp {
                 Line::from("2. Reboot your system"),
                 Line::from("3. Boot into your new BuckOS installation"),
                 Line::from(""),
-                Line::from(format!("Root directory: {}", self.config.target_root.display())),
+                Line::from(format!(
+                    "Root directory: {}",
+                    self.config.target_root.display()
+                )),
                 Line::from(""),
                 Line::from("Press Enter or 'q' to exit."),
             ];
@@ -2181,17 +2181,9 @@ impl TuiApp {
 
     fn render_help_bar(&self, frame: &mut Frame, area: Rect) {
         let help_items = match self.current_step {
-            InstallStep::Welcome => vec![
-                ("Enter", "Next"),
-                ("q", "Quit"),
-            ],
-            InstallStep::Installing => vec![
-                ("Up/Down", "Scroll"),
-                ("PgUp/PgDn", "Page"),
-            ],
-            InstallStep::Complete => vec![
-                ("Enter/q", "Exit"),
-            ],
+            InstallStep::Welcome => vec![("Enter", "Next"), ("q", "Quit")],
+            InstallStep::Installing => vec![("Up/Down", "Scroll"), ("PgUp/PgDn", "Page")],
+            InstallStep::Complete => vec![("Enter/q", "Exit")],
             _ => vec![
                 ("Tab", "Switch"),
                 ("Enter", "Next"),
@@ -2207,11 +2199,7 @@ impl TuiApp {
 }
 
 /// Run the TUI installer
-pub fn run_tui_installer(
-    target: String,
-    dry_run: bool,
-    buckos_build_path: PathBuf,
-) -> Result<()> {
+pub fn run_tui_installer(target: String, dry_run: bool, buckos_build_path: PathBuf) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
