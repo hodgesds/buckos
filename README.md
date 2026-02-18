@@ -20,19 +20,6 @@ Buckos combines the best of both worlds:
 - **Buck2 Integration**: Fast, reproducible builds with remote caching support
 - **Portage Compatibility**: Familiar interface for Gentoo users
 
-## Current Status
-
-| Component | Status | Description |
-|-----------|--------|-------------|
-| **buckos-package** | ✅ Complete | Core package manager with full CLI |
-| **buckos-config** | ✅ Complete | Portage-compatible configuration system |
-| **buckos-boss** | ✅ Complete | Init system and service manager |
-| **buckos-model** | ✅ Complete | Core data types and structures |
-| **buckos-installer** | ✅ Complete | GUI installer with hardware detection |
-| **Build System (defs/)** | ✅ Complete | Eclasses, licenses, EAPI, subslots |
-| **buckos-assist** | 🔄 In Progress | System diagnostics and help |
-| **buckos-tools** | 🔄 In Progress | System utilities |
-| **buckos-web** | 🔄 In Progress | Documentation website |
 
 ## Project Structure
 
