@@ -1,10 +1,15 @@
 # BuckOS
 
-**BuckOS** is a modern Linux distribution built on top of [Buck2](https://buck.build/), Facebook's fast and scalable build system. Inspired by [Gentoo Linux](https://gentoo.org/) and its powerful Portage package manager, BuckOS brings source-based package management to a new level with deterministic builds, fine-grained configuration, and modern Rust-based tooling.
+**BuckOS** is a modern Linux distribution built on top of
+[Buck2](https://buck.build/), Facebook's fast and scalable build system.
+Inspired by [Gentoo Linux](https://gentoo.org/) and its powerful Portage
+package manager, BuckOS brings source-based package management to a new level
+with deterministic builds, fine-grained configuration, and modern Rust-based
+tooling.
 
 ## Philosophy
 
-Buckos combines the best of both worlds:
+BuckOS combines the best of both worlds:
 
 - **Gentoo's Flexibility**: USE flag-style configuration for fine-grained control over package features
 - **Buck2's Performance**: Hermetic, reproducible builds with aggressive caching and parallelization
@@ -49,7 +54,8 @@ buckos/
 
 ### buckos-package (Package Manager)
 
-The core package manager with a Portage-like interface. Handles package installation, dependency resolution, and Buck2 integration.
+The core package manager with a Portage-like interface. Handles package
+installation, dependency resolution, and Buck2 integration.
 
 **Binary**: `buckos`
 
@@ -142,7 +148,8 @@ buckos export                # Export configuration in various formats
 
 #### Security Audit
 
-The `audit` command checks installed packages against a comprehensive vulnerability database including:
+The `audit` command checks installed packages against a comprehensive
+vulnerability database including:
 - CVEs for common packages (OpenSSL, curl, glibc, Linux kernel, OpenSSH, etc.)
 - Severity classification (critical, high, medium, low)
 - Version range checking with fix recommendations
@@ -167,7 +174,7 @@ Official website and documentation server built with Axum.
 
 ### buckos-installer (GUI Installer)
 
-A beginner-friendly graphical installer for Buckos with hardware detection.
+A beginner-friendly graphical installer for BuckOS with hardware detection.
 
 **Binary**: `buckos-installer`
 
@@ -195,12 +202,13 @@ buckos-installer --dry-run          # Simulate installation
 
 ### Overview
 
-The Buckos build system consists of two complementary components:
+The BuckOS build system consists of two complementary components:
 
 1. **buckos** (this repository) - Package manager with basic build definition support
 2. **buckos-build** - Complete build system with package definitions
 
-The package manager includes a basic `defs/` directory for build integration, while the full-featured build system resides in the [buckos-build](https://github.com/hodgesds/buckos-build) repository.
+The package manager includes a basic `defs/` directory for build integration,
+while the full-featured build system resides in the [buckos-build](https://github.com/hodgesds/buckos-build) repository.
 
 ### Core Definition Files (buckos)
 
@@ -489,7 +497,7 @@ sys-devel/llvm ~amd64
 
 ## Building Packages
 
-Buckos uses Buck2 for building packages. The build process is:
+BuckOS uses Buck2 for building packages. The build process is:
 
 1. **Resolution**: Resolve dependencies using SAT solver
 2. **Fetch**: Download sources in parallel
@@ -614,10 +622,10 @@ buckos list
 
 ### Using the GUI Installer
 
-The recommended way to install Buckos is using the graphical installer:
+The recommended way to install BuckOS is using the graphical installer:
 
 ```bash
-# Boot from Buckos installation media
+# Boot from BuckOS installation media
 # The installer will start automatically, or run:
 buckos-installer
 ```
@@ -787,7 +795,7 @@ boss logs nginx
 
 ## Comparison with Gentoo
 
-| Feature | Gentoo/Portage | Buckos |
+| Feature | Gentoo/Portage | BuckOS |
 |---------|----------------|--------|
 | Build System | Custom (ebuild) | Buck2 |
 | Package Definitions | Shell scripts | Buck targets |
@@ -903,7 +911,7 @@ See [buckos-build docs/PATCHES.md](https://github.com/hodgesds/buckos-build/blob
 
 ### Dependency Resolution
 
-Buckos uses the Varisat SAT solver for dependency resolution:
+BuckOS uses the Varisat SAT solver for dependency resolution:
 
 - Handles complex version constraints
 - Resolves USE flag interactions
