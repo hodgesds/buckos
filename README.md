@@ -1,6 +1,6 @@
-# Buckos
+# BuckOS
 
-**Buckos** is a modern Linux distribution built on top of [Buck2](https://buck.build/), Facebook's fast and scalable build system. Inspired by [Gentoo Linux](https://gentoo.org/) and its powerful Portage package manager, Buckos brings source-based package management to a new level with deterministic builds, fine-grained configuration, and modern Rust-based tooling.
+**BuckOS** is a modern Linux distribution built on top of [Buck2](https://buck.build/), Facebook's fast and scalable build system. Inspired by [Gentoo Linux](https://gentoo.org/) and its powerful Portage package manager, BuckOS brings source-based package management to a new level with deterministic builds, fine-grained configuration, and modern Rust-based tooling.
 
 ## Philosophy
 
@@ -161,53 +161,6 @@ Manages system configuration with full Portage compatibility.
 - `repos.conf/` - Repository configuration
 - Custom package sets (@world, @system, etc.)
 
-### buckos-boss (Init System)
-
-A modern init system and service manager designed to run as PID 1.
-
-**Binary**: `boss`
-
-**Commands**:
-```bash
-boss init                   # Run as PID 1
-boss start <service>        # Start a service
-boss stop <service>         # Stop a service
-boss restart <service>      # Restart a service
-boss status [service]       # Show service status
-boss list                   # List all services
-boss enable <service>       # Enable service at boot
-boss disable <service>      # Disable service at boot
-boss logs <service>         # Show service logs
-```
-
-**Features**:
-- Service dependency management with parallel startup
-- Multiple service types (simple, forking, oneshot, notify, idle)
-- Automatic restart with configurable policies
-- Smart rate limiting (prevents restart loops)
-- Real-time memory/CPU monitoring per service
-- Health check support with configurable intervals
-- Watchdog support for service monitoring
-- Signal handling and zombie reaping
-- Boot timing analysis (similar to systemd-analyze)
-
-### buckos-assist (System Diagnostics)
-
-System diagnostic and troubleshooting assistant with privacy controls.
-
-**Binary**: `buckos-assist`
-
-**Commands**:
-```bash
-buckos-assist collect            # Gather system diagnostics
-buckos-assist summary            # Quick system overview
-buckos-assist privacy            # Configure privacy settings
-```
-
-### buckos-model (Data Models)
-
-Core data types used throughout the project including Package, User, License, and system entities.
-
 ### buckos-web (Documentation Website)
 
 Official website and documentation server built with Axum.
@@ -237,32 +190,6 @@ buckos-installer --dry-run          # Simulate installation
 - User and network configuration
 - Step-by-step guided installation
 
-### buckos-tools (System Utilities)
-
-A comprehensive collection of system administration and development utilities.
-
-**Binary**: `buckos-tools`
-
-**Commands**:
-```bash
-buckos-tools lsblk       # List block devices
-buckos-tools hwinfo      # Show hardware information
-buckos-tools tree        # Display directory tree
-buckos-tools envinfo     # Show environment information
-buckos-tools netinfo     # Show network interfaces
-buckos-tools meminfo     # Show memory information
-buckos-tools cpuinfo     # Show CPU information
-buckos-tools syscheck    # System health check
-buckos-tools diskfree    # Show disk usage
-buckos-tools ps          # Show process information
-buckos-tools report      # Generate system report
-```
-
-**Features**:
-- Visual progress bars for memory/CPU usage
-- Color-coded health status indicators
-- Multiple output formats (text, JSON)
-- Process sorting by CPU, memory, or PID
 
 ## Build Definition System
 
