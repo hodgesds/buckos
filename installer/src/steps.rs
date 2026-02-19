@@ -963,7 +963,7 @@ pub fn render_kernel_selection(
             *kernel_channel = kernel.clone();
         }
         ui.indent("kernel_desc", |ui| {
-            ui.label(RichText::new(kernel.description(None)).small());
+            ui.label(RichText::new(kernel.description_cached(None)).small());
         });
         ui.add_space(4.0);
     }

@@ -36,6 +36,10 @@ use super::widgets::{Checkbox, HelpBar, InfoBox, TextInput};
 enum FocusField {
     // Generic
     List,
+    // Profile selection
+    ProfileCategory,
+    DesktopEnvironment,
+    HandheldDevice,
     // Disk setup
     DiskList,
     LayoutPreset,
@@ -162,6 +166,9 @@ impl Default for UiState {
         let mut de_list_state = ListState::default();
         de_list_state.select(Some(0));
 
+        let mut handheld_list_state = ListState::default();
+        handheld_list_state.select(Some(0));
+
         let mut kernel_list_state = ListState::default();
         kernel_list_state.select(Some(1)); // Stable by default
 
@@ -190,7 +197,7 @@ impl Default for UiState {
 
             profile_list_state,
             de_list_state,
-            handheld_list_state: ListState::default(),
+            handheld_list_state,
             audio_list_state: ListState::default(),
             selected_profile_category: 0,
 
@@ -631,21 +638,75 @@ impl TuiApp {
             KeyCode::Enter | KeyCode::Right => self.navigate_next(),
             KeyCode::Left | KeyCode::Backspace => self.navigate_back(),
             KeyCode::Tab => {
-                // Cycle through profile categories
-                self.ui.selected_profile_category = (self.ui.selected_profile_category + 1) % 5;
+                // Cycle focus between profile categories and sub-selection
+                match self.ui.selected_profile_category {
+                    0 => {
+                        // Desktop selected - toggle between categories and DE list
+                        self.ui.focus = match self.ui.focus {
+                            FocusField::DesktopEnvironment => FocusField::ProfileCategory,
+                            _ => FocusField::DesktopEnvironment,
+                        };
+                    }
+                    2 => {
+                        // Handheld selected - toggle between categories and device list
+                        self.ui.focus = match self.ui.focus {
+                            FocusField::HandheldDevice => FocusField::ProfileCategory,
+                            _ => FocusField::HandheldDevice,
+                        };
+                    }
+                    _ => {
+                        // No sub-selection needed, cycle through categories
+                        self.ui.selected_profile_category =
+                            (self.ui.selected_profile_category + 1) % 5;
+                    }
+                }
             }
             KeyCode::Up => {
-                if self.ui.focus == FocusField::List {
-                    let len = 5; // Number of profile categories
-                    let i = self.ui.selected_profile_category;
-                    self.ui.selected_profile_category = if i == 0 { len - 1 } else { i - 1 };
+                match self.ui.focus {
+                    FocusField::DesktopEnvironment => {
+                        let len = DesktopEnvironment::all().len();
+                        let i = self.ui.de_list_state.selected().unwrap_or(0);
+                        let new_i = if i == 0 { len - 1 } else { i - 1 };
+                        self.ui.de_list_state.select(Some(new_i));
+                    }
+                    FocusField::HandheldDevice => {
+                        let len = HandheldDevice::all().len();
+                        let i = self.ui.handheld_list_state.selected().unwrap_or(0);
+                        let new_i = if i == 0 { len - 1 } else { i - 1 };
+                        self.ui.handheld_list_state.select(Some(new_i));
+                    }
+                    _ => {
+                        // Navigate profile categories
+                        let len = 5;
+                        let i = self.ui.selected_profile_category;
+                        self.ui.selected_profile_category = if i == 0 { len - 1 } else { i - 1 };
+                        // Reset focus when changing category
+                        self.ui.focus = FocusField::ProfileCategory;
+                    }
                 }
             }
             KeyCode::Down => {
-                if self.ui.focus == FocusField::List {
-                    let len = 5;
-                    self.ui.selected_profile_category =
-                        (self.ui.selected_profile_category + 1) % len;
+                match self.ui.focus {
+                    FocusField::DesktopEnvironment => {
+                        let len = DesktopEnvironment::all().len();
+                        let i = self.ui.de_list_state.selected().unwrap_or(0);
+                        let new_i = (i + 1) % len;
+                        self.ui.de_list_state.select(Some(new_i));
+                    }
+                    FocusField::HandheldDevice => {
+                        let len = HandheldDevice::all().len();
+                        let i = self.ui.handheld_list_state.selected().unwrap_or(0);
+                        let new_i = (i + 1) % len;
+                        self.ui.handheld_list_state.select(Some(new_i));
+                    }
+                    _ => {
+                        // Navigate profile categories
+                        let len = 5;
+                        self.ui.selected_profile_category =
+                            (self.ui.selected_profile_category + 1) % len;
+                        // Reset focus when changing category
+                        self.ui.focus = FocusField::ProfileCategory;
+                    }
                 }
             }
             _ => {}
@@ -1355,6 +1416,22 @@ impl TuiApp {
     }
 
     fn render_profile(&mut self, frame: &mut Frame, area: Rect) {
+        // Determine if we need a split layout (Desktop or Handheld selected)
+        let needs_subselection = matches!(self.ui.selected_profile_category, 0 | 2);
+
+        let chunks = if needs_subselection {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(area)
+        } else {
+            // Single column layout
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(100)])
+                .split(area)
+        };
+
         let categories = [
             ("Desktop", "Full desktop environment with GUI"),
             ("Server", "Headless server configuration"),
@@ -1362,6 +1439,11 @@ impl TuiApp {
             ("Minimal", "Base system only"),
             ("Custom", "Select packages manually"),
         ];
+
+        let is_category_focused = matches!(
+            self.ui.focus,
+            FocusField::List | FocusField::ProfileCategory
+        );
 
         let items: Vec<ListItem> = categories
             .iter()
@@ -1386,12 +1468,18 @@ impl TuiApp {
             })
             .collect();
 
+        let category_border_color = if is_category_focused {
+            Color::Yellow
+        } else {
+            Color::Cyan
+        };
+
         let list = List::new(items)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .title("Installation Profile")
-                    .border_style(Style::default().fg(Color::Cyan)),
+                    .border_style(Style::default().fg(category_border_color)),
             )
             .highlight_style(
                 Style::default()
@@ -1402,7 +1490,120 @@ impl TuiApp {
 
         let mut state = ListState::default();
         state.select(Some(self.ui.selected_profile_category));
-        frame.render_stateful_widget(list, area, &mut state);
+        frame.render_stateful_widget(list, chunks[0], &mut state);
+
+        // Render sub-selection list if needed
+        if needs_subselection && chunks.len() > 1 {
+            match self.ui.selected_profile_category {
+                0 => self.render_desktop_environment_list(frame, chunks[1]),
+                2 => self.render_handheld_device_list(frame, chunks[1]),
+                _ => {}
+            }
+        }
+    }
+
+    fn render_desktop_environment_list(&mut self, frame: &mut Frame, area: Rect) {
+        let des = DesktopEnvironment::all();
+        let is_focused = self.ui.focus == FocusField::DesktopEnvironment;
+
+        let items: Vec<ListItem> = des
+            .iter()
+            .enumerate()
+            .map(|(i, de)| {
+                let selected_idx = self.ui.de_list_state.selected().unwrap_or(0);
+                let marker = if i == selected_idx { "(*)" } else { "( )" };
+                let lines = vec![
+                    Line::from(Span::styled(
+                        format!("{} {}", marker, de.name()),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(Span::styled(
+                        format!("    {}", de.description()),
+                        Style::default().fg(Color::DarkGray),
+                    )),
+                ];
+                ListItem::new(lines)
+            })
+            .collect();
+
+        let border_color = if is_focused {
+            Color::Yellow
+        } else {
+            Color::Cyan
+        };
+        let title = if is_focused {
+            "Desktop Environment [Tab to switch]"
+        } else {
+            "Desktop Environment"
+        };
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(title)
+                    .border_style(Style::default().fg(border_color)),
+            )
+            .highlight_style(
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol(">> ");
+
+        frame.render_stateful_widget(list, area, &mut self.ui.de_list_state);
+    }
+
+    fn render_handheld_device_list(&mut self, frame: &mut Frame, area: Rect) {
+        let devices = HandheldDevice::all();
+        let is_focused = self.ui.focus == FocusField::HandheldDevice;
+
+        let items: Vec<ListItem> = devices
+            .iter()
+            .enumerate()
+            .map(|(i, device)| {
+                let selected_idx = self.ui.handheld_list_state.selected().unwrap_or(0);
+                let marker = if i == selected_idx { "(*)" } else { "( )" };
+                let lines = vec![
+                    Line::from(Span::styled(
+                        format!("{} {}", marker, device.name()),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(Span::styled(
+                        format!("    {}", device.description()),
+                        Style::default().fg(Color::DarkGray),
+                    )),
+                ];
+                ListItem::new(lines)
+            })
+            .collect();
+
+        let border_color = if is_focused {
+            Color::Yellow
+        } else {
+            Color::Cyan
+        };
+        let title = if is_focused {
+            "Handheld Device [Tab to switch]"
+        } else {
+            "Handheld Device"
+        };
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(title)
+                    .border_style(Style::default().fg(border_color)),
+            )
+            .highlight_style(
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol(">> ");
+
+        frame.render_stateful_widget(list, area, &mut self.ui.handheld_list_state);
     }
 
     fn render_kernel(&mut self, frame: &mut Frame, area: Rect) {

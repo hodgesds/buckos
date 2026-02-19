@@ -258,35 +258,74 @@ impl KernelChannel {
         }
     }
 
-    pub fn description(&self, buckos_build_path: Option<&std::path::Path>) -> String {
-        // Query version dynamically from Buck
-        let version =
-            Self::query_version(self, buckos_build_path).unwrap_or_else(|_| "unknown".to_string());
-        match self {
-            KernelChannel::LTS => format!(
-                "LTS {} - Long-term support, maximum stability (recommended)",
-                version
-            ),
-            KernelChannel::Stable => {
-                format!(
-                    "Stable {} - Latest stable kernel, balance of new features and stability",
-                    version
-                )
-            }
-            KernelChannel::Mainline => format!(
-                "Mainline {} - Cutting edge features, frequent updates",
-                version
-            ),
-        }
-    }
-
-    /// Query the actual kernel version from Buck build files
+    /// Query the actual kernel version from Buck build files with timeout
     pub fn query_version(
         &self,
         buckos_build_path: Option<&std::path::Path>,
     ) -> anyhow::Result<String> {
         use std::path::PathBuf;
-        use std::process::Command;
+        use std::process::{Command, Stdio};
+        use std::time::Duration;
+
+        const TIMEOUT_SECS: u64 = 5;
+
+        // Helper to run a command with timeout
+        fn run_with_timeout(
+            cmd: &mut Command,
+            timeout: Duration,
+        ) -> anyhow::Result<std::process::Output> {
+            let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+
+            let start = std::time::Instant::now();
+            loop {
+                match child.try_wait()? {
+                    Some(status) => {
+                        let stdout = child
+                            .stdout
+                            .take()
+                            .map(|mut s| {
+                                let mut buf = Vec::new();
+                                std::io::Read::read_to_end(&mut s, &mut buf).ok();
+                                buf
+                            })
+                            .unwrap_or_default();
+                        let stderr = child
+                            .stderr
+                            .take()
+                            .map(|mut s| {
+                                let mut buf = Vec::new();
+                                std::io::Read::read_to_end(&mut s, &mut buf).ok();
+                                buf
+                            })
+                            .unwrap_or_default();
+                        return Ok(std::process::Output {
+                            status,
+                            stdout,
+                            stderr,
+                        });
+                    }
+                    None => {
+                        if start.elapsed() > timeout {
+                            let _ = child.kill();
+                            anyhow::bail!("Command timed out after {} seconds", timeout.as_secs());
+                        }
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                }
+            }
+        }
+
+        // Check if buck2 is available first
+        if Command::new("which")
+            .arg("buck2")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| !s.success())
+            .unwrap_or(true)
+        {
+            anyhow::bail!("buck2 is not installed or not in PATH");
+        }
 
         // Use provided path or find buckos-build directory
         let working_dir = if let Some(path) = buckos_build_path {
@@ -319,10 +358,14 @@ impl KernelChannel {
         };
 
         // First, resolve the alias to get the actual source target
-        let output = Command::new("buck2")
-            .current_dir(&working_dir)
-            .args(["uquery", source_target, "--output-all-attributes"])
-            .output()?;
+        let output = run_with_timeout(
+            Command::new("buck2").current_dir(&working_dir).args([
+                "uquery",
+                source_target,
+                "--output-all-attributes",
+            ]),
+            Duration::from_secs(TIMEOUT_SECS),
+        )?;
 
         if !output.status.success() {
             anyhow::bail!("Failed to query kernel source target from Buck");
@@ -351,10 +394,14 @@ impl KernelChannel {
         };
 
         // Query the archive target for URLs
-        let output = Command::new("buck2")
-            .current_dir(&working_dir)
-            .args(["uquery", &archive_target, "--output-all-attributes"])
-            .output()?;
+        let output = run_with_timeout(
+            Command::new("buck2").current_dir(&working_dir).args([
+                "uquery",
+                &archive_target,
+                "--output-all-attributes",
+            ]),
+            Duration::from_secs(TIMEOUT_SECS),
+        )?;
 
         if !output.status.success() {
             anyhow::bail!("Failed to query kernel archive target from Buck");
@@ -384,6 +431,54 @@ impl KernelChannel {
         }
 
         anyhow::bail!("Could not extract kernel version from Buck query")
+    }
+
+    /// Get cached kernel versions (queries once, caches forever)
+    pub fn get_cached_versions(
+        buckos_build_path: Option<&std::path::Path>,
+    ) -> &'static std::collections::HashMap<String, String> {
+        use std::collections::HashMap;
+        use std::sync::OnceLock;
+
+        static CACHE: OnceLock<HashMap<String, String>> = OnceLock::new();
+
+        CACHE.get_or_init(|| {
+            let mut map = HashMap::new();
+            for kernel in Self::all() {
+                let version = kernel
+                    .query_version(buckos_build_path)
+                    .unwrap_or_else(|_| "".to_string());
+                map.insert(kernel.name().to_string(), version);
+            }
+            map
+        })
+    }
+
+    /// Get description with optional version lookup (cached)
+    pub fn description_cached(&self, buckos_build_path: Option<&std::path::Path>) -> String {
+        let versions = Self::get_cached_versions(buckos_build_path);
+        let version = versions
+            .get(self.name())
+            .filter(|v| !v.is_empty())
+            .map(|v| format!(" {}", v))
+            .unwrap_or_default();
+
+        match self {
+            KernelChannel::LTS => format!(
+                "LTS{} - Long-term support, maximum stability (recommended)",
+                version
+            ),
+            KernelChannel::Stable => {
+                format!(
+                    "Stable{} - Latest stable kernel, balance of new features and stability",
+                    version
+                )
+            }
+            KernelChannel::Mainline => format!(
+                "Mainline{} - Cutting edge features, frequent updates",
+                version
+            ),
+        }
     }
 
     pub fn package_target(&self) -> &'static str {
