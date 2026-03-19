@@ -2033,7 +2033,7 @@ pub fn run_installation(config: InstallConfig, progress: Arc<Mutex<InstallProgre
 
         // Generate BUCK file content
         let buck_content = format!(
-            r#"load("//defs:package_defs.bzl", "rootfs")
+            r#"load("//defs/rules:rootfs.bzl", "rootfs")
 
 rootfs(
     name = "installer-rootfs",

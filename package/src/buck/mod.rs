@@ -7,7 +7,7 @@ pub mod buckconfig;
 pub use buckconfig::{BuckConfigFile, BuckConfigOptions, BuckConfigSection};
 
 use crate::config::Config;
-use crate::{BuildOptions, BuildResult, Error, Result};
+use crate::{BuildOptions, BuildResult, Error, Result, UseConfig};
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::Command;
@@ -25,6 +25,8 @@ pub struct BuckIntegration {
     jobs: usize,
     /// Custom Buck configuration options
     config_options: BuckConfigOptions,
+    /// USE flag configuration for modifier args
+    use_config: Option<UseConfig>,
 }
 
 impl BuckIntegration {
@@ -38,6 +40,7 @@ impl BuckIntegration {
         let buck_path = config.buck_path.clone();
         let repo_path = config.buck_repo.clone();
         let output_dir = config.cache_dir.join("buck-out");
+        let use_config = Some(config.use_flags.clone());
 
         // Verify Buck exists
         if !buck_path.exists() {
@@ -49,6 +52,7 @@ impl BuckIntegration {
                     output_dir,
                     jobs: config.parallelism,
                     config_options,
+                    use_config,
                 })
             } else {
                 Err(Error::BuckError(format!(
@@ -63,6 +67,7 @@ impl BuckIntegration {
                 output_dir,
                 jobs: config.parallelism,
                 config_options,
+                use_config,
             })
         }
     }
@@ -80,6 +85,16 @@ impl BuckIntegration {
     /// Set custom config options
     pub fn set_config_options(&mut self, options: BuckConfigOptions) {
         self.config_options = options;
+    }
+
+    /// Convert USE flags to Buck2 modifier arguments
+    fn use_flags_to_modifier_args(use_config: &UseConfig) -> Vec<String> {
+        let mut args = Vec::new();
+        for flag in &use_config.global {
+            args.push("-m".to_string());
+            args.push(format!("//use/constraints:{}-on", flag));
+        }
+        args
     }
 
     /// Load and apply .buckconfig from the repository
@@ -124,6 +139,13 @@ impl BuckIntegration {
         // Additional arguments
         for arg in &opts.buck_args {
             cmd.arg(arg);
+        }
+
+        // Apply USE flag modifiers
+        if let Some(ref use_config) = self.use_config {
+            for arg in Self::use_flags_to_modifier_args(use_config) {
+                cmd.arg(arg);
+            }
         }
 
         debug!("Running: {:?}", cmd);
@@ -208,6 +230,13 @@ impl BuckIntegration {
 
         for arg in &opts.buck_args {
             cmd.arg(arg);
+        }
+
+        // Apply USE flag modifiers
+        if let Some(ref use_config) = self.use_config {
+            for arg in Self::use_flags_to_modifier_args(use_config) {
+                cmd.arg(arg);
+            }
         }
 
         let output = cmd
@@ -523,13 +552,15 @@ impl BuckIntegration {
 
 /// Convert package ID to Buck target
 pub fn package_to_target(category: &str, name: &str) -> String {
-    format!("//packages/{}/{}:package", category, name)
+    format!("//packages/linux/{}/{}:{}", category, name, name)
 }
 
 /// Parse Buck target to package ID components
 pub fn target_to_package(target: &str) -> Option<(String, String)> {
-    // Parse "//packages/category/name:target"
+    // Parse "//packages/linux/category/name:target"
     let target = target.strip_prefix("//packages/")?;
+    // Strip the "linux/" prefix if present
+    let target = target.strip_prefix("linux/").unwrap_or(target);
     let parts: Vec<&str> = target.split('/').collect();
     if parts.len() >= 2 {
         let category = parts[0].to_string();
@@ -551,22 +582,10 @@ pub fn target_string_to_package_id(target: &str) -> Option<crate::PackageId> {
     Some(crate::PackageId::new(category, name))
 }
 
-/// Generate Buck target for package metadata
-pub fn package_metadata_target(category: &str, name: &str) -> String {
-    format!("//packages/{}/{}:metadata", category, name)
-}
-
-/// Generate Buck target for package install script
-pub fn package_install_target(category: &str, name: &str) -> String {
-    format!("//packages/{}/{}:install", category, name)
-}
-
 /// Get all targets for a package (useful for buckos-build)
 pub fn package_all_targets(category: &str, name: &str) -> Vec<String> {
     vec![
         package_to_target(category, name),
-        package_metadata_target(category, name),
-        package_install_target(category, name),
-        format!("//packages/{}/{}:{}", category, name, name), // library target
+        format!("//packages/linux/{}/{}:{}-dev", category, name, name),
     ]
 }

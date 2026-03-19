@@ -498,8 +498,8 @@ impl BuckTarget {
     pub fn for_package(category: &str, name: &str) -> Self {
         Self {
             cell: String::new(),
-            path: format!("packages/{}/{}", category, name),
-            name: "package".to_string(),
+            path: format!("packages/linux/{}/{}", category, name),
+            name: name.to_string(),
         }
     }
 
@@ -507,7 +507,7 @@ impl BuckTarget {
     pub fn for_package_lib(category: &str, name: &str) -> Self {
         Self {
             cell: String::new(),
-            path: format!("packages/{}/{}", category, name),
+            path: format!("packages/linux/{}/{}", category, name),
             name: name.to_string(),
         }
     }
@@ -571,7 +571,7 @@ impl Default for BuckConfig {
     fn default() -> Self {
         Self {
             buck_path: std::path::PathBuf::from("/usr/bin/buck2"),
-            repo_path: std::path::PathBuf::from("/var/db/repos/buckos"),
+            repo_path: std::path::PathBuf::from("/var/db/repos/buckos-build"),
             output_dir: std::path::PathBuf::from("/var/cache/buckos/buck-out"),
             jobs: num_cpus::get(),
             mode: BuckBuildMode::Release,

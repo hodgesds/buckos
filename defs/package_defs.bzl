@@ -1,5 +1,10 @@
 # Copyright (c) BuckOS Authors. All rights reserved.
 # Package Build Definitions
+#
+# NOTE: This is the buckos package manager's local metadata schema, NOT the
+# buckos-build package() macro. The functions here generate metadata-only
+# genrule targets for the package manager's local use; actual package builds
+# use buckos-build's defs/package.bzl.
 
 """
 Package Definitions Module
