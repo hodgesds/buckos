@@ -17,11 +17,12 @@ STATUS_MASKED = "masked"
 # Central package registry
 # Structure: category/package-name -> version info
 PACKAGE_REGISTRY = {
-    "core/bash": {
+    "linux/core/bash": {
         "default": "5.2.21",
         "description": "GNU Bourne Again SHell",
         "homepage": "https://www.gnu.org/software/bash/",
         "license": "GPL-3.0",
+        "buck_target": "//packages/linux/core/bash:bash",
         "versions": {
             "5.2.21": {
                 "slot": "0",
@@ -38,11 +39,13 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["core-team"],
     },
-    "core/openssl": {
+    "linux/network/openssl": {
         "default": "3.2.0",
         "description": "Robust, full-featured Open Source Toolkit for SSL/TLS",
         "homepage": "https://www.openssl.org/",
         "license": "Apache-2.0",
+        # Actual buckos-build path: packages/linux/system/libs/crypto/openssl
+        "buck_target": "//packages/linux/network/openssl:openssl",
         "versions": {
             "3.2.0": {
                 "slot": "3",
@@ -65,11 +68,12 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["security-team"],
     },
-    "core/zlib": {
+    "linux/core/zlib": {
         "default": "1.3",
         "description": "Standard compression library",
         "homepage": "https://www.zlib.net/",
         "license": "Zlib",
+        "buck_target": "//packages/linux/core/zlib:zlib",
         "versions": {
             "1.3": {
                 "slot": "0",
@@ -80,11 +84,12 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["core-team"],
     },
-    "core/glibc": {
+    "linux/core/glibc": {
         "default": "2.38",
         "description": "GNU C Library",
         "homepage": "https://www.gnu.org/software/libc/",
         "license": "LGPL-2.1",
+        "buck_target": "//packages/linux/core/glibc:glibc",
         "versions": {
             "2.38": {
                 "slot": "2.2",
@@ -101,11 +106,12 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["toolchain-team"],
     },
-    "core/linux-headers": {
+    "linux/core/linux-headers": {
         "default": "6.6",
         "description": "Linux kernel headers",
         "homepage": "https://www.kernel.org/",
         "license": "GPL-2.0",
+        "buck_target": "//packages/linux/core/linux-headers:linux-headers",
         "versions": {
             "6.6": {
                 "slot": "0",
@@ -116,11 +122,12 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["kernel-team"],
     },
-    "network/curl": {
+    "linux/network/curl": {
         "default": "8.5.0",
         "description": "Command line tool and library for transferring data with URLs",
         "homepage": "https://curl.se/",
         "license": "MIT",
+        "buck_target": "//packages/linux/network/curl:curl",
         "versions": {
             "8.5.0": {
                 "slot": "0",
@@ -131,11 +138,12 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["network-team"],
     },
-    "network/openssh": {
+    "linux/network/openssh": {
         "default": "9.6_p1",
         "description": "Port of OpenBSD's free SSH release",
         "homepage": "https://www.openssh.com/",
         "license": "BSD-2-Clause",
+        "buck_target": "//packages/linux/network/openssh:openssh",
         "versions": {
             "9.6_p1": {
                 "slot": "0",
@@ -146,11 +154,12 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["security-team"],
     },
-    "www/nginx": {
+    "linux/www/servers/nginx": {
         "default": "1.24.0",
         "description": "High performance HTTP and reverse proxy server",
         "homepage": "https://nginx.org/",
         "license": "BSD-2-Clause",
+        "buck_target": "//packages/linux/www/servers/nginx:nginx",
         "versions": {
             "1.24.0": {
                 "slot": "0",
@@ -304,19 +313,22 @@ def list_all_packages():
 
 def list_packages_by_category(category):
     """
-    List packages in a category
+    List packages in a category (supports multi-level paths like "linux/core")
 
     Args:
-        category: Category name
+        category: Category path (e.g., "linux/core", "linux/network")
 
     Returns:
-        List of package names (without category prefix)
+        List of package names (last path component only)
     """
     result = []
+    prefix = category + "/"
     for pkg_id in PACKAGE_REGISTRY.keys():
-        parts = pkg_id.split("/")
-        if len(parts) == 2 and parts[0] == category:
-            result.append(parts[1])
+        if pkg_id.startswith(prefix):
+            # The package name is the last path component
+            remainder = pkg_id[len(prefix):]
+            if "/" not in remainder:
+                result.append(remainder)
     return sorted(result)
 
 
@@ -357,14 +369,15 @@ def search_packages(pattern):
 
 def get_all_categories():
     """
-    Get all package categories
+    Get all package categories (returns full category paths without package name)
 
     Returns:
-        List of category names
+        List of category paths (e.g., "linux/core", "linux/network")
     """
     categories = set()
     for pkg_id in PACKAGE_REGISTRY.keys():
-        parts = pkg_id.split("/")
-        if len(parts) >= 1:
-            categories.add(parts[0])
+        # Category is everything except the last path component (the package name)
+        last_slash = pkg_id.rfind("/")
+        if last_slash > 0:
+            categories.add(pkg_id[:last_slash])
     return sorted(categories)

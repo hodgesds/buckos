@@ -60,7 +60,7 @@ impl Default for Config {
             root: PathBuf::from("/"),
             db_path: PathBuf::from("/var/db/buckos"),
             cache_dir: PathBuf::from("/var/cache/buckos"),
-            buck_repo: PathBuf::from("/var/db/repos/buckos"),
+            buck_repo: PathBuf::from("/var/db/repos/buckos-build"),
             buck_path: PathBuf::from("/usr/bin/buck2"),
             parallelism,
             repositories: vec![RepositoryConfig::default()],
@@ -143,9 +143,9 @@ impl Default for RepositoryConfig {
     fn default() -> Self {
         Self {
             name: "buckos".to_string(),
-            location: PathBuf::from("/var/db/repos/buckos"),
+            location: PathBuf::from("/var/db/repos/buckos-build"),
             sync_type: SyncType::Git,
-            sync_uri: "https://github.com/hodgesds/packages.git".to_string(),
+            sync_uri: "https://github.com/buck-os/buckos-build.git".to_string(),
             priority: 0,
             auto_sync: true,
         }
