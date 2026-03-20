@@ -231,7 +231,7 @@ struct UpdateArgs {
     no_sync: bool,
 
     /// Only check for updates (like emerge -pvu @world)
-    #[arg(short, long)]
+    #[arg(long)]
     check: bool,
 
     /// Only update if newer version available (don't rebuild same version)
@@ -249,7 +249,7 @@ struct SyncArgs {
     repos: Vec<String>,
 
     /// Sync all repositories
-    #[arg(short, long)]
+    #[arg(long)]
     all: bool,
 
     /// Web sync mode
@@ -267,7 +267,7 @@ struct DepcleanArgs {
     pretend: bool,
 
     /// Remove all packages not in world or system
-    #[arg(short, long)]
+    #[arg(long)]
     all: bool,
 }
 
@@ -325,7 +325,7 @@ struct BuildArgs {
 #[derive(Args)]
 struct CleanArgs {
     /// Clean everything
-    #[arg(short, long)]
+    #[arg(long)]
     all: bool,
 
     /// Clean only downloads
@@ -382,7 +382,7 @@ enum UseflagsCommand {
     /// List available USE flags
     List {
         /// Filter by category (e.g., network, security, graphics)
-        #[arg(short, long)]
+        #[arg(long)]
         category: Option<String>,
         /// Show only global flags
         #[arg(short, long)]
@@ -443,7 +443,7 @@ struct DetectArgs {
     #[arg(long)]
     network: bool,
     /// Detect all hardware (default)
-    #[arg(short, long)]
+    #[arg(long)]
     all: bool,
     /// Output to file instead of stdout
     #[arg(short, long)]
@@ -453,7 +453,7 @@ struct DetectArgs {
 #[derive(Args)]
 struct ConfigureArgs {
     /// Profile to use (minimal, server, desktop, developer, hardened)
-    #[arg(short, long, default_value = "default")]
+    #[arg(long, default_value = "default")]
     profile: String,
     /// USE flags to enable/disable
     #[arg(long = "use", value_delimiter = ' ')]
@@ -484,7 +484,7 @@ enum SetCommand {
     /// List available package sets
     List {
         /// Filter by set type (system, task, desktop)
-        #[arg(short, long)]
+        #[arg(long)]
         r#type: Option<String>,
     },
     /// Show contents of a package set

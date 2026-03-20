@@ -18,19 +18,13 @@ STATUS_MASKED = "masked"
 # Structure: category/package-name -> version info
 PACKAGE_REGISTRY = {
     "linux/core/bash": {
-        "default": "5.2.21",
+        "default": "5.3",
         "description": "GNU Bourne Again SHell",
         "homepage": "https://www.gnu.org/software/bash/",
         "license": "GPL-3.0",
         "buck_target": "//packages/linux/core/bash:bash",
         "versions": {
-            "5.2.21": {
-                "slot": "0",
-                "status": STATUS_STABLE,
-                "keywords": ["amd64", "arm64"],
-                "eapi": "8",
-            },
-            "5.1.16": {
+            "5.3": {
                 "slot": "0",
                 "status": STATUS_STABLE,
                 "keywords": ["amd64", "arm64"],
@@ -39,43 +33,30 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["core-team"],
     },
-    "linux/network/openssl": {
-        "default": "3.2.0",
-        "description": "Robust, full-featured Open Source Toolkit for SSL/TLS",
+    "linux/system/libs/crypto/openssl": {
+        "default": "3.6.0",
+        "description": "TLS/SSL and crypto library",
         "homepage": "https://www.openssl.org/",
         "license": "Apache-2.0",
-        # Actual buckos-build path: packages/linux/system/libs/crypto/openssl
-        "buck_target": "//packages/linux/network/openssl:openssl",
+        "buck_target": "//packages/linux/system/libs/crypto/openssl:openssl",
         "versions": {
-            "3.2.0": {
+            "3.6.0": {
                 "slot": "3",
                 "status": STATUS_STABLE,
                 "keywords": ["amd64", "arm64"],
-                "eapi": "8",
-            },
-            "1.1.1w": {
-                "slot": "1.1",
-                "status": STATUS_STABLE,
-                "keywords": ["amd64", "arm64"],
-                "eapi": "8",
-            },
-            "1.0.2u": {
-                "slot": "1.0",
-                "status": STATUS_MASKED,
-                "keywords": ["~amd64"],
                 "eapi": "8",
             },
         },
         "maintainers": ["security-team"],
     },
     "linux/core/zlib": {
-        "default": "1.3",
+        "default": "1.3.1",
         "description": "Standard compression library",
         "homepage": "https://www.zlib.net/",
         "license": "Zlib",
         "buck_target": "//packages/linux/core/zlib:zlib",
         "versions": {
-            "1.3": {
+            "1.3.1": {
                 "slot": "0",
                 "status": STATUS_STABLE,
                 "keywords": ["amd64", "arm64"],
@@ -85,19 +66,13 @@ PACKAGE_REGISTRY = {
         "maintainers": ["core-team"],
     },
     "linux/core/glibc": {
-        "default": "2.38",
+        "default": "2.42",
         "description": "GNU C Library",
         "homepage": "https://www.gnu.org/software/libc/",
         "license": "LGPL-2.1",
         "buck_target": "//packages/linux/core/glibc:glibc",
         "versions": {
-            "2.38": {
-                "slot": "2.2",
-                "status": STATUS_STABLE,
-                "keywords": ["amd64", "arm64"],
-                "eapi": "8",
-            },
-            "2.37": {
+            "2.42": {
                 "slot": "2.2",
                 "status": STATUS_STABLE,
                 "keywords": ["amd64", "arm64"],
@@ -106,12 +81,12 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["toolchain-team"],
     },
-    "linux/core/linux-headers": {
+    "linux/kernel/buckos-kernel/linux-headers": {
         "default": "6.6",
         "description": "Linux kernel headers",
         "homepage": "https://www.kernel.org/",
         "license": "GPL-2.0",
-        "buck_target": "//packages/linux/core/linux-headers:linux-headers",
+        "buck_target": "//packages/linux/kernel/buckos-kernel:linux-headers",
         "versions": {
             "6.6": {
                 "slot": "0",
@@ -122,14 +97,14 @@ PACKAGE_REGISTRY = {
         },
         "maintainers": ["kernel-team"],
     },
-    "linux/network/curl": {
-        "default": "8.5.0",
+    "linux/system/libs/network/curl": {
+        "default": "8.10.1",
         "description": "Command line tool and library for transferring data with URLs",
         "homepage": "https://curl.se/",
         "license": "MIT",
-        "buck_target": "//packages/linux/network/curl:curl",
+        "buck_target": "//packages/linux/system/libs/network/curl:curl",
         "versions": {
-            "8.5.0": {
+            "8.10.1": {
                 "slot": "0",
                 "status": STATUS_STABLE,
                 "keywords": ["amd64", "arm64"],
@@ -139,13 +114,13 @@ PACKAGE_REGISTRY = {
         "maintainers": ["network-team"],
     },
     "linux/network/openssh": {
-        "default": "9.6_p1",
+        "default": "9.9p1",
         "description": "Port of OpenBSD's free SSH release",
         "homepage": "https://www.openssh.com/",
         "license": "BSD-2-Clause",
         "buck_target": "//packages/linux/network/openssh:openssh",
         "versions": {
-            "9.6_p1": {
+            "9.9p1": {
                 "slot": "0",
                 "status": STATUS_STABLE,
                 "keywords": ["amd64", "arm64"],
@@ -155,22 +130,16 @@ PACKAGE_REGISTRY = {
         "maintainers": ["security-team"],
     },
     "linux/www/servers/nginx": {
-        "default": "1.24.0",
+        "default": "1.26.2",
         "description": "High performance HTTP and reverse proxy server",
         "homepage": "https://nginx.org/",
         "license": "BSD-2-Clause",
         "buck_target": "//packages/linux/www/servers/nginx:nginx",
         "versions": {
-            "1.24.0": {
+            "1.26.2": {
                 "slot": "0",
                 "status": STATUS_STABLE,
                 "keywords": ["amd64", "arm64"],
-                "eapi": "8",
-            },
-            "1.25.3": {
-                "slot": "mainline",
-                "status": STATUS_TESTING,
-                "keywords": ["~amd64", "~arm64"],
                 "eapi": "8",
             },
         },

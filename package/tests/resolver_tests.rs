@@ -163,6 +163,8 @@ mod resolution_tests {
             buck_target: "//packages/sys-apps/systemd:package".to_string(),
             size: 10000,
             installed_size: 50000,
+            required_use: String::new(),
+            blockers: Vec::new(),
         };
 
         let resolution = InternalResolution {
