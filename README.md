@@ -1,7 +1,7 @@
 # BuckOS
 
 **BuckOS** is a modern Linux distribution built on top of
-[Buck2](https://buck.build/), Facebook's fast and scalable build system.
+[Buck2](https://buck2.build), Meta's fast and scalable build system.
 Inspired by [Gentoo Linux](https://gentoo.org/) and its powerful Portage
 package manager, BuckOS brings source-based package management to a new level
 with deterministic builds, fine-grained configuration, and modern Rust-based
@@ -32,25 +32,46 @@ BuckOS combines the best of both worlds:
 buckos/
 ├── .buckconfig           # Buck2 build configuration
 ├── .buckroot             # Buck2 workspace root marker
+├── .github/              # CI/CD workflows
 ├── BUCK                  # Root build definitions
 ├── README.md             # This file
 ├── Cargo.toml            # Rust workspace configuration
+├── buckos/               # Meta-crate: unified CLI entry point (buckos-cli)
+├── package/              # Package manager library and CLI (buckos)
 ├── model/                # Core data models
-├── package/              # Package manager (buckos)
-├── assist/               # System diagnostics
 ├── config/               # Configuration management
 ├── boss/                 # Init system (PID 1)
 ├── installer/            # GUI system installer
+├── assist/               # System diagnostics
+├── mcp/                  # Model Context Protocol server for AI assistants
 ├── web/                  # Documentation website
 ├── tools/                # System utilities
-├── build/                # Build artifacts
-├── defs/                 # Build definition system
+├── build/                # Build artifact definitions
+├── defs/                 # Build definition system (Starlark .bzl files)
 ├── platforms/            # Platform definitions
 ├── third-party/          # Third-party dependencies
 └── toolchains/           # Build toolchain configurations
 ```
 
 ## Crates Overview
+
+### buckos (Meta-Crate)
+
+Unified CLI entry point that integrates all BuckOS components into a single
+binary. Provides streamlined access to package management, MCP server, and
+repository operations.
+
+**Binary**: `buckos-cli`
+
+**Commands**:
+```bash
+buckos-cli info                    # Show repository information
+buckos-cli sync                    # Sync the repository
+buckos-cli install <packages>      # Install packages (supports @world, @system sets)
+buckos-cli search <query>          # Search for packages
+buckos-cli show <package>          # Show package information
+buckos-cli mcp                     # Start MCP server for AI assistants
+```
 
 ### buckos-package (Package Manager)
 
@@ -168,9 +189,16 @@ Manages system configuration with full Portage compatibility.
 - `repos.conf/` - Repository configuration
 - Custom package sets (@world, @system, etc.)
 
+### buckos-mcp (Model Context Protocol Server)
+
+Implements the [Model Context Protocol](https://modelcontextprotocol.io/) for
+BuckOS, enabling AI assistants (such as Claude) to interact with the package
+manager. Provides handlers for package management operations with a permission
+system and capability registry.
+
 ### buckos-web (Documentation Website)
 
-Official website and documentation server built with Axum.
+Official website and documentation server built with Axum and Askama templates.
 
 ### buckos-installer (GUI Installer)
 
@@ -208,7 +236,7 @@ The BuckOS build system consists of two complementary components:
 2. **buckos-build** - Complete build system with package definitions
 
 The package manager includes a basic `defs/` directory for build integration,
-while the full-featured build system resides in the [buckos-build](https://github.com/hodgesds/buckos-build) repository.
+while the full-featured build system resides in the [buckos-build](https://github.com/buck-os/buckos-build) repository.
 
 ### Core Definition Files (buckos)
 
@@ -230,7 +258,7 @@ The package manager includes these core definition files in `defs/`:
 
 ### Extended Definition Files (buckos-build)
 
-The [buckos-build](https://github.com/hodgesds/buckos-build) repository includes all core files plus these additional advanced features:
+The [buckos-build](https://github.com/buck-os/buckos-build) repository includes all core files plus these additional advanced features:
 
 | File | Purpose |
 |------|---------|
@@ -337,13 +365,13 @@ multi_version_package_with_subslots(
 )
 ```
 
-**Note**: The package manager tracks subslot changes and can trigger rebuilds of dependent packages when ABI compatibility breaks. Full implementation details are in the [buckos-build VERSIONING.md](https://github.com/hodgesds/buckos-build/blob/main/docs/VERSIONING.md).
+**Note**: The package manager tracks subslot changes and can trigger rebuilds of dependent packages when ABI compatibility breaks. Full implementation details are in the [buckos-build VERSIONING.md](https://github.com/buck-os/buckos-build/blob/main/docs/VERSIONING.md).
 
 ## Package Ecosystem
 
 ### Build Repository (buckos-build)
 
-Package definitions (Buck targets) are maintained in the separate [buckos-build](https://github.com/hodgesds/buckos-build) repository, which provides:
+Package definitions (Buck targets) are maintained in the separate [buckos-build](https://github.com/buck-os/buckos-build) repository, which provides:
 
 **Build System Features:**
 - Complete Starlark (`.bzl`) build definition system
@@ -379,7 +407,7 @@ Packages in buckos-build are organized into categories similar to Gentoo Portage
 - `dev-libs/` - Development libraries (openssl, zlib, boost)
 - `www/` - Web servers and related tools (nginx, apache)
 
-See the [buckos-build repository](https://github.com/hodgesds/buckos-build) for the complete package tree.
+See the [buckos-build repository](https://github.com/buck-os/buckos-build) for the complete package tree.
 
 ## Configuration
 
@@ -538,7 +566,9 @@ buck2 build //packages/ripgrep:ripgrep --config //config:use_pcre2=True
 
 ### Buckos-Build Repository
 
-The buckos package manager requires the buckos-build repository containing package definitions and build rules. The package manager automatically searches for buckos-build in these locations (in order):
+The buckos package manager requires the buckos-build repository containing
+package definitions and build rules. The package manager automatically searches
+for buckos-build in these locations (in order):
 
 1. **User-specified path** - Via `--repo-path` flag or `BUCKOS_BUILD_PATH` environment variable
 2. **`/var/db/repos/buckos-build`** - Standard Gentoo-style repository location (recommended)
@@ -581,8 +611,8 @@ This will display:
 
 ```bash
 # Clone the repositories
-git clone https://github.com/hodgesds/buckos.git
-git clone https://github.com/hodgesds/buckos-build.git
+git clone https://github.com/buck-os/buckos.git
+git clone https://github.com/buck-os/buckos-build.git
 
 # Install buckos-build to standard location (recommended)
 sudo mkdir -p /var/db/repos
@@ -595,9 +625,10 @@ export BUCKOS_BUILD_PATH=/path/to/buckos-build
 cd buckos
 cargo build --release
 sudo cp target/release/buckos /usr/local/bin/
+sudo cp target/release/buckos-cli /usr/local/bin/
 
 # Verify repository is detected
-buckos info
+buckos-cli info
 
 # Initialize and sync
 sudo mkdir -p /etc/buckos
@@ -641,17 +672,19 @@ The installer guides you through:
 
 ```bash
 # Clone the repository
-git clone https://github.com/hodgesds/buckos.git
+git clone https://github.com/buck-os/buckos.git
 cd buckos
 
 # Build all crates
 cargo build --release
 
 # Install binaries
-cargo install --path package
-cargo install --path boss
-cargo install --path assist
-cargo install --path tools
+cargo install --path buckos      # buckos-cli (unified entry point)
+cargo install --path package     # buckos (full package manager)
+cargo install --path boss        # boss (init system)
+cargo install --path assist      # buckos-assist (diagnostics)
+cargo install --path tools       # buckos-tools (utilities)
+cargo install --path installer   # buckos-installer (GUI installer)
 ```
 
 ### Initial Setup
@@ -814,6 +847,9 @@ boss logs nginx
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
 │  │   buckos     │  │buckos-assist │  │  buckos-boss │   │
 │  └──────────────┘  └──────────────┘  └──────────────┘   │
+│  ┌──────────────┐  ┌──────────────┐                     │
+│  │  buckos-mcp  │  │buckos-install│                     │
+│  └──────────────┘  └──────────────┘                     │
 ├─────────────────────────────────────────────────────────┤
 │                    Core Libraries                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
@@ -843,7 +879,7 @@ The buckos-build repository provides additional advanced features beyond the cor
 - **REQUIRED_USE**: Complex constraint syntax (`^^` exactly-one-of, `??` at-most-one-of, `||` at-least-one-of)
 - **Package Environment**: Per-package CFLAGS, LDFLAGS, and features via `/etc/portage/package.env`
 
-See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#advanced-dependencies-advanced_depsbzl)
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/buck-os/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#advanced-dependencies-advanced_depsbzl)
 
 ### Configuration Protection
 
@@ -852,7 +888,7 @@ See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodges
 - Interactive merge tool support
 - Protection directory specification
 
-See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#patch-system)
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/buck-os/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#patch-system)
 
 ### Overlay System
 
@@ -861,7 +897,7 @@ See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodges
 - Repository composition
 - Overlay-specific patches
 
-See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#integration-with-multi-version-support)
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/buck-os/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#integration-with-multi-version-support)
 
 ### USE_EXPAND Variables
 
@@ -873,7 +909,7 @@ Extended USE flag categories for hardware and software targeting:
 - `RUBY_TARGETS`: Ruby version support (ruby31, ruby32, etc.)
 - `L10N`: Language/locale support
 
-See [buckos-build docs/USE_FLAGS.md](https://github.com/hodgesds/buckos-build/blob/main/docs/USE_FLAGS.md)
+See [buckos-build docs/USE_FLAGS.md](https://github.com/buck-os/buckos-build/blob/main/docs/USE_FLAGS.md)
 
 ### Platform Support
 
@@ -894,7 +930,7 @@ The installed package database (VDB) provides:
 - Configuration file protection
 - Reverse dependency queries
 
-See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#metadata-structures)
+See [buckos-build docs/PACKAGE_MANAGER_INTEGRATION.md](https://github.com/buck-os/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md#metadata-structures)
 
 ### Patch System
 
@@ -905,7 +941,7 @@ Comprehensive patch management with:
 - Platform-specific patches
 - USE flag conditional patches
 
-See [buckos-build docs/PATCHES.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PATCHES.md)
+See [buckos-build docs/PATCHES.md](https://github.com/buck-os/buckos-build/blob/main/docs/PATCHES.md)
 
 ## Technical Details
 
@@ -977,7 +1013,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ```bash
 # Clone and setup
-git clone https://github.com/hodgesds/buckos.git
+git clone https://github.com/buck-os/buckos.git
 cd buckos
 
 # Install development dependencies
@@ -992,7 +1028,7 @@ cargo fmt --check
 
 ### Areas for Contribution
 
-- Package definitions in [buckos-build](https://github.com/hodgesds/buckos-build)
+- Package definitions in [buckos-build](https://github.com/buck-os/buckos-build)
 - Documentation improvements
 - New utility tools
 - Bug fixes and performance improvements
@@ -1027,9 +1063,9 @@ cargo fmt --check
 
 ## Related Projects
 
-- [Buck2](https://buck2.build/) - Fast, scalable build system by Meta
+- [Buck2](https://buck2.build) - Fast, scalable build system by Meta
 - [Gentoo Linux](https://gentoo.org/) - Inspiration for package management approach
-- [buckos-build](https://github.com/hodgesds/buckos-build) - Package definitions and build system repository
+- [buckos-build](https://github.com/buck-os/buckos-build) - Package definitions and build system repository
 
 ## Architecture Relationship
 
@@ -1043,6 +1079,7 @@ cargo fmt --check
 │  │  - USE flag management                      │   │
 │  │  - Transaction support                      │   │
 │  │  - VDB tracking                             │   │
+│  │  - MCP server for AI assistant integration  │   │
 │  └────────┬────────────────────────────────────┘   │
 └───────────┼────────────────────────────────────────┘
             │
@@ -1052,7 +1089,7 @@ cargo fmt --check
 │            Build System (buckos-build)             │
 │  ┌─────────────────────────────────────────────┐   │
 │  │  Advanced defs/ directory                   │   │
-│  │  - advanced_deps.bzl (blockers, REQUIRED_USE) │
+│  │  - advanced_deps.bzl (blockers, REQUIRED_USE)   │
 │  │  - config_protect.bzl (CONFIG_PROTECT)      │   │
 │  │  - overlays.bzl (repository layers)         │   │
 │  │  - platform_defs.bzl (multi-platform)       │   │
@@ -1083,20 +1120,14 @@ cargo fmt --check
 2. Buck2 queries resolve package definitions and dependencies
 3. Configuration is generated by `buckos` and consumed by buckos-build
 4. Built packages are tracked in the VDB by `buckos`
+5. The MCP server (`buckos-cli mcp`) exposes package operations to AI assistants
 
-For detailed integration specifications, see [buckos-build PACKAGE_MANAGER_INTEGRATION.md](https://github.com/hodgesds/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md).
+For detailed integration specifications, see [buckos-build PACKAGE_MANAGER_INTEGRATION.md](https://github.com/buck-os/buckos-build/blob/main/docs/PACKAGE_MANAGER_INTEGRATION.md).
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL 2.0 license - see the [LICENSE](LICENSE) file for details.
 
 ## Community
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/hodgesds/buckos/issues)
-- **Discussions**: [Community discussions](https://github.com/hodgesds/buckos/discussions)
-
-## Acknowledgments
-
-- The Gentoo community for Portage and the USE flag system
-- Meta/Facebook for Buck2
-- The Rust community for excellent tooling and libraries
+- **GitHub Issues**: [Report bugs or request features](https://github.com/buck-os/buckos/issues)
+- **Discussions**: [Community discussions](https://github.com/buck-os/buckos/discussions)
