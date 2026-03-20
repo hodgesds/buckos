@@ -128,16 +128,9 @@ impl BlockerResolver {
             (VersionSpec::Any, rest)
         };
 
-        // Parse package ID
-        let blocked = PackageId::parse(
-            pkg_str
-                .split('-')
-                .take(2)
-                .collect::<Vec<_>>()
-                .join("/")
-                .as_str(),
-        )
-        .ok_or_else(|| Error::InvalidBlocker(s.to_string()))?;
+        // Parse package ID (strip trailing version like "-2.3.99" if present)
+        let blocked =
+            PackageId::parse(pkg_str).ok_or_else(|| Error::InvalidBlocker(s.to_string()))?;
 
         Ok(Blocker {
             package: source_pkg.clone(),

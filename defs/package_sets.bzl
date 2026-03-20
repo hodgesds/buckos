@@ -17,14 +17,14 @@ SYSTEM_SETS = {
             "linux/core/bash",
             "linux/core/busybox",
             "linux/core/musl",
-            "linux/core/linux-headers",
+            "linux/kernel/buckos-kernel/linux-headers",
         ],
     },
     "server": {
         "description": "Server base system",
         "inherits": "minimal",
         "packages": [
-            "linux/network/openssl",
+            "linux/system/libs/crypto/openssl",
             "linux/core/zlib",
             "linux/core/glibc",
             "linux/network/openssh",
@@ -36,28 +36,28 @@ SYSTEM_SETS = {
         "inherits": "server",
         "packages": [
             "linux/graphics/mesa",
-            "linux/graphics/xorg-server",
-            "linux/audio/pipewire",
-            "linux/desktop/dbus",
+            "linux/graphics/xorg",
+            "linux/audio/daemons/pipewire",
+            "linux/system/libs/ipc/dbus",
         ],
     },
     "developer": {
         "description": "Development environment",
         "inherits": "desktop",
         "packages": [
-            "linux/dev-tools/gcc",
-            "linux/dev-tools/clang",
-            "linux/dev-tools/cmake",
-            "linux/dev-tools/git",
-            "linux/dev-tools/gdb",
+            "linux/lang/gcc",
+            "linux/dev-tools/compilers/clang",
+            "linux/dev-tools/build-systems/cmake",
+            "linux/dev-tools/vcs/git",
+            "linux/dev-tools/debuggers/gdb",
         ],
     },
     "hardened": {
         "description": "Security-hardened system",
         "inherits": "server",
         "packages": [
-            "linux/security/audit",
-            "linux/security/libcap",
+            "linux/system/security/audit",
+            "linux/system/libs/ipc/libcap",
         ],
     },
 }
@@ -69,78 +69,47 @@ TASK_SETS = {
         "packages": [
             "linux/www/servers/nginx",
             "linux/www/servers/apache",
-            "linux/network/curl",
+            "linux/system/libs/network/curl",
         ],
     },
     "database": {
         "description": "Database packages",
         "packages": [
-            "linux/database/postgresql",
-            "linux/database/mariadb",
-            "linux/database/sqlite",
+            "linux/databases/postgresql",
+            "linux/system/libs/database/sqlite",
         ],
     },
     "container": {
         "description": "Container runtime packages",
         "packages": [
-            "linux/app-containers/docker",
-            "linux/app-containers/podman",
-            "linux/app-containers/containerd",
+            "linux/system/containers/podman",
+            "linux/system/containers/containerd",
         ],
     },
     "virtualization": {
         "description": "Virtualization packages",
         "packages": [
-            "linux/app-emulation/qemu",
-            "linux/app-emulation/libvirt",
+            "linux/emulation/hypervisors/qemu",
+            "linux/emulation/virtualization/libvirt",
         ],
     },
     "monitoring": {
         "description": "System monitoring packages",
         "packages": [
-            "linux/monitoring/prometheus",
-            "linux/monitoring/grafana",
-            "linux/monitoring/node-exporter",
+            "linux/system/monitoring/node-exporter",
         ],
     },
 }
 
 # Desktop environment sets
 DESKTOP_SETS = {
-    "gnome": {
-        "description": "GNOME desktop environment",
-        "packages": [
-            "linux/desktop/gnome-shell",
-            "linux/desktop/gnome-terminal",
-            "linux/desktop/nautilus",
-            "linux/desktop/gnome-control-center",
-        ],
-    },
-    "kde": {
-        "description": "KDE Plasma desktop environment",
-        "packages": [
-            "linux/desktop/plasma-desktop",
-            "linux/desktop/konsole",
-            "linux/desktop/dolphin",
-            "linux/desktop/systemsettings",
-        ],
-    },
-    "xfce": {
-        "description": "Xfce desktop environment",
-        "packages": [
-            "linux/desktop/xfce4-panel",
-            "linux/desktop/xfce4-terminal",
-            "linux/desktop/thunar",
-            "linux/desktop/xfce4-settings",
-        ],
-    },
     "sway": {
         "description": "Sway Wayland compositor",
         "packages": [
             "linux/desktop/sway",
-            "linux/desktop/foot",
-            "linux/desktop/waybar",
-            "linux/desktop/wofi",
+            "linux/terminals/foot",
+            "linux/desktop/wayland-utilities/waybar",
+            "linux/desktop/wayland-utilities/wofi",
         ],
     },
 }

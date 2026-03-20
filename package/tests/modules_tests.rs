@@ -32,6 +32,7 @@ fn create_test_config() -> (Config, TempDir) {
         features: HashSet::new(),
         accept_keywords: HashSet::new(),
         accept_license: "@FREE".to_string(),
+        buck_config: Default::default(),
     };
 
     // Create necessary directories
@@ -292,6 +293,8 @@ mod package_build_meta_tests {
             buck_target: "//packages/sys-libs/glibc:package".to_string(),
             size: 50_000_000,
             installed_size: 200_000_000,
+            required_use: String::new(),
+            blockers: Vec::new(),
         }
     }
 

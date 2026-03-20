@@ -30,7 +30,7 @@ mod cli_parsing {
         let output = run_buckos(&["--help"]);
         assert!(output.status.success());
         assert!(output_contains(&output, "Buckos Package Manager"));
-        assert!(output_contains(&output, "USAGE"));
+        assert!(output_contains(&output, "Usage"));
     }
 
     #[test]

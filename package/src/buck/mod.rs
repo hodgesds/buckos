@@ -557,18 +557,13 @@ pub fn package_to_target(category: &str, name: &str) -> String {
 
 /// Parse Buck target to package ID components
 pub fn target_to_package(target: &str) -> Option<(String, String)> {
-    // Parse "//packages/linux/category/name:target"
+    // Parse "//packages/linux/category/path/name:target"
     let target = target.strip_prefix("//packages/")?;
     // Strip the "linux/" prefix if present
     let target = target.strip_prefix("linux/").unwrap_or(target);
-    let parts: Vec<&str> = target.split('/').collect();
-    if parts.len() >= 2 {
-        let category = parts[0].to_string();
-        let name = parts[1].split(':').next()?.to_string();
-        Some((category, name))
-    } else {
-        None
-    }
+    let (path, name) = target.split_once(':')?;
+    let category = path.strip_suffix(&format!("/{}", name))?;
+    Some((category.to_string(), name.to_string()))
 }
 
 /// Convert package ID to Buck target using BuckTarget type

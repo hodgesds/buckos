@@ -141,11 +141,7 @@ pub fn validate_repository(path: &Path) -> Result<PathBuf> {
     }
 
     // Check for required build definition files
-    let required_files = vec![
-        "defs/package_defs.bzl",
-        "defs/use_flags.bzl",
-        "defs/versions.bzl",
-    ];
+    let required_files = vec!["defs/package.bzl"];
 
     for file in &required_files {
         let file_path = canonical_path.join(file);

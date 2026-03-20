@@ -313,18 +313,18 @@ impl PackageSpec {
             (None, s)
         };
 
+        // Extract repository if present (::repo syntax) — must be checked before slot
+        let (rest, repo) = if let Some(idx) = rest.find("::") {
+            (&rest[..idx], Some(rest[idx + 2..].to_string()))
+        } else {
+            (rest, None)
+        };
+
         // Extract slot if present
         let (pkg_part, slot) = if let Some(idx) = rest.find(':') {
             (&rest[..idx], Some(rest[idx + 1..].to_string()))
         } else {
             (rest, None)
-        };
-
-        // Extract repository if present (::repo syntax)
-        let (pkg_part, repo) = if let Some(idx) = pkg_part.find("::") {
-            (&pkg_part[..idx], Some(pkg_part[idx + 2..].to_string()))
-        } else {
-            (pkg_part, None)
         };
 
         // Parse category/name-version
@@ -342,14 +342,12 @@ impl PackageSpec {
         s: &str,
         version_op: Option<&str>,
     ) -> crate::Result<(PackageId, VersionSpec)> {
-        // Split into category and name-version
-        let parts: Vec<&str> = s.split('/').collect();
-        if parts.len() != 2 {
-            return Err(crate::Error::InvalidPackageSpec(s.to_string()));
-        }
-
-        let category = parts[0].to_string();
-        let name_version = parts[1];
+        // Split into category and name-version using last slash (supports deep paths)
+        let last_slash = s
+            .rfind('/')
+            .ok_or_else(|| crate::Error::InvalidPackageSpec(s.to_string()))?;
+        let category = s[..last_slash].to_string();
+        let name_version = &s[last_slash + 1..];
 
         // Try to extract version from name (e.g., "systemd-250.4")
         if let Some(version_op) = version_op {

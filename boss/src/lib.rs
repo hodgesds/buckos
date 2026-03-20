@@ -30,7 +30,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use buckos_start::{Init, InitConfig};
+//! use buckos_boss::{Init, InitConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {

@@ -769,8 +769,9 @@ impl MaskManager {
 
     /// Check if a license matches acceptance rules
     fn license_matches(&self, license: &str, accepted: &[String]) -> bool {
+        let mut matched = false;
         for rule in accepted {
-            // Handle negation
+            // Handle negation (overrides previous matches)
             if let Some(neg_license) = rule.strip_prefix('-') {
                 if license == neg_license {
                     return false;
@@ -780,7 +781,8 @@ impl MaskManager {
 
             // Handle wildcards
             if rule == "*" {
-                return true;
+                matched = true;
+                continue;
             }
 
             // Handle license groups
@@ -797,7 +799,7 @@ impl MaskManager {
 
                 if let Some(licenses) = group {
                     if licenses.contains(license) {
-                        return true;
+                        matched = true;
                     }
                 }
                 continue;
@@ -805,11 +807,11 @@ impl MaskManager {
 
             // Direct match
             if rule == license {
-                return true;
+                matched = true;
             }
         }
 
-        false
+        matched
     }
 
     /// Check if an entry matches a package

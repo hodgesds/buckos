@@ -32,8 +32,11 @@ mod package_id {
     }
 
     #[test]
-    fn test_package_id_parse_invalid_multiple_slashes() {
-        assert!(PackageId::parse("sys/apps/systemd").is_none());
+    fn test_package_id_parse_deep_category() {
+        // Multi-level categories are valid (e.g., "system/libs/crypto/openssl")
+        let pkg = PackageId::parse("sys/apps/systemd").unwrap();
+        assert_eq!(pkg.category, "sys/apps");
+        assert_eq!(pkg.name, "systemd");
     }
 
     #[test]
@@ -433,14 +436,14 @@ mod buck_target {
     #[test]
     fn test_buck_target_for_package() {
         let target = BuckTarget::for_package("sys-libs", "glibc");
-        assert_eq!(target.path, "packages/sys-libs/glibc");
-        assert_eq!(target.name, "package");
+        assert_eq!(target.path, "packages/linux/sys-libs/glibc");
+        assert_eq!(target.name, "glibc");
     }
 
     #[test]
     fn test_buck_target_for_package_lib() {
         let target = BuckTarget::for_package_lib("sys-libs", "glibc");
-        assert_eq!(target.path, "packages/sys-libs/glibc");
+        assert_eq!(target.path, "packages/linux/sys-libs/glibc");
         assert_eq!(target.name, "glibc");
     }
 
@@ -448,8 +451,8 @@ mod buck_target {
     fn test_buck_target_from_package_id() {
         let pkg = PackageId::new("sys-libs", "glibc");
         let target = BuckTarget::from(&pkg);
-        assert_eq!(target.path, "packages/sys-libs/glibc");
-        assert_eq!(target.name, "package");
+        assert_eq!(target.path, "packages/linux/sys-libs/glibc");
+        assert_eq!(target.name, "glibc");
     }
 
     #[test]
@@ -569,7 +572,10 @@ mod buck_config {
     fn test_buck_config_default() {
         let config = BuckConfig::default();
         assert_eq!(config.buck_path, PathBuf::from("/usr/bin/buck2"));
-        assert_eq!(config.repo_path, PathBuf::from("/var/db/repos/buckos"));
+        assert_eq!(
+            config.repo_path,
+            PathBuf::from("/var/db/repos/buckos-build")
+        );
         assert_eq!(
             config.output_dir,
             PathBuf::from("/var/cache/buckos/buck-out")
