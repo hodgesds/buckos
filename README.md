@@ -267,8 +267,8 @@ The [buckos-build](https://github.com/buck-os/buckos-build) repository uses Buck
 | `use/constraints/` | `constraint_setting`/`constraint_value` definitions for all USE flags |
 | `use/modifier_aliases.bzl` | CLI `-m` shortcuts (e.g., `buck2 build ... -m desktop`) |
 | `use/profiles/` | Preset profiles (minimal, server, desktop, developer, hardened) |
-| `config/install_modifiers.bzl` | Auto-generated global modifiers (from installer/CLI) |
-| `PACKAGE` | Root package file with `set_cfg_constructor()` and modifier loading |
+| `config/local_modifiers.bzl` | Auto-generated global modifiers (gitignored, from installer/CLI) |
+| `PACKAGE` | Root package file with `set_cfg_constructor()` and `set_cfg_modifiers()` |
 
 ### Configuration Management
 
@@ -284,7 +284,7 @@ buckos use profile desktop                 # Apply profile defaults
 buckos use diff                            # Show changes since last build
 ```
 
-Changes are synced to the buckos-build repo's `config/install_modifiers.bzl` and per-package `PACKAGE` files so that Buck2's modifier system stays in sync.
+Changes are synced to the buckos-build repo's `config/local_modifiers.bzl` (gitignored) and per-package `PACKAGE` files (also gitignored) so that Buck2's `set_cfg_modifiers()` stays in sync without dirtying the repo.
 
 ### Eclasses
 
