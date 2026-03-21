@@ -126,6 +126,32 @@ impl Config {
     pub fn packages_dir(&self) -> PathBuf {
         self.cache_dir.join("packages")
     }
+
+    /// Save the current USE flag config as the last successful build state.
+    ///
+    /// Called after a successful build so that `buckos use --diff` can show
+    /// what changed since the last build.
+    pub fn save_build_state(&self) -> Result<()> {
+        std::fs::create_dir_all(&self.db_path)?;
+        let state_path = self.db_path.join("last_build_config.json");
+        let json = serde_json::to_string_pretty(&self.use_flags)
+            .map_err(|e| Error::ConfigError(format!("Failed to serialize build state: {}", e)))?;
+        std::fs::write(&state_path, json)?;
+        Ok(())
+    }
+
+    /// Load the USE flag config from the last successful build.
+    pub fn load_build_state(&self) -> Result<Option<crate::UseConfig>> {
+        let state_path = self.db_path.join("last_build_config.json");
+        if state_path.exists() {
+            let json = std::fs::read_to_string(&state_path)?;
+            let config: crate::UseConfig = serde_json::from_str(&json)
+                .map_err(|e| Error::ConfigError(format!("Failed to parse build state: {}", e)))?;
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 /// Repository configuration

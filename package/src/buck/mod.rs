@@ -3,8 +3,10 @@
 //! This module provides integration with Buck2 for building packages from source.
 
 pub mod buckconfig;
+pub mod config_sync;
 
 pub use buckconfig::{BuckConfigFile, BuckConfigOptions, BuckConfigSection};
+pub use config_sync::sync_config_to_repo;
 
 use crate::config::Config;
 use crate::{BuildOptions, BuildResult, Error, Result, UseConfig};
@@ -88,12 +90,35 @@ impl BuckIntegration {
     }
 
     /// Convert USE flags to Buck2 modifier arguments
+    ///
+    /// Maps global flags, disabled flags (mask), and USE_EXPAND variables
+    /// to Buck2 `-m` constraint_value targets compatible with buckos-build's
+    /// `use/constraints/` definitions.
     fn use_flags_to_modifier_args(use_config: &UseConfig) -> Vec<String> {
         let mut args = Vec::new();
+
+        // Global enabled flags
         for flag in &use_config.global {
             args.push("-m".to_string());
             args.push(format!("//use/constraints:{}-on", flag));
         }
+
+        // Explicitly disabled flags (from mask set)
+        for flag in &use_config.mask {
+            args.push("-m".to_string());
+            args.push(format!("//use/constraints:{}-off", flag));
+        }
+
+        // USE_EXPAND variables (VIDEO_CARDS, INPUT_DEVICES, etc.)
+        // These map to use_expand_multi constraints: video_cards_amdgpu-on
+        for (prefix, values) in &use_config.expand {
+            for value in values {
+                let flag_name = format!("{}_{}", prefix.to_lowercase(), value.to_lowercase());
+                args.push("-m".to_string());
+                args.push(format!("//use/constraints:{}-on", flag_name));
+            }
+        }
+
         args
     }
 

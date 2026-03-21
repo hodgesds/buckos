@@ -412,15 +412,37 @@ pub struct WorldSet {
 /// USE flag configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UseConfig {
+    /// Global USE flags (enabled)
     pub global: HashSet<String>,
+    /// Per-package USE flags
     pub package: BTreeMap<PackageId, HashSet<String>>,
+    /// Masked (explicitly disabled) USE flags
+    #[serde(default)]
+    pub mask: HashSet<String>,
+    /// USE_EXPAND variables (e.g., VIDEO_CARDS → ["amdgpu"], INPUT_DEVICES → ["libinput"])
+    #[serde(default)]
+    pub expand: BTreeMap<String, HashSet<String>>,
 }
 
 impl UseConfig {
     pub fn get_flags(&self, pkg: &PackageId) -> HashSet<String> {
         let mut flags = self.global.clone();
+        // Add expanded flags (e.g., VIDEO_CARDS=amdgpu → video_cards_amdgpu)
+        for (prefix, values) in &self.expand {
+            for value in values {
+                flags.insert(format!(
+                    "{}_{}",
+                    prefix.to_lowercase(),
+                    value.to_lowercase()
+                ));
+            }
+        }
         if let Some(pkg_flags) = self.package.get(pkg) {
             flags.extend(pkg_flags.clone());
+        }
+        // Remove masked flags
+        for masked in &self.mask {
+            flags.remove(masked);
         }
         flags
     }

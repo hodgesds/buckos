@@ -821,8 +821,8 @@ fn validate_buckos_build_path(path: &std::path::Path) -> Result<std::path::PathB
     }
 
     // Check for essential buckos-build components
-    let required_dirs = vec!["defs", "packages"];
-    let required_files = vec!["defs/package_defs.bzl", "defs/use_flags.bzl"];
+    let required_dirs = vec!["defs", "packages", "use", "use/constraints"];
+    let required_files = vec!["defs/package.bzl", "use/constraints/defs.bzl", "PACKAGE"];
 
     // Check directories
     for dir in &required_dirs {

@@ -159,6 +159,11 @@ impl PackageManager {
             }
         }
 
+        // Save build state for USE flag diff tracking
+        if let Err(e) = self.config.save_build_state() {
+            tracing::warn!("Failed to save build state: {}", e);
+        }
+
         info!(
             "Successfully installed {} packages",
             resolution.packages.len()

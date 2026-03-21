@@ -105,8 +105,9 @@ pub fn detect_repository_path(custom_path: Option<&str>) -> Result<PathBuf> {
 /// Checks for required directories and files:
 /// - defs/ directory with build definitions
 /// - packages/ directory with package definitions
-/// - defs/package_defs.bzl (core build rules)
-/// - defs/use_flags.bzl (USE flag system)
+/// - use/constraints/ directory with Buck2 constraint definitions
+/// - defs/package.bzl (core package macro)
+/// - PACKAGE (root package file with set_cfg_constructor)
 pub fn validate_repository(path: &Path) -> Result<PathBuf> {
     // Canonicalize the path to get absolute path
     let canonical_path = path
@@ -128,7 +129,7 @@ pub fn validate_repository(path: &Path) -> Result<PathBuf> {
     }
 
     // Check for required directories
-    let required_dirs = vec!["defs", "packages"];
+    let required_dirs = vec!["defs", "packages", "use", "use/constraints"];
     for dir in &required_dirs {
         let dir_path = canonical_path.join(dir);
         if !dir_path.exists() || !dir_path.is_dir() {
@@ -141,7 +142,7 @@ pub fn validate_repository(path: &Path) -> Result<PathBuf> {
     }
 
     // Check for required build definition files
-    let required_files = vec!["defs/package.bzl"];
+    let required_files = vec!["defs/package.bzl", "PACKAGE"];
 
     for file in &required_files {
         let file_path = canonical_path.join(file);
