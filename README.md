@@ -240,12 +240,12 @@ while the full-featured build system resides in the [buckos-build](https://githu
 
 ### Core Definition Files (buckos)
 
-The package manager includes these core definition files in `defs/`:
+The package manager includes local definition files in `defs/` for reference:
 
 | File | Purpose |
 |------|---------|
 | `package_defs.bzl` | Package build rules and PackageInfo provider |
-| `use_flags.bzl` | USE flag definitions and resolution |
+| `use_flags.bzl` | USE flag definitions (local reference; buckos-build uses Buck2 constraints) |
 | `registry.bzl` | Central package version registry |
 | `versions.bzl` | Version comparison and subslot system |
 | `eclasses.bzl` | Eclass inheritance system |
@@ -256,18 +256,35 @@ The package manager includes these core definition files in `defs/`:
 | `package_customize.bzl` | Per-package customization |
 | `tooling.bzl` | External tool integration and profiles |
 
-### Extended Definition Files (buckos-build)
+### buckos-build Definition Files
 
-The [buckos-build](https://github.com/buck-os/buckos-build) repository includes all core files plus these additional advanced features:
+The [buckos-build](https://github.com/buck-os/buckos-build) repository uses Buck2's native modifier/constraint system for USE flags:
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `advanced_deps.bzl` | Package blockers, SRC_URI advanced features, REQUIRED_USE, package environment |
-| `config_protect.bzl` | Configuration file protection (CONFIG_PROTECT) |
-| `overlays.bzl` | Overlay/repository system with priorities |
-| `platform_defs.bzl` | Platform targeting (Linux, BSD, macOS, Windows) |
-| `use_expand.bzl` | USE_EXPAND variables (PYTHON_TARGETS, CPU_FLAGS_X86, VIDEO_CARDS, etc.) |
-| `vdb.bzl` | VDB (installed package database) integration |
+| `defs/package.bzl` | Core package macro with USE flag support |
+| `defs/use_helpers.bzl` | `select()`-based helpers (`use_dep()`, `use_configure_arg()`, etc.) |
+| `use/constraints/` | `constraint_setting`/`constraint_value` definitions for all USE flags |
+| `use/modifier_aliases.bzl` | CLI `-m` shortcuts (e.g., `buck2 build ... -m desktop`) |
+| `use/profiles/` | Preset profiles (minimal, server, desktop, developer, hardened) |
+| `config/local_modifiers.bzl` | Auto-generated global modifiers (gitignored, from installer/CLI) |
+| `PACKAGE` | Root package file with `set_cfg_constructor()` and `set_cfg_modifiers()` |
+
+### Configuration Management
+
+USE flags and system configuration can be managed via the `buckos` CLI:
+
+```
+buckos config show                         # Display configuration
+buckos config set use "X wayland ssl"      # Set global USE flags
+buckos use +wayland +pipewire -gtk         # Toggle individual flags
+buckos use package linux/editors/vim +lua  # Per-package USE override
+buckos use expand VIDEO_CARDS amdgpu       # Set USE_EXPAND variable
+buckos use profile desktop                 # Apply profile defaults
+buckos use diff                            # Show changes since last build
+```
+
+Changes are synced to the buckos-build repo's `config/local_modifiers.bzl` (gitignored) and per-package `PACKAGE` files (also gitignored) so that Buck2's `set_cfg_modifiers()` stays in sync without dirtying the repo.
 
 ### Eclasses
 

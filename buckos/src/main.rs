@@ -50,6 +50,19 @@ enum Commands {
         /// Package name
         package: String,
     },
+    /// Manage system configuration
+    Config {
+        #[clap(subcommand)]
+        action: ConfigAction,
+    },
+    /// Manage USE flags (modifier constraints for Buck2 builds)
+    Use {
+        #[clap(subcommand)]
+        action: Option<UseAction>,
+        /// USE flag changes (e.g., +wayland -gtk +ssl)
+        #[clap(trailing_var_arg = true)]
+        flags: Vec<String>,
+    },
     /// Start MCP server (Model Context Protocol for AI assistants)
     Mcp {
         /// MCP server configuration file
@@ -59,6 +72,56 @@ enum Commands {
         #[clap(long)]
         user_mode: bool,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigAction {
+    /// Display current configuration
+    Show,
+    /// Set a configuration value
+    Set {
+        /// Configuration key (use, profile, arch, cflags, cxxflags, ldflags, makeopts)
+        key: String,
+        /// Configuration value
+        value: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum UseAction {
+    /// Show current USE flag configuration
+    Show,
+    /// Set global USE flags (replaces all)
+    Set {
+        /// USE flags (e.g., "X wayland ssl ipv6")
+        flags: String,
+    },
+    /// Add or remove global USE flags
+    Modify {
+        /// Flag changes (e.g., +wayland -gtk +ssl)
+        flags: Vec<String>,
+    },
+    /// Set per-package USE flags
+    Package {
+        /// Package atom (category/name, e.g., linux/editors/vim)
+        package: String,
+        /// Flag changes (e.g., +python -perl +lua)
+        flags: Vec<String>,
+    },
+    /// Set USE_EXPAND variable (e.g., VIDEO_CARDS, INPUT_DEVICES)
+    Expand {
+        /// Variable name (e.g., VIDEO_CARDS)
+        variable: String,
+        /// Values (e.g., amdgpu intel)
+        values: Vec<String>,
+    },
+    /// Apply a profile's USE flag defaults
+    Profile {
+        /// Profile name (minimal, server, desktop, developer, hardened)
+        name: String,
+    },
+    /// Show diff from last build configuration
+    Diff,
 }
 
 #[tokio::main]
@@ -166,6 +229,12 @@ async fn main() -> Result<()> {
                 println!("Package '{}' not found", package);
             }
         }
+        Some(Commands::Config { action }) => {
+            handle_config(action, &repo_path).await?;
+        }
+        Some(Commands::Use { action, flags }) => {
+            handle_use(action, flags, &repo_path).await?;
+        }
         Some(Commands::Mcp {
             mcp_config,
             user_mode,
@@ -195,6 +264,284 @@ async fn main() -> Result<()> {
             println!();
             println!("Use --help to see available commands");
         }
+    }
+
+    Ok(())
+}
+
+/// Handle `buckos config` subcommands
+async fn handle_config(action: ConfigAction, repo_path: &Path) -> Result<()> {
+    let config_path = PathBuf::from("/etc/buckos/buckos.toml");
+    let mut config = Config::load().unwrap_or_default();
+    config.buck_repo = repo_path.to_path_buf();
+
+    match action {
+        ConfigAction::Show => {
+            println!("BuckOS Configuration");
+            println!("====================");
+            println!("Config file: {}", config_path.display());
+            println!();
+            println!("[general]");
+            println!("  root = {}", config.root.display());
+            println!("  db_path = {}", config.db_path.display());
+            println!("  cache_dir = {}", config.cache_dir.display());
+            println!("  buck_repo = {}", config.buck_repo.display());
+            println!("  buck_path = {}", config.buck_path.display());
+            println!("  parallelism = {}", config.parallelism);
+            println!();
+            println!("[use_flags]");
+            let mut flags: Vec<_> = config.use_flags.global.iter().collect();
+            flags.sort();
+            println!("  global = {:?}", flags);
+            if !config.use_flags.package.is_empty() {
+                println!();
+                println!("  [per-package]");
+                for (pkg, pkg_flags) in &config.use_flags.package {
+                    let mut sorted_flags: Vec<_> = pkg_flags.iter().collect();
+                    sorted_flags.sort();
+                    println!("  {}/{} = {:?}", pkg.category, pkg.name, sorted_flags);
+                }
+            }
+            println!();
+            println!("[build]");
+            println!("  arch = {}", config.arch);
+            println!("  chost = {}", config.chost);
+            println!("  cflags = {}", config.cflags);
+            println!("  cxxflags = {}", config.cxxflags);
+            println!("  ldflags = {}", config.ldflags);
+            println!("  makeopts = {}", config.makeopts);
+        }
+        ConfigAction::Set { key, value } => {
+            match key.as_str() {
+                "arch" => config.arch = value.clone(),
+                "chost" => config.chost = value.clone(),
+                "cflags" => config.cflags = value.clone(),
+                "cxxflags" => config.cxxflags = value.clone(),
+                "ldflags" => config.ldflags = value.clone(),
+                "makeopts" => config.makeopts = value.clone(),
+                "parallelism" => {
+                    config.parallelism = value
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid parallelism value: {}", value))?;
+                }
+                "use" => {
+                    config.use_flags.global =
+                        value.split_whitespace().map(|s| s.to_string()).collect();
+                }
+                other => {
+                    anyhow::bail!("Unknown config key: '{}'. Valid keys: arch, chost, cflags, cxxflags, ldflags, makeopts, parallelism, use", other);
+                }
+            }
+
+            // Save config
+            if let Some(parent) = config_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            config.save_to(&config_path)?;
+            println!("Configuration updated: {} = {}", key, value);
+
+            // Sync to buckos-build repo
+            if let Err(e) = buckos_package::buck::sync_config_to_repo(&config) {
+                eprintln!("Warning: failed to sync to buckos-build: {}", e);
+            } else {
+                println!("Synced modifier config to {}", config.buck_repo.display());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle `buckos use` subcommands
+async fn handle_use(action: Option<UseAction>, flags: Vec<String>, repo_path: &Path) -> Result<()> {
+    use buckos_package::PackageId;
+
+    let config_path = PathBuf::from("/etc/buckos/buckos.toml");
+    let mut config = Config::load().unwrap_or_default();
+    config.buck_repo = repo_path.to_path_buf();
+
+    // If no subcommand but flags provided via trailing args, treat as modify
+    let action = if action.is_none() && !flags.is_empty() {
+        Some(UseAction::Modify { flags })
+    } else {
+        action
+    };
+
+    match action {
+        None | Some(UseAction::Show) => {
+            println!("Global USE flags:");
+            let mut flags: Vec<_> = config.use_flags.global.iter().collect();
+            flags.sort();
+            for flag in &flags {
+                println!("  + {}", flag);
+            }
+            if !config.use_flags.package.is_empty() {
+                println!();
+                println!("Per-package USE flags:");
+                for (pkg, pkg_flags) in &config.use_flags.package {
+                    let mut sorted_flags: Vec<_> = pkg_flags.iter().collect();
+                    sorted_flags.sort();
+                    println!("  {}/{}: {:?}", pkg.category, pkg.name, sorted_flags);
+                }
+            }
+        }
+        Some(UseAction::Set { flags }) => {
+            config.use_flags.global = flags.split_whitespace().map(|s| s.to_string()).collect();
+            save_and_sync(&config, &config_path)?;
+            println!("Global USE flags set to: {}", flags);
+        }
+        Some(UseAction::Modify { flags }) => {
+            for flag_str in &flags {
+                if let Some(flag) = flag_str.strip_prefix('+') {
+                    config.use_flags.global.insert(flag.to_string());
+                    println!("  + {}", flag);
+                } else if let Some(flag) = flag_str.strip_prefix('-') {
+                    config.use_flags.global.remove(flag);
+                    println!("  - {}", flag);
+                } else {
+                    // No prefix means enable
+                    config.use_flags.global.insert(flag_str.to_string());
+                    println!("  + {}", flag_str);
+                }
+            }
+            save_and_sync(&config, &config_path)?;
+        }
+        Some(UseAction::Package { package, flags }) => {
+            // Parse package atom (category/name)
+            let (category, name) = if package.contains('/') {
+                let parts: Vec<&str> = package.splitn(2, '/').collect();
+                (parts[0].to_string(), parts[1].to_string())
+            } else {
+                ("unknown".to_string(), package.clone())
+            };
+            let pkg_id = PackageId::new(category, &name);
+
+            let pkg_flags = config.use_flags.package.entry(pkg_id.clone()).or_default();
+
+            for flag_str in &flags {
+                if let Some(flag) = flag_str.strip_prefix('+') {
+                    pkg_flags.insert(flag.to_string());
+                    println!("  {}: + {}", package, flag);
+                } else if let Some(flag) = flag_str.strip_prefix('-') {
+                    pkg_flags.remove(flag);
+                    println!("  {}: - {}", package, flag);
+                } else {
+                    pkg_flags.insert(flag_str.to_string());
+                    println!("  {}: + {}", package, flag_str);
+                }
+            }
+            save_and_sync(&config, &config_path)?;
+        }
+        Some(UseAction::Expand { variable, values }) => {
+            // USE_EXPAND variables are stored as global flags with prefix
+            let prefix = variable.to_lowercase();
+            // Remove existing values for this expand variable
+            let to_remove: Vec<String> = config
+                .use_flags
+                .global
+                .iter()
+                .filter(|f| f.starts_with(&format!("{}_", prefix)))
+                .cloned()
+                .collect();
+            for f in to_remove {
+                config.use_flags.global.remove(&f);
+            }
+            // Add new values
+            for value in &values {
+                let flag = format!("{}_{}", prefix, value.to_lowercase());
+                config.use_flags.global.insert(flag.clone());
+                println!("  + {}", flag);
+            }
+            save_and_sync(&config, &config_path)?;
+            println!("USE_EXPAND {} set to: {:?}", variable, values);
+        }
+        Some(UseAction::Profile { name }) => {
+            let profile_flags: Vec<&str> = match name.as_str() {
+                "minimal" => vec!["ipv6", "ssl", "zlib", "strip", "threads", "unicode"],
+                "server" => vec![
+                    "hardened", "ssl", "ipv6", "threads", "caps", "zlib", "zstd", "brotli",
+                    "http2", "pam", "acl",
+                ],
+                "desktop" => vec![
+                    "X",
+                    "wayland",
+                    "opengl",
+                    "vulkan",
+                    "dbus",
+                    "pulseaudio",
+                    "pipewire",
+                    "alsa",
+                    "ssl",
+                    "ipv6",
+                    "threads",
+                    "unicode",
+                    "nls",
+                    "gtk",
+                    "pam",
+                    "udev",
+                ],
+                "developer" => vec![
+                    "debug", "doc", "test", "ssl", "ipv6", "threads", "X", "dbus", "python", "lua",
+                ],
+                "hardened" => vec![
+                    "hardened", "pie", "ssp", "seccomp", "caps", "ssl", "ipv6", "acl", "pam",
+                ],
+                other => {
+                    anyhow::bail!(
+                        "Unknown profile: '{}'. Valid profiles: minimal, server, desktop, developer, hardened",
+                        other
+                    );
+                }
+            };
+            config.use_flags.global = profile_flags.iter().map(|s| s.to_string()).collect();
+            save_and_sync(&config, &config_path)?;
+            println!("Applied profile '{}' USE flags: {:?}", name, profile_flags);
+        }
+        Some(UseAction::Diff) => {
+            let state_path = config.db_path.join("last_build_config.json");
+            if state_path.exists() {
+                let json = std::fs::read_to_string(&state_path)?;
+                let old: buckos_package::UseConfig = serde_json::from_str(&json)?;
+
+                let current = &config.use_flags.global;
+                let old_flags = &old.global;
+
+                let added: Vec<_> = current.difference(old_flags).collect();
+                let removed: Vec<_> = old_flags.difference(current).collect();
+
+                if added.is_empty() && removed.is_empty() {
+                    println!("No USE flag changes since last build.");
+                } else {
+                    println!("USE flag changes since last build:");
+                    for flag in &added {
+                        println!("  + {}", flag);
+                    }
+                    for flag in &removed {
+                        println!("  - {}", flag);
+                    }
+                }
+            } else {
+                println!("No previous build state found at {}", state_path.display());
+                println!("Build state is recorded after the first successful build.");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Save config and sync modifiers to buckos-build repo
+fn save_and_sync(config: &Config, config_path: &Path) -> Result<()> {
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    config.save_to(config_path)?;
+
+    // Sync to buckos-build repo
+    if let Err(e) = buckos_package::buck::sync_config_to_repo(config) {
+        eprintln!("Warning: failed to sync to buckos-build: {}", e);
+    } else {
+        println!("Synced modifier config to {}", config.buck_repo.display());
     }
 
     Ok(())
