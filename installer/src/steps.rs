@@ -259,43 +259,32 @@ pub fn render_disk_setup(
         }
 
         ui.add_space(16.0);
-        ui.label(RichText::new("Root Filesystem:").strong());
-        ui.add_space(4.0);
 
-        // Filesystem options (only show filesystem types suitable for root)
+        // Filesystem options as compact dropdown
         let filesystem_options = [
-            (
-                crate::types::FilesystemType::Ext4,
-                "ext4",
-                "Ext4 - Standard journaling filesystem (recommended)",
-            ),
-            (
-                crate::types::FilesystemType::Btrfs,
-                "btrfs",
-                "Btrfs - Advanced copy-on-write filesystem with snapshots",
-            ),
-            (
-                crate::types::FilesystemType::Xfs,
-                "xfs",
-                "XFS - High-performance journaling filesystem",
-            ),
-            (
-                crate::types::FilesystemType::F2fs,
-                "f2fs",
-                "F2FS - Flash-Friendly File System (for SSDs)",
-            ),
+            (crate::types::FilesystemType::Ext4, "ext4", "Standard journaling filesystem (recommended)"),
+            (crate::types::FilesystemType::Btrfs, "btrfs", "Advanced copy-on-write with snapshots"),
+            (crate::types::FilesystemType::Xfs, "xfs", "High-performance journaling filesystem"),
+            (crate::types::FilesystemType::F2fs, "f2fs", "Flash-Friendly File System (for SSDs)"),
         ];
 
-        for (fs_type, name, description) in filesystem_options {
-            let is_selected = root_filesystem == &fs_type;
-            let response = ui.selectable_label(is_selected, name);
-            if response.clicked() {
-                *root_filesystem = fs_type;
-            }
-            ui.indent("fs_desc", |ui| {
-                ui.label(RichText::new(description).small().weak());
-            });
-        }
+        let current_fs_name = filesystem_options
+            .iter()
+            .find(|(fs, _, _)| fs == root_filesystem)
+            .map(|(_, name, _)| *name)
+            .unwrap_or("ext4");
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Root Filesystem:").strong());
+            egui::ComboBox::from_id_salt("fs_combo")
+                .selected_text(current_fs_name)
+                .show_ui(ui, |ui| {
+                    for (fs_type, name, description) in filesystem_options {
+                        let label = format!("{} - {}", name, description);
+                        ui.selectable_value(root_filesystem, fs_type, label);
+                    }
+                });
+        });
 
         ui.add_space(8.0);
         ui.label(
@@ -314,20 +303,18 @@ pub fn render_disk_setup(
     ui.separator();
     ui.add_space(8.0);
 
-    // Encryption options
-    ui.label(RichText::new("Disk Encryption:").strong());
-    ui.add_space(4.0);
-
-    for enc in EncryptionType::all() {
-        let is_selected = encryption_type == &enc;
-        let response = ui.selectable_label(is_selected, enc.name());
-        if response.clicked() {
-            *encryption_type = enc.clone();
-        }
-        ui.indent("enc_desc", |ui| {
-            ui.label(RichText::new(enc.description()).small().weak());
-        });
-    }
+    // Encryption options as compact dropdown
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Disk Encryption:").strong());
+        egui::ComboBox::from_id_salt("enc_combo")
+            .selected_text(encryption_type.name())
+            .show_ui(ui, |ui| {
+                for enc in EncryptionType::all() {
+                    let label = format!("{} - {}", enc.name(), enc.description());
+                    ui.selectable_value(encryption_type, enc, label);
+                }
+            });
+    });
 
     // Encryption passphrase (if encryption selected)
     if *encryption_type != EncryptionType::None {
@@ -817,24 +804,29 @@ pub fn render_profile_selection(
             );
             ui.add_space(8.0);
 
-            egui::ScrollArea::vertical()
-                .max_height(200.0)
-                .show(ui, |ui| {
-                    for de in DesktopEnvironment::all() {
-                        let is_selected = selected_de == &de;
-                        let response =
-                            ui.selectable_label(is_selected, RichText::new(de.name()).strong());
-                        if response.clicked() {
-                            *selected_de = de.clone();
-                            *profile = InstallProfile::Desktop(de.clone());
-                        }
-
-                        ui.indent("de_desc", |ui| {
-                            ui.label(RichText::new(de.description()).small());
-                        });
-                        ui.add_space(4.0);
+            // 2-column grid for desktop environments
+            let all_des = DesktopEnvironment::all();
+            let half = (all_des.len() + 1) / 2;
+            ui.columns(2, |cols| {
+                for (i, de) in all_des.iter().enumerate() {
+                    let col = if i < half { &mut cols[0] } else { &mut cols[1] };
+                    let is_selected = selected_de == de;
+                    let response =
+                        col.selectable_label(is_selected, RichText::new(de.name()).strong());
+                    if response.clicked() {
+                        *selected_de = de.clone();
                     }
-                });
+                }
+            });
+
+            // Show description of selected DE below the grid
+            ui.add_space(4.0);
+            ui.indent("de_selected_desc", |ui| {
+                ui.label(RichText::new(selected_de.description()).small().weak());
+            });
+
+            // Update profile with current selection
+            *profile = InstallProfile::Desktop(selected_de.clone());
         }
         InstallProfile::Handheld(_) => {
             ui.label(RichText::new("Handheld Device").strong());
@@ -845,20 +837,27 @@ pub fn render_profile_selection(
             );
             ui.add_space(8.0);
 
-            for device in HandheldDevice::all() {
-                let is_selected = selected_handheld == &device;
-                let response =
-                    ui.selectable_label(is_selected, RichText::new(device.name()).strong());
-                if response.clicked() {
-                    *selected_handheld = device.clone();
-                    *profile = InstallProfile::Handheld(device.clone());
+            // 2-column grid for handheld devices
+            let all_devices = HandheldDevice::all();
+            let half = (all_devices.len() + 1) / 2;
+            ui.columns(2, |cols| {
+                for (i, device) in all_devices.iter().enumerate() {
+                    let col = if i < half { &mut cols[0] } else { &mut cols[1] };
+                    let is_selected = selected_handheld == device;
+                    let response =
+                        col.selectable_label(is_selected, RichText::new(device.name()).strong());
+                    if response.clicked() {
+                        *selected_handheld = device.clone();
+                    }
                 }
+            });
 
-                ui.indent("handheld_desc", |ui| {
-                    ui.label(RichText::new(device.description()).small());
-                });
-                ui.add_space(4.0);
-            }
+            ui.add_space(4.0);
+            ui.indent("handheld_selected_desc", |ui| {
+                ui.label(RichText::new(selected_handheld.description()).small().weak());
+            });
+
+            *profile = InstallProfile::Handheld(selected_handheld.clone());
 
             ui.add_space(8.0);
             ui.label(
@@ -902,26 +901,22 @@ pub fn render_profile_selection(
         ui.separator();
         ui.add_space(8.0);
 
-        ui.label(RichText::new("Audio System").strong());
-        ui.add_space(4.0);
-
-        let audio_systems = [
-            AudioSubsystem::PipeWire,
-            AudioSubsystem::PulseAudio,
-            AudioSubsystem::Alsa,
-        ];
-
-        for audio in audio_systems {
-            let is_selected = *audio_subsystem == audio;
-            let response = ui.selectable_label(is_selected, audio.name());
-            if response.clicked() {
-                *audio_subsystem = audio.clone();
-            }
-            let desc = audio.description();
-            ui.indent("audio_desc", |ui| {
-                ui.label(RichText::new(desc).small().weak());
-            });
-        }
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Audio System:").strong());
+            egui::ComboBox::from_id_salt("audio_combo")
+                .selected_text(audio_subsystem.name())
+                .show_ui(ui, |ui| {
+                    let audio_systems = [
+                        AudioSubsystem::PipeWire,
+                        AudioSubsystem::PulseAudio,
+                        AudioSubsystem::Alsa,
+                    ];
+                    for audio in audio_systems {
+                        let label = format!("{} - {}", audio.name(), audio.description());
+                        ui.selectable_value(audio_subsystem, audio, label);
+                    }
+                });
+        });
     }
 
     ui.add_space(16.0);
@@ -947,156 +942,79 @@ pub fn render_kernel_selection(
 
     ui.add_space(16.0);
 
-    // Kernel version selection
-    ui.label(RichText::new("Linux Kernel").strong());
-    ui.label(
-        RichText::new("Choose the kernel version that best fits your needs:")
-            .small()
-            .weak(),
-    );
-    ui.add_space(8.0);
+    // Side-by-side: kernel on left, init system on right
+    ui.columns(2, |cols| {
+        // Left column: Kernel selection
+        cols[0].label(RichText::new("Linux Kernel").strong());
+        cols[0].add_space(4.0);
 
-    for kernel in KernelChannel::all() {
-        let is_selected = *kernel_channel == kernel;
-        let response = ui.selectable_label(is_selected, RichText::new(kernel.name()).strong());
-        if response.clicked() {
-            *kernel_channel = kernel.clone();
-        }
-        ui.indent("kernel_desc", |ui| {
-            ui.label(RichText::new(kernel.description_cached(None)).small());
-        });
-        ui.add_space(4.0);
-    }
-
-    ui.add_space(16.0);
-    ui.separator();
-    ui.add_space(8.0);
-
-    // Kernel-specific notes
-    match kernel_channel {
-        KernelChannel::LTS => {
-            ui.label(RichText::new("LTS Kernel Notes:").strong());
-            ui.indent("lts_notes", |ui| {
-                ui.label("• Recommended for servers and production systems");
-                ui.label("• Receives security updates for several years");
-                ui.label("• Maximum stability and reliability");
-                ui.label("• May lack support for newest hardware");
+        for kernel in KernelChannel::all() {
+            let is_selected = *kernel_channel == kernel;
+            let response =
+                cols[0].selectable_label(is_selected, RichText::new(kernel.name()).strong());
+            if response.clicked() {
+                *kernel_channel = kernel.clone();
+            }
+            cols[0].indent("kernel_desc", |ui| {
+                ui.label(RichText::new(kernel.description_cached(None)).small());
             });
+            cols[0].add_space(2.0);
         }
-        KernelChannel::Stable => {
-            ui.label(RichText::new("Stable Kernel Notes:").strong());
-            ui.indent("stable_notes", |ui| {
-                ui.label("• Good balance of features and stability");
-                ui.label("• Recommended for most desktop users");
-                ui.label("• Regular updates with new features");
-                ui.label("• Better support for recent hardware");
-            });
-        }
-        KernelChannel::Mainline => {
-            ui.label(RichText::new("Mainline Kernel Notes:").strong());
-            ui.indent("mainline_notes", |ui| {
-                ui.label("• Cutting-edge features and drivers");
-                ui.label("• Best for newest hardware support");
-                ui.label("• May have occasional regressions");
-                ui.label("• Recommended for developers and enthusiasts");
-            });
-        }
-    }
 
-    ui.add_space(16.0);
-    ui.separator();
-    ui.add_space(8.0);
+        cols[0].add_space(8.0);
+        cols[0].separator();
+        cols[0].add_space(4.0);
 
-    // Init system selection
-    ui.label(RichText::new("Init System").strong());
-    ui.label(
-        RichText::new("Choose the init system and service manager:")
-            .small()
-            .weak(),
-    );
-    ui.add_space(8.0);
-
-    for init in InitSystem::all() {
-        let is_selected = *init_system == init;
-        let response = ui.selectable_label(is_selected, RichText::new(init.name()).strong());
-        if response.clicked() {
-            *init_system = init.clone();
+        // Kernel-specific notes in left column
+        match kernel_channel {
+            KernelChannel::LTS => {
+                cols[0].label(RichText::new("LTS Notes:").small().strong());
+                cols[0].label(RichText::new("Recommended for servers. Max stability.").small().weak());
+            }
+            KernelChannel::Stable => {
+                cols[0].label(RichText::new("Stable Notes:").small().strong());
+                cols[0].label(RichText::new("Best for most desktops. Good balance.").small().weak());
+            }
+            KernelChannel::Mainline => {
+                cols[0].label(RichText::new("Mainline Notes:").small().strong());
+                cols[0].label(RichText::new("Cutting-edge. Best new hardware support.").small().weak());
+            }
         }
-        ui.indent("init_desc", |ui| {
-            ui.label(RichText::new(init.description()).small());
-        });
-        ui.add_space(4.0);
-    }
 
-    ui.add_space(16.0);
-    ui.separator();
-    ui.add_space(8.0);
+        // Right column: Init system selection
+        cols[1].label(RichText::new("Init System").strong());
+        cols[1].add_space(4.0);
 
-    // Init system-specific notes
-    match init_system {
-        InitSystem::Systemd => {
-            ui.label(RichText::new("systemd Notes:").strong());
-            ui.indent("systemd_notes", |ui| {
-                ui.label("• Most widely used init system");
-                ui.label("• Comprehensive service management");
-                ui.label("• Best desktop integration");
-                ui.label("• Required by some desktop environments");
+        for init in InitSystem::all() {
+            let is_selected = *init_system == init;
+            let response =
+                cols[1].selectable_label(is_selected, RichText::new(init.name()).strong());
+            if response.clicked() {
+                *init_system = init.clone();
+            }
+            cols[1].indent("init_desc", |ui| {
+                ui.label(RichText::new(init.description()).small());
             });
+            cols[1].add_space(2.0);
         }
-        InitSystem::OpenRC => {
-            ui.label(RichText::new("OpenRC Notes:").strong());
-            ui.indent("openrc_notes", |ui| {
-                ui.label("• Lightweight and fast boot times");
-                ui.label("• Simple shell-based init scripts");
-                ui.label("• Popular on Gentoo and Alpine");
-                ui.label("• Good for servers and minimal systems");
-            });
-        }
-        InitSystem::Runit => {
-            ui.label(RichText::new("runit Notes:").strong());
-            ui.indent("runit_notes", |ui| {
-                ui.label("• Very simple and reliable");
-                ui.label("• Process supervision built-in");
-                ui.label("• Minimal resource usage");
-                ui.label("• Used by Void Linux");
-            });
-        }
-        _ => {
-            ui.label(
-                RichText::new("Advanced init system selected")
-                    .small()
-                    .weak(),
-            );
-        }
-    }
+    });
 
     ui.add_space(16.0);
     ui.separator();
     ui.add_space(8.0);
 
     // Firmware inclusion option
-    ui.label(RichText::new("Initramfs Options").strong());
-    ui.add_space(8.0);
-
     ui.checkbox(include_all_firmware, "Include all firmware in initramfs");
     ui.indent("firmware_desc", |ui| {
-        ui.label(
-            RichText::new(
-                "When enabled, includes all available firmware for maximum hardware compatibility. \
-                 Recommended for portable installations (USB drives) that may boot on different machines.",
-            )
-            .small(),
-        );
-        ui.add_space(4.0);
         if *include_all_firmware {
             ui.label(
-                RichText::new("✓ Larger initramfs, but works on any hardware")
+                RichText::new("Larger initramfs, but works on any hardware")
                     .small()
                     .weak(),
             );
         } else {
             ui.label(
-                RichText::new("✓ Smaller initramfs, optimized for this machine only")
+                RichText::new("Smaller initramfs, optimized for this machine only")
                     .small()
                     .weak(),
             );
