@@ -40,6 +40,7 @@ enum FocusField {
     ProfileCategory,
     DesktopEnvironment,
     HandheldDevice,
+    AudioSelection,
     // Disk setup
     DiskList,
     LayoutPreset,
@@ -638,17 +639,21 @@ impl TuiApp {
             KeyCode::Enter | KeyCode::Right => self.navigate_next(),
             KeyCode::Left | KeyCode::Backspace => self.navigate_back(),
             KeyCode::Tab => {
-                // Cycle focus between profile categories and sub-selection
+                // Cycle focus between profile categories and sub-selections
                 match self.ui.selected_profile_category {
                     0 => {
-                        // Desktop selected - toggle between categories and DE list
+                        // Desktop: categories → DE → audio → categories
                         self.ui.focus = match self.ui.focus {
-                            FocusField::DesktopEnvironment => FocusField::ProfileCategory,
+                            FocusField::ProfileCategory | FocusField::List => {
+                                FocusField::DesktopEnvironment
+                            }
+                            FocusField::DesktopEnvironment => FocusField::AudioSelection,
+                            FocusField::AudioSelection => FocusField::ProfileCategory,
                             _ => FocusField::DesktopEnvironment,
                         };
                     }
                     2 => {
-                        // Handheld selected - toggle between categories and device list
+                        // Handheld: categories → device list → categories
                         self.ui.focus = match self.ui.focus {
                             FocusField::HandheldDevice => FocusField::ProfileCategory,
                             _ => FocusField::HandheldDevice,
@@ -675,6 +680,11 @@ impl TuiApp {
                         let new_i = if i == 0 { len - 1 } else { i - 1 };
                         self.ui.handheld_list_state.select(Some(new_i));
                     }
+                    FocusField::AudioSelection => {
+                        let i = self.ui.audio_list_state.selected().unwrap_or(0);
+                        let new_i = if i == 0 { 2 } else { i - 1 };
+                        self.ui.audio_list_state.select(Some(new_i));
+                    }
                     _ => {
                         // Navigate profile categories
                         let len = 5;
@@ -698,6 +708,11 @@ impl TuiApp {
                         let i = self.ui.handheld_list_state.selected().unwrap_or(0);
                         let new_i = (i + 1) % len;
                         self.ui.handheld_list_state.select(Some(new_i));
+                    }
+                    FocusField::AudioSelection => {
+                        let i = self.ui.audio_list_state.selected().unwrap_or(0);
+                        let new_i = (i + 1) % 3;
+                        self.ui.audio_list_state.select(Some(new_i));
                     }
                     _ => {
                         // Navigate profile categories
@@ -1422,7 +1437,7 @@ impl TuiApp {
         let chunks = if needs_subselection {
             Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
                 .split(area)
         } else {
             // Single column layout
@@ -1492,10 +1507,18 @@ impl TuiApp {
         state.select(Some(self.ui.selected_profile_category));
         frame.render_stateful_widget(list, chunks[0], &mut state);
 
-        // Render sub-selection list if needed
+        // Render sub-selection panels if needed
         if needs_subselection && chunks.len() > 1 {
             match self.ui.selected_profile_category {
-                0 => self.render_desktop_environment_list(frame, chunks[1]),
+                0 => {
+                    // Desktop: DE grid + Audio selector
+                    let right_chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([Constraint::Min(8), Constraint::Length(7)])
+                        .split(chunks[1]);
+                    self.render_desktop_environment_list(frame, right_chunks[0]);
+                    self.render_audio_subsystem_list(frame, right_chunks[1]);
+                }
                 2 => self.render_handheld_device_list(frame, chunks[1]),
                 _ => {}
             }
@@ -1504,27 +1527,8 @@ impl TuiApp {
 
     fn render_desktop_environment_list(&mut self, frame: &mut Frame, area: Rect) {
         let des = DesktopEnvironment::all();
+        let selected_idx = self.ui.de_list_state.selected().unwrap_or(0);
         let is_focused = self.ui.focus == FocusField::DesktopEnvironment;
-
-        let items: Vec<ListItem> = des
-            .iter()
-            .enumerate()
-            .map(|(i, de)| {
-                let selected_idx = self.ui.de_list_state.selected().unwrap_or(0);
-                let marker = if i == selected_idx { "(*)" } else { "( )" };
-                let lines = vec![
-                    Line::from(Span::styled(
-                        format!("{} {}", marker, de.name()),
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Line::from(Span::styled(
-                        format!("    {}", de.description()),
-                        Style::default().fg(Color::DarkGray),
-                    )),
-                ];
-                ListItem::new(lines)
-            })
-            .collect();
 
         let border_color = if is_focused {
             Color::Yellow
@@ -1537,21 +1541,64 @@ impl TuiApp {
             "Desktop Environment"
         };
 
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(title)
-                    .border_style(Style::default().fg(border_color)),
-            )
-            .highlight_style(
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().fg(border_color));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Render in 2 columns (column-major order)
+        let num_cols = 2u16;
+        let num_rows = (des.len() as u16 + num_cols - 1) / num_cols;
+        let col_width = inner.width / num_cols;
+
+        for (i, de) in des.iter().enumerate() {
+            let col = i as u16 / num_rows;
+            let row = i as u16 % num_rows;
+
+            if row >= inner.height { continue; }
+
+            let is_selected = i == selected_idx;
+            let marker = if is_selected { "(*)" } else { "( )" };
+
+            let style = if is_selected && is_focused {
                 Style::default()
                     .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
+                    .add_modifier(Modifier::BOLD)
+            } else if is_selected {
+                Style::default().add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
 
-        frame.render_stateful_widget(list, area, &mut self.ui.de_list_state);
+            let prefix = if is_selected && is_focused { ">> " } else { "   " };
+            let text = format!("{}{} {}", prefix, marker, de.name());
+            let x = inner.x + col * col_width;
+            let y = inner.y + row;
+
+            let line = Line::from(Span::styled(text, style));
+            frame.render_widget(
+                Paragraph::new(line),
+                Rect::new(x, y, col_width, 1),
+            );
+        }
+
+        // Show description of selected item below the grid
+        if let Some(de) = des.get(selected_idx) {
+            let desc_y = inner.y + num_rows;
+            if desc_y < inner.y + inner.height {
+                let desc = Line::from(Span::styled(
+                    format!("   {}", de.description()),
+                    Style::default().fg(Color::DarkGray),
+                ));
+                frame.render_widget(
+                    Paragraph::new(desc),
+                    Rect::new(inner.x, desc_y, inner.width, 1),
+                );
+            }
+        }
     }
 
     fn render_handheld_device_list(&mut self, frame: &mut Frame, area: Rect) {
@@ -1606,15 +1653,73 @@ impl TuiApp {
         frame.render_stateful_widget(list, area, &mut self.ui.handheld_list_state);
     }
 
+    fn render_audio_subsystem_list(&mut self, frame: &mut Frame, area: Rect) {
+        let audio_options = [
+            (AudioSubsystem::PipeWire, "PipeWire", "Modern multimedia server (recommended)"),
+            (AudioSubsystem::PulseAudio, "PulseAudio", "Traditional Linux audio server"),
+            (AudioSubsystem::Alsa, "ALSA only", "Basic kernel-level audio (minimal)"),
+        ];
+        let selected_idx = self.ui.audio_list_state.selected().unwrap_or(0);
+        let is_focused = self.ui.focus == FocusField::AudioSelection;
+
+        let border_color = if is_focused {
+            Color::Yellow
+        } else {
+            Color::Cyan
+        };
+        let title = if is_focused {
+            "Audio System [Tab to switch]"
+        } else {
+            "Audio System"
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().fg(border_color));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        for (i, (_subsys, name, desc)) in audio_options.iter().enumerate() {
+            if i as u16 >= inner.height { break; }
+
+            let is_selected = i == selected_idx;
+            let marker = if is_selected { "(*)" } else { "( )" };
+
+            let style = if is_selected && is_focused {
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD)
+            } else if is_selected {
+                Style::default().add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            let prefix = if is_selected && is_focused { ">> " } else { "   " };
+            let line = Line::from(vec![
+                Span::styled(format!("{}{} {}", prefix, marker, name), style),
+                Span::styled(format!("  {}", desc), Style::default().fg(Color::DarkGray)),
+            ]);
+            frame.render_widget(
+                Paragraph::new(line),
+                Rect::new(inner.x, inner.y + i as u16, inner.width, 1),
+            );
+        }
+    }
+
     fn render_kernel(&mut self, frame: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(10), // Kernel selection
-                Constraint::Length(3),  // Firmware checkbox
-                Constraint::Min(5),     // Init system
-            ])
+        // Side-by-side: kernel+firmware on left, init system on right
+        let columns = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area);
+
+        let left_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(5), Constraint::Length(3)])
+            .split(columns[0]);
 
         // Kernel selection
         let kernels = [
@@ -1654,16 +1759,16 @@ impl TuiApp {
             )
             .highlight_symbol(">> ");
 
-        frame.render_stateful_widget(kernel_list, chunks[0], &mut self.ui.kernel_list_state);
+        frame.render_stateful_widget(kernel_list, left_chunks[0], &mut self.ui.kernel_list_state);
 
         // Firmware checkbox
         let checkbox = Checkbox::new(
-            "Include all firmware in initramfs (recommended for portability)",
+            "Include all firmware in initramfs (recommended)",
             self.ui.include_all_firmware,
         );
-        frame.render_widget(checkbox, chunks[1]);
+        frame.render_widget(checkbox, left_chunks[1]);
 
-        // Init system selection
+        // Init system selection (right column)
         let init_systems = [
             "systemd (recommended)",
             "OpenRC",
@@ -1692,7 +1797,7 @@ impl TuiApp {
             )
             .highlight_symbol(">> ");
 
-        frame.render_stateful_widget(init_list, chunks[2], &mut self.ui.init_list_state);
+        frame.render_stateful_widget(init_list, columns[1], &mut self.ui.init_list_state);
     }
 
     fn render_disk(&mut self, frame: &mut Frame, area: Rect) {
@@ -1706,12 +1811,13 @@ impl TuiApp {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(chunks[0]);
 
+        // Right side: compact filesystem + encryption selectors, then password fields
         let right_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(8), // Filesystem
-                Constraint::Length(8), // Encryption
-                Constraint::Min(5),    // Password fields
+                Constraint::Length(3), // Filesystem (compact inline)
+                Constraint::Length(3), // Encryption (compact inline)
+                Constraint::Min(3),   // Password fields / description
             ])
             .split(chunks[1]);
 
@@ -1779,60 +1885,85 @@ impl TuiApp {
 
         frame.render_stateful_widget(layout_list, left_chunks[1], &mut self.ui.layout_list_state);
 
-        // Filesystem selection
+        // Filesystem - compact inline dropdown selector
         let filesystems = ["ext4 (recommended)", "btrfs", "xfs", "f2fs"];
-        let fs_items: Vec<ListItem> = filesystems.iter().map(|s| ListItem::new(*s)).collect();
+        let fs_idx = self.ui.fs_list_state.selected().unwrap_or(0);
+        let fs_focused = self.ui.focus == FocusField::Filesystem;
+        let fs_border = if fs_focused {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default().fg(Color::Cyan)
+        };
 
-        let fs_list = List::new(fs_items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Filesystem")
-                    .border_style(if self.ui.focus == FocusField::Filesystem {
-                        Style::default().fg(Color::Yellow)
-                    } else {
-                        Style::default().fg(Color::Cyan)
-                    }),
-            )
-            .highlight_style(
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
-
-        frame.render_stateful_widget(fs_list, right_chunks[0], &mut self.ui.fs_list_state);
-
-        // Encryption selection
-        let encryption_types = EncryptionType::all();
-        let enc_items: Vec<ListItem> = encryption_types
+        let fs_spans: Vec<Span> = filesystems
             .iter()
-            .map(|e| ListItem::new(format!("{} - {}", e.name(), e.description())))
+            .enumerate()
+            .flat_map(|(i, name)| {
+                let is_sel = i == fs_idx;
+                let marker = if is_sel { "(*) " } else { "( ) " };
+                let style = if is_sel && fs_focused {
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD)
+                } else if is_sel {
+                    Style::default().add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+                vec![
+                    Span::styled(format!("{}{}", marker, name), style),
+                    Span::raw("  "),
+                ]
+            })
             .collect();
 
-        let enc_list = List::new(enc_items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Encryption")
-                    .border_style(if self.ui.focus == FocusField::Encryption {
-                        Style::default().fg(Color::Yellow)
-                    } else {
-                        Style::default().fg(Color::Cyan)
-                    }),
-            )
-            .highlight_style(
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
-
-        frame.render_stateful_widget(
-            enc_list,
-            right_chunks[1],
-            &mut self.ui.encryption_list_state,
+        let fs_para = Paragraph::new(Line::from(fs_spans)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Filesystem")
+                .border_style(fs_border),
         );
+        frame.render_widget(fs_para, right_chunks[0]);
+
+        // Encryption - compact inline dropdown selector
+        let encryption_types = EncryptionType::all();
+        let enc_idx = self.ui.encryption_list_state.selected().unwrap_or(0);
+        let enc_focused = self.ui.focus == FocusField::Encryption;
+        let enc_border = if enc_focused {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default().fg(Color::Cyan)
+        };
+
+        let enc_spans: Vec<Span> = encryption_types
+            .iter()
+            .enumerate()
+            .flat_map(|(i, e)| {
+                let is_sel = i == enc_idx;
+                let marker = if is_sel { "(*) " } else { "( ) " };
+                let style = if is_sel && enc_focused {
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD)
+                } else if is_sel {
+                    Style::default().add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+                vec![
+                    Span::styled(format!("{}{}", marker, e.name()), style),
+                    Span::raw("  "),
+                ]
+            })
+            .collect();
+
+        let enc_para = Paragraph::new(Line::from(enc_spans)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Encryption")
+                .border_style(enc_border),
+        );
+        frame.render_widget(enc_para, right_chunks[1]);
 
         // Password fields (only if encryption selected)
         let encryption_idx = self.ui.encryption_list_state.selected().unwrap_or(0);
@@ -1852,6 +1983,17 @@ impl TuiApp {
                     .focused(self.ui.focus == FocusField::EncryptionConfirm)
                     .password(true);
             frame.render_widget(pw_confirm, pw_chunks[1]);
+        } else {
+            // Show encryption description when no encryption
+            let enc_desc = encryption_types
+                .get(enc_idx)
+                .map(|e| e.description())
+                .unwrap_or("");
+            let desc_para = Paragraph::new(Span::styled(
+                enc_desc,
+                Style::default().fg(Color::DarkGray),
+            ));
+            frame.render_widget(desc_para, right_chunks[2]);
         }
     }
 
