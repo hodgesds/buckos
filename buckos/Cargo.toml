@@ -25,9 +25,6 @@ buckos-package = { workspace = true }
 regex = { workspace = true, features = ["std", "unicode-perl"] }
 serde_json = { workspace = true, features = ["float_roundtrip", "unbounded_depth"] }
 buckos-boss = { workspace = true }
-buckos-tools = { workspace = true }
-buckos-web = { workspace = true }
-buckos-installer = { workspace = true }
 tar = "0.4.38"
 tempdir = "0.3"
 tokio.workspace = true
